@@ -1,2 +1,2 @@
 # SAEM
-Semi-airborne electromagnetics (SAEM) data processing and inversion tools
+Semi-airborne electromagnetics (SAEM) data processing, visualisation and inversion tools
