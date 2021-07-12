@@ -4,133 +4,14 @@ from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib import collections
-from matplotlib.patches import Circle, RegularPolygon
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-# import seaborn as sns
 
-import empymod
 import pyproj
 
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 
-
-def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None):
-    """Show amplitude and phase data."""
-    if ax is None:
-        fig, ax = plt.subplots(1, 2, sharey=True)
-
-    if snddata.dtype == np.float:
-        re = snddata[:len(snddata)//2]
-        im = snddata[len(snddata)//2:]
-        snddata = re + im * 1j
-        print(len(freqs), len(data))
-
-    if amphi:
-        ax[0].loglog(np.abs(snddata), freqs, ma)
-        ax[1].semilogy(np.angle(snddata)*180/np.pi, freqs, ma)
-    else:
-        ax[0].semilogy(np.real(snddata), freqs, ma)
-        ax[1].semilogy(np.imag(snddata), freqs, ma)
-
-    for a in ax:
-        a.grid(True)
-
-    if response is not None:
-        showSounding(response, "b-", ax=ax, amphi=amphi)
-
-    return ax
-
-
-def plotSymbols(x, y, w, ax=None, cmap="Spectral",
-                clim=None, radius=10, numpoints=0, colorBar=True):
-    """Plot circles or rectangles for each point in a map.
-
-    Parameters
-    ----------
-    x, y : iterable
-        x and y positions
-    w : iterable
-        values to plot
-    cmap : mpl.colormap | str
-        colormap
-    clim : (float, float)
-        min/max values for colorbar
-    radius : float
-        prescribing radius of symbol
-    numpoint : int
-        number of points (0 means circle)
-    """
-    if ax is None:
-        fig, ax = plt.subplots()
-        ax.plot(x, y, ".", ms=0, zorder=-10)
-
-    if clim is None:
-        clim = [min(w), max(w)]
-
-    patches = []
-    for xi, yi in zip(x,y):
-        if numpoints==0:
-            rect = Circle( (xi,yi), radius, ec=None )
-        else:
-            rect = RegularPolygon((xi,yi), numpoints, radius=radius, ec=None)
-
-        patches.append(rect)
-
-    pc = collections.PatchCollection(patches, cmap=cmap, linewidths=0)
-    pc.set_array(w)
-    ax.add_collection(pc)
-    pc.set_clim(clim)
-    if colorBar:
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(pc, cax=cax)
-
-    return pc
-
-
-def fwd(res, dep, inp, freqs):
-    """Call empymods function bipole with the above arguments."""
-    assert len(res) == len(dep), str(len(res)) + "/" + str(len(dep))
-    OUT = empymod.bipole(res=np.concatenate(([2e14], res)),
-                         depth=dep, freqtime=freqs, **inp)
-
-    my = 4e-7 * np.pi
-    OUT *=  my * 1e9
-
-    return OUT
-
-class myFwd(pg.Modelling):
-    def __init__(self, depth, cfg, f, cmp=[0, 0, 1]):
-        """Initialize the model."""
-        super().__init__()
-        self.dep = depth
-        self.cfg = cfg
-        self.cmp = cmp
-        self.f = f
-        self.mesh1d = pg.meshtools.createMesh1D(len(self.dep))
-        self.setMesh(self.mesh1d)
-
-    def response(self, model):
-        """Forward response."""
-        resp = []
-        if self.cmp[0]:
-            self.cfg['rec'][3:5] = (0, 0)
-            resp.extend(fwd(model, self.dep, self.cfg, self.f))
-        if self.cmp[1]:
-            self.cfg['rec'][3:5] = (90, 0)
-            resp.extend(fwd(model, self.dep, self.cfg, self.f))
-        elif self.cmp[2]:
-            self.cfg['rec'][3:5] = (0, 90)
-            resp.extend(fwd(model, self.dep, self.cfg, self.f))
-
-        return np.hstack((np.real(resp), np.imag(resp)))
-
-    def createStartModel(self, data):
-        return pg.Vector(len(self.dep), 100)
-
-
+from .plotting import plotSymbols, showSounding
+from .modelling import fopSAEM
 
 
 
@@ -216,8 +97,8 @@ class CSEMData():
         depth_fixed = np.concatenate((np.arange(0, 30, 2.5),
                                       np.arange(30, 100., 10),
                                       np.arange(100, 300., 25)))
-        fop = myFwd(depth_fixed, self.cfg, self.f, self.cmp)
-        resistivity = np.ones_like(depth_fixed) * 100
+        fop = fopSAEM(depth_fixed, self.cfg, self.f, self.cmp)
+        # resistivity = np.ones_like(depth_fixed) * 100
         data = []
         for i, cmp in enumerate(["X", "Y", "Z"]):
             if self.cmp[i]:
@@ -327,56 +208,15 @@ if __name__ == "__main__":
                       [559026.532, 5784301.022]]).T
     self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
     print(self)
-    self.generateDataPDF()
-    # self.showData(nf=1)
+    # self.generateDataPDF()
+    self.showData(nf=1)
     # self.showField("alt", background="BKG")
     # self.invertSounding(nrx=20)
     # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    sdfsdfsdf
     # self.cmp[0] = 1
     # self.cmp[1] = 1
     self.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()
 
-
-    sdfsdf
-    # %%
-    rtape = np.sqrt((rx-rx[0])**2 + (ry-ry[0])**2)
-    # %%
-    # nst = np.arange(7, len(rx))
-    nst = np.arange(33)
-    # nst = np.arange(10, 15)
-    MODELS = []
-    # model = resistivity
-    for nrx in nst:
-        setPos(nrx)
-        data = DATA[:, nrx]
-        fop = myFwd(depth_fixed)
-        inv.setForwardOperator(fop)
-        datavec = np.hstack((np.real(data), np.imag(data)))
-        absError = np.abs(datavec) * 0.03 + 0.001
-        relError = np.abs(absError/datavec)
-        model = inv.run(datavec, relError, startModel=100,
-                        robustData=False, verbose=True)
-        MODELS.append(model.array())
-    # %%
-    xmid = rtape[nst]
-    dx = np.diff(xmid)
-    x = np.hstack((xmid[0]-dx[0]/2, xmid[:-1]+dx/2, xmid[-1]+dx[-1])) # - 130
-    mod2D = np.array(MODELS[2:-2]).T.ravel()
-    grid = pg.createGrid(x[2:-2], -np.hstack((depth_fixed, depth_fixed[-1]+10)))
-    kw = dict(cMin=1, cMax=100, logScale=True, cmap="Spectral", colorBar=True)
-    ax, cb = pg.show(grid, mod2D, **kw)
-    # ax.set_xlim(x[1], x[-1])
-    # ax.set_ylim(-200, 0)
-    ax.figure.savefig("flight2line1-result2.pdf", bbox_inches="tight")
-    # %%
-    grid.save("saem.bms")
-    np.savetxt("saem.vec", mod2D)
-    # %
-    # %%
-    fig, ax = plt.subplots(2, 2)
-    ax[0, 0].matshow(np.log10(np.abs(DATA)))
-    ax[0, 1].matshow(np.angle(DATA))
 
