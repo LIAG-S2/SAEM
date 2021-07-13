@@ -9,29 +9,34 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # import seaborn as sns
 
 
-def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None):
+def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
+                 **kwargs):
     """Show amplitude and phase data."""
     if ax is None:
         fig, ax = plt.subplots(1, 2, sharey=True)
 
     if snddata.dtype == np.float:
-        re = snddata[:len(snddata)//2]
-        im = snddata[len(snddata)//2:]
-        snddata = re + im * 1j
+        snddata = snddata[:len(snddata)//2] + snddata[len(snddata)//2:] * 1j
         # print(len(freqs), len(data))
 
     if amphi:
-        ax[0].loglog(np.abs(snddata), freqs, ma)
-        ax[1].semilogy(np.angle(snddata)*180/np.pi, freqs, ma)
+        ax[0].loglog(np.abs(snddata), freqs, ma, **kwargs)
+        ax[1].semilogy(np.angle(snddata)*180/np.pi, freqs, ma, **kwargs)
+        ax[0].set_xlabel("|T| (log10 nT/A)")
+        ax[1].set_xlabel(r"$\phi$ (°)")
     else:
-        ax[0].semilogy(np.real(snddata), freqs, ma)
-        ax[1].semilogy(np.imag(snddata), freqs, ma)
+        ax[0].semilogy(np.real(snddata), freqs, ma, **kwargs)
+        ax[1].semilogy(np.imag(snddata), freqs, ma, **kwargs)
+        ax[0].set_xlabel("T-real (log10 nT/A)")
+        ax[1].set_xlabel("T-imag (log10 nT/A)")
+
+    ax[0].set_ylabel("f (Hz)")
 
     for a in ax:
         a.grid(True)
 
-    if response is not None:
-        showSounding(response, "b-", ax=ax, amphi=amphi)
+    # if response is not None:
+        # showSounding(response, "-", ax=ax, amphi=amphi, **kwargs)
 
     return ax
 

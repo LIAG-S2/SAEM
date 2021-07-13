@@ -98,38 +98,57 @@ class CSEMData():
                                       np.arange(30, 100., 10),
                                       np.arange(100, 300., 25)))
         fop = fopSAEM(depth_fixed, self.cfg, self.f, self.cmp)
-        # resistivity = np.ones_like(depth_fixed) * 100
-        data = []
-        for i, cmp in enumerate(["X", "Y", "Z"]):
-            if self.cmp[i]:
-                data.extend(getattr(self, "data"+cmp))
+        if 1:
+            model = np.ones_like(depth_fixed) * 100
+            self.response1d = fop(model)
+        else:
+            data = []
+            for i, cmp in enumerate(["X", "Y", "Z"]):
+                if self.cmp[i]:
+                    data.extend(getattr(self, "data"+cmp))
 
-        inv = pg.Inversion()
-        inv.setForwardOperator(fop)
-        transModel = pg.trans.TransLog(1)
-        inv.transModel = transModel
-        datavec = np.hstack((np.real(data), np.imag(data)))
-        absError = np.abs(datavec) * 0.03 + 0.001
-        relError = np.abs(absError/datavec)
-        model = inv.run(datavec, relError, startModel=100, verbose=True)
+            self.inv1d = pg.Inversion()
+            self.inv1d.setForwardOperator(fop)
+            transModel = pg.trans.TransLog(1)
+            self.inv1d.transModel = transModel
+            datavec = np.hstack((np.real(data), np.imag(data)))
+            absError = np.abs(datavec) * 0.03 + 0.001
+            relError = np.abs(absError/datavec)
+            model = self.inv1d.run(datavec, relError, startModel=100, verbose=True)
+            self.response1d = self.inv1d.response.array()
         if show:
             fig, ax = plt.subplots()
             drawModel1D(ax, np.diff(depth_fixed), model, color="blue",
                         plot='semilogx', label="inverted")
-            ax = self.showSounding(data, amphi=False,
-                                   response=inv.response.array())
+            ax = self.showSounding(amphi=False,
+                                   response=self.response1d)
 
-    def showSounding(self, nrx=None, position=None, **kwargs):
+    def showSounding(self, nrx=None, position=None, response=None,
+                     **kwargs):
         """Show amplitude and phase data."""
         if nrx is not None or position is not None:
             self.setPos(nrx, position)
 
         ax = None
         allcmp = ['x', 'y', 'z']
+        if response is not None:
+            respRe, respIm = np.reshape(response, (2, -1))
+            respRe = np.reshape(respRe, (sum(self.cmp), -1))
+
+        ncmp = 0
         for i in range(3):
             if self.cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
-                ax = showSounding(data, self.f, ax=ax, ma="C"+str(i)+"x")
+                pc = showSounding(data, self.f, ax=ax, color="C"+str(i),
+                                  marker="x", label="B"+allcmp[i], **kwargs)
+                if response is not None:
+                    ax.plot(respRe[ncmp], self.f, "-", color="C"+str(i))
+                    ncmp += 1
+
+        for a in ax:
+            a.legend()
+
+        return ax
 
     def showField(self, field, **kwargs):
         """."""

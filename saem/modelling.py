@@ -34,7 +34,7 @@ class fopSAEM(pg.Modelling):
         if self.cmp[1]:
             self.cfg['rec'][3:5] = (90, 0)
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
-        elif self.cmp[2]:
+        if self.cmp[2]:
             self.cfg['rec'][3:5] = (0, 90)
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
 
