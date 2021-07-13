@@ -62,8 +62,13 @@ class CSEMData():
         self.alt = MAT["alt"][0] - self.txAlt
         self.createConfig()
 
-    def filter(self):
-        pass
+    def filter(self, fmin=0, fmax=1e6, f=-1):
+        """Filter data according ."""
+        ind = np.nonzero((self.f>fmin)&(self.f<fmax)&(self.f!=f))[0]
+        self.f = self.f[ind]
+        self.DATAX = self.DATAX[ind, :]
+        self.DATAY = self.DATAY[ind, :]
+        self.DATAZ = self.DATAZ[ind, :]
 
     def mask(self):
         pass
@@ -98,7 +103,7 @@ class CSEMData():
                                       np.arange(30, 100., 10),
                                       np.arange(100, 300., 25)))
         fop = fopSAEM(depth_fixed, self.cfg, self.f, self.cmp)
-        if 1:
+        if 0:
             model = np.ones_like(depth_fixed) * 100
             self.response1d = fop(model)
         else:
@@ -129,20 +134,22 @@ class CSEMData():
         if nrx is not None or position is not None:
             self.setPos(nrx, position)
 
-        ax = None
+        ax = kwargs.pop("ax", None)
         allcmp = ['x', 'y', 'z']
         if response is not None:
             respRe, respIm = np.reshape(response, (2, -1))
             respRe = np.reshape(respRe, (sum(self.cmp), -1))
+            respIm = np.reshape(respIm, (sum(self.cmp), -1))
 
         ncmp = 0
         for i in range(3):
             if self.cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
-                pc = showSounding(data, self.f, ax=ax, color="C"+str(i),
+                ax = showSounding(data, self.f, ax=ax, color="C"+str(i),
                                   marker="x", label="B"+allcmp[i], **kwargs)
                 if response is not None:
-                    ax.plot(respRe[ncmp], self.f, "-", color="C"+str(i))
+                    ax[0].plot(respRe[ncmp], self.f, "-", color="C"+str(i))
+                    ax[1].plot(respIm[ncmp], self.f, "-", color="C"+str(i))
                     ncmp += 1
 
         for a in ax:
