@@ -20,6 +20,7 @@ class CSEMData():
     def __init__(self, **kwargs):
         self.basename = "noname"
         zone = kwargs.pop("zone", 32)
+        self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
         self.cmp = [0, 0, 1]  # active components
         self.txAlt = kwargs.pop("txalt")
@@ -38,12 +39,11 @@ class CSEMData():
         return "\n".join((sdata, stx, spos))
 
     def loadData(self, filename):
-        """Load data from mat file."""
+        """Load data from mat file (WWU Muenster processing)."""
         filenames = glob(filename)
         assert len(filenames) > 0
         filename = filenames[0]
         self.basename = filename.replace(".mat", "")
-        print(filename)
         MAT = loadmat(filename)
         for filename in filenames[1:]:
             MAT1 = loadmat(filename)
@@ -51,7 +51,6 @@ class CSEMData():
             assert np.allclose(MAT["f"], MAT1["f"]), filename+" f not matching"
             for key in MAT1.keys():
                 if key[0] != "_" and key != "f":
-                    # print(key, MAT[key].shape, MAT1[key].shape)
                     MAT[key] = np.hstack([MAT[key], MAT1[key]])
 
         self.f = np.squeeze(MAT["f"])
@@ -86,25 +85,30 @@ class CSEMData():
         """The ."""
         if position:
             dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
-            print("distance is ", np.sqrt(dr))
+            if self.verbose:
+                print("distance is ", np.sqrt(dr))
+
             nrx = np.argmin(dr)
 
         self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], -self.alt[nrx]
         self.dataX = self.DATAX[:, nrx]
         self.dataY = self.DATAY[:, nrx]
         self.dataZ = self.DATAZ[:, nrx]
+        self.nrx = nrx
 
-    def invertSounding(self, nrx=None, show=True):
+    def invertSounding(self, nrx=None, show=True, check=False,
+                       relError=0.03, absError=0.001, **kwargs):
         """Invert a single sounding."""
         if nrx is not None:
             self.setPos(nrx)
 
-        depth_fixed = np.concatenate((np.arange(0, 30, 2.5),
-                                      np.arange(30, 100., 10),
-                                      np.arange(100, 300., 25)))
+        depth_fixed = np.hstack((0, np.cumsum(10**np.linspace(0.3, 1.3, 30))))
+        # depth_fixed = np.concatenate((np.arange(0, 20, 2),
+        #                               np.arange(20, 100., 5),
+        #                               np.arange(100, 201., 20)))
         fop = fopSAEM(depth_fixed, self.cfg, self.f, self.cmp)
-        if 0:
-            model = np.ones_like(depth_fixed) * 100
+        if check:
+            model = np.ones_like(depth_fixed) * 10
             self.response1d = fop(model)
         else:
             data = []
@@ -117,10 +121,12 @@ class CSEMData():
             transModel = pg.trans.TransLog(1)
             self.inv1d.transModel = transModel
             datavec = np.hstack((np.real(data), np.imag(data)))
-            absError = np.abs(datavec) * 0.03 + 0.001
-            relError = np.abs(absError/datavec)
-            model = self.inv1d.run(datavec, relError, startModel=100, verbose=True)
+            absoluteError = np.abs(datavec) * relError + absError
+            relativeError = np.abs(absoluteError/datavec)
+            model = self.inv1d.run(datavec, relativeError, startModel=100,
+                                   verbose=True, **kwargs)
             self.response1d = self.inv1d.response.array()
+
         if show:
             fig, ax = plt.subplots()
             drawModel1D(ax, np.diff(depth_fixed), model, color="blue",
@@ -181,7 +187,18 @@ class CSEMData():
             pg.viewer.mpl.underlayMap(ax, self.utm, vendor=background)
 
     def showData(self, nf=0, ax=None, figsize=(9, 7), kwAmp={}, kwPhase={}):
-        """Generate a multi-page pdf file containing all data."""
+        """Show all three components as amp/phi or real/imag plots.
+
+        Parameters
+        ----------
+        nf : int | float
+            frequency index (int) or value (float) to plot
+        """
+        if isinstance(nf, float):
+            nf = np.argmin(np.abs(self.f - nf))
+            if self.verbose:
+                print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
+
         kwA = dict(cmap="Spectral_r", radius=10, clim=(-3, 1), numpoints=0)
         kwA.update(kwAmp)
         kwP = dict(cmap="hsv", radius=10, clim=(-180, 180), numpoints=0)
