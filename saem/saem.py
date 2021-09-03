@@ -53,8 +53,9 @@ class CSEMData():
                 if key[0] != "_" and key != "f":
                     MAT[key] = np.hstack([MAT[key], MAT1[key]])
 
-        self.f = np.squeeze(MAT["f"])
+        # self.f = np.squeeze=MAT["f"]*1.0
         self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
+        self.f = np.squeeze(MAT["f"])
         self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
         self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
@@ -63,7 +64,11 @@ class CSEMData():
 
     def filter(self, fmin=0, fmax=1e6, f=-1):
         """Filter data according ."""
-        ind = np.nonzero((self.f>fmin)&(self.f<fmax)&(self.f!=f))[0]
+        bind = (self.f>fmin)&(self.f<fmax)  # &(self.f!=f)
+        if f > 0:
+            bind[np.argmin(np.abs(self.f-f))] = False
+
+        ind = np.nonzero(bind)[0]
         self.f = self.f[ind]
         self.DATAX = self.DATAX[ind, :]
         self.DATAY = self.DATAY[ind, :]
@@ -81,7 +86,7 @@ class CSEMData():
         # self.inpX['rec'][3:5] = (0, 0)  # x direction, dip 0, azimuth zero
         # self.inpY['rec'][3:5] = (90, 0)  # y direction, dip 0, azimuth 90°
 
-    def setPos(self, nrx, position=None):
+    def setPos(self, nrx, position=None, show=False):
         """The ."""
         if position:
             dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
@@ -95,6 +100,21 @@ class CSEMData():
         self.dataY = self.DATAY[:, nrx]
         self.dataZ = self.DATAZ[:, nrx]
         self.nrx = nrx
+        if show:
+            self.showPos()
+
+    def showPos(self, ax=None):
+        """Show positions."""
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        ax.plot(self.rx, self.ry, "b.", markersize=2)
+        ax.plot(self.tx, self.ty, "r-", markersize=4)
+        if hasattr(self, "nrx"):
+            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "bo", markersize=5)
+
+        ax.set_aspect(1.0)
+        ax.grid(True)
 
     def invertSounding(self, nrx=None, show=True, check=False,
                        relError=0.03, absError=0.001, **kwargs):
