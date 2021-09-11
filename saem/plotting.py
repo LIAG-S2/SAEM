@@ -27,8 +27,8 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     else:
         ax[0].semilogy(np.real(snddata), freqs, ma, **kwargs)
         ax[1].semilogy(np.imag(snddata), freqs, ma, **kwargs)
-        ax[0].set_xlabel("T-real (log10 nT/A)")
-        ax[1].set_xlabel("T-imag (log10 nT/A)")
+        ax[0].set_xlabel("T-real (nT/A)")
+        ax[1].set_xlabel("T-imag (nT/A)")
 
     ax[0].set_ylabel("f (Hz)")
 
@@ -68,11 +68,11 @@ def plotSymbols(x, y, w, ax=None, cmap="Spectral",
         clim = [min(w), max(w)]
 
     patches = []
-    for xi, yi in zip(x,y):
-        if numpoints==0:
-            rect = Circle( (xi,yi), radius, ec=None )
+    for xi, yi in zip(x, y):
+        if numpoints == 0:
+            rect = Circle((xi, yi), radius, ec=None)
         else:
-            rect = RegularPolygon((xi,yi), numpoints, radius=radius, ec=None)
+            rect = RegularPolygon((xi, yi), numpoints, radius=radius, ec=None)
 
         patches.append(rect)
 
@@ -86,5 +86,3 @@ def plotSymbols(x, y, w, ax=None, cmap="Spectral",
         plt.colorbar(pc, cax=cax)
 
     return pc
-
-

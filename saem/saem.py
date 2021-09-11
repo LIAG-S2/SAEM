@@ -14,9 +14,9 @@ from .plotting import plotSymbols, showSounding
 from .modelling import fopSAEM
 
 
-
 class CSEMData():
     """Class for CSEM frequency sounding."""
+
     def __init__(self, **kwargs):
         self.basename = "noname"
         zone = kwargs.pop("zone", 32)
@@ -33,8 +33,8 @@ class CSEMData():
         sdata = "CSEM data with {:d} stations and {:d} frequencies".format(
             len(self.rx), len(self.f))
         txlen = np.sqrt(np.diff(self.tx)**2+np.diff(self.ty)**2)[0]
-        stx= "Transmitter length {:.0f}m".format(txlen)
-        spos = "Sounding pos at " +(3*"{:1f},").format(*self.cfg["rec"][:3])
+        stx = "Transmitter length {:.0f}m".format(txlen)
+        spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])
 
         return "\n".join((sdata, stx, spos))
 
@@ -64,9 +64,9 @@ class CSEMData():
 
     def filter(self, fmin=0, fmax=1e6, f=-1):
         """Filter data according ."""
-        bind = (self.f>fmin)&(self.f<fmax)  # &(self.f!=f)
+        bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
         if f > 0:
-            bind[np.argmin(np.abs(self.f-f))] = False
+            bind[np.argmin(np.abs(self.f - f))] = False
 
         ind = np.nonzero(bind)[0]
         self.f = self.f[ind]
@@ -79,12 +79,11 @@ class CSEMData():
 
     def createConfig(self):
         """Create EMPYMOD input argument configuration."""
-        self.cfg = {'src': [self.tx[0], self.tx[1], self.ty[0], self.ty[1],
-                             0.1, 0.1], 'strength': 1, 'mrec': True,
-                     'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
-                     'srcpts': 11, 'htarg': {'pts_per_dec': -1}, 'verb': 1}
-        # self.inpX['rec'][3:5] = (0, 0)  # x direction, dip 0, azimuth zero
-        # self.inpY['rec'][3:5] = (90, 0)  # y direction, dip 0, azimuth 90°
+        self.cfg = {'src':
+                    [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
+                    'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
+                    'strength': 1, 'mrec': True,
+                    'srcpts': 11, 'htarg': {'pts_per_dec': -1}, 'verb': 1}
 
     def setPos(self, nrx, position=None, show=False):
         """The ."""
@@ -116,43 +115,79 @@ class CSEMData():
         ax.set_aspect(1.0)
         ax.grid(True)
 
-    def invertSounding(self, nrx=None, show=True, check=False,
+    def invertSounding(self, nrx=None, show=True, check=False, depth=None,
                        relError=0.03, absError=0.001, **kwargs):
         """Invert a single sounding."""
         if nrx is not None:
             self.setPos(nrx)
 
-        depth_fixed = np.hstack((0, np.cumsum(10**np.linspace(0.3, 1.3, 30))))
-        # depth_fixed = np.concatenate((np.arange(0, 20, 2),
-        #                               np.arange(20, 100., 5),
-        #                               np.arange(100, 201., 20)))
-        fop = fopSAEM(depth_fixed, self.cfg, self.f, self.cmp)
+        if depth is not None:
+            self.depth = depth
+        else:
+            self.depth = np.hstack((0,
+                                    np.cumsum(10**np.linspace(0.8, 1.6, 15))))
+
+        self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
+        self.fop1d.modelTrans.setLowerBound(1.0)
+        self.model = np.ones_like(self.depth) * 100
         if check:
-            model = np.ones_like(depth_fixed) * 10
-            self.response1d = fop(model)
+            self.response1d = self.fop1d(self.model)
         else:
             data = []
             for i, cmp in enumerate(["X", "Y", "Z"]):
                 if self.cmp[i]:
                     data.extend(getattr(self, "data"+cmp))
 
-            self.inv1d = pg.Inversion()
-            self.inv1d.setForwardOperator(fop)
-            transModel = pg.trans.TransLog(1)
+            self.inv1d = pg.Inversion(fop=self.fop1d)
+            transModel = pg.trans.TransLogLU(1, 1000)
             self.inv1d.transModel = transModel
             datavec = np.hstack((np.real(data), np.imag(data)))
             absoluteError = np.abs(datavec) * relError + absError
             relativeError = np.abs(absoluteError/datavec)
-            model = self.inv1d.run(datavec, relativeError, startModel=100,
-                                   verbose=True, **kwargs)
+            self.model = self.inv1d.run(datavec, relativeError,
+                                        startModel=kwargs.pop('startModel',
+                                                              self.model),
+                                        verbose=True, **kwargs)
             self.response1d = self.inv1d.response.array()
 
         if show:
             fig, ax = plt.subplots()
-            drawModel1D(ax, np.diff(depth_fixed), model, color="blue",
+            drawModel1D(ax, np.diff(self.depth), self.model, color="blue",
                         plot='semilogx', label="inverted")
             ax = self.showSounding(amphi=False,
                                    response=self.response1d)
+
+        return self.model
+
+    def invertLine(self, nn=None, **kwargs):
+        """Invert all soundings along a line."""
+        if nn is None:
+            nn = range(len(self.rx))
+
+        self.MODELS = []
+        model = 100
+        for n in nn:
+            self.setPos(n)
+            model = self.invertSounding(startModel=30, show=False)
+            self.MODELS.append(model)
+
+        self.showSection()
+
+    def showSection(self, **kwargs):
+        """Show all results along a line."""
+        from pygimli.viewer.mpl import showStitchedModels
+        kwargs.setdefault("cMap", "Spectral")
+        kwargs.setdefault("cMin", 1)
+        kwargs.setdefault("cMin", 100)
+        kwargs.setdefault("logScale", True)
+        THKMOD = [np.hstack((np.diff(self.depth), model))
+                  for model in self.MODELS]
+
+        fig, ax = plt.subplots()
+        showStitchedModels(THKMOD, ax=ax, **kwargs)
+
+    def showDepthMap(self, **kwargs):
+        """Show resistivity depth map."""
 
     def showSounding(self, nrx=None, position=None, response=None,
                      **kwargs):
@@ -186,7 +221,7 @@ class CSEMData():
     def showField(self, field, **kwargs):
         """."""
         if "ax" in kwargs:
-            ax = kwargs["ax"]
+            ax = kwargs.pop("ax")
         else:
             fig, ax = plt.subplots()
 
@@ -198,8 +233,10 @@ class CSEMData():
         plotSymbols(self.rx, self.ry, field, ax=ax, **kwargs)
 
         ax.set_aspect(1.0)
-        ax.ticklabel_format(useOffset=550000, axis='x')
-        ax.ticklabel_format(useOffset=5.78e6, axis='y')
+        x0 = np.floor(min(self.rx) / 1e4) * 1e4
+        y0 = np.floor(min(self.ry) / 1e4) * 1e4
+        ax.ticklabel_format(useOffset=x0, axis='x')
+        ax.ticklabel_format(useOffset=y0, axis='y')
         if background == "BKG":
             pg.viewer.mpl.underlayBKGMap(
                 ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
@@ -237,9 +274,9 @@ class CSEMData():
         for j, cmp in enumerate(allcmp):
             data = getattr(self, "DATA"+cmp.upper())
             plotSymbols(self.rx, self.ry, np.log10(np.abs(data[nf])),
-                        ax=ax[0, j], colorBar=(j==len(allcmp)-1), **kwA)
+                        ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kwA)
             plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
-                        ax=ax[1, j], colorBar=(j==len(allcmp)-1), **kwP)
+                        ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kwP)
             ax[0, j].set_title("log10 T"+cmp+" [nT/A]")
 
         for a in ax.flat:
@@ -253,7 +290,6 @@ class CSEMData():
 
         return fig, ax
 
-
     def generateDataPDF(self, pdffile=None, **kwargs):
         """Generate a multi-page pdf file containing all data."""
         pdffile = pdffile or self.basename + "-data.pdf"
@@ -265,8 +301,9 @@ class CSEMData():
                 for a in ax.flat:
                     a.cla()
 
+
 if __name__ == "__main__":
-    # %% import transmitter (better by kmlread)
+    # import transmitter (better by kmlread)
     txpos = np.array([[559497.46, 5784467.953],
                       [559026.532, 5784301.022]]).T
     self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
@@ -281,5 +318,3 @@ if __name__ == "__main__":
     self.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()
-
-

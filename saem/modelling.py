@@ -10,9 +10,10 @@ def fwd(res, dep, inp, freqs):
                          depth=dep, freqtime=freqs, **inp)
 
     my = 4e-7 * np.pi
-    OUT *=  my * 1e9
+    OUT *= my * 1e9
 
     return OUT
+
 
 class fopSAEM(pg.Modelling):
     def __init__(self, depth, cfg, f, cmp=[0, 0, 1]):
@@ -35,12 +36,10 @@ class fopSAEM(pg.Modelling):
             self.cfg['rec'][3:5] = (90, 0)
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
         if self.cmp[2]:
-            self.cfg['rec'][3:5] = (0, 90)
+            self.cfg['rec'][3:5] = (0, -90)
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
 
         return np.hstack((np.real(resp), np.imag(resp)))
 
     def createStartModel(self, data):
         return pg.Vector(len(self.dep), 100)
-
-
