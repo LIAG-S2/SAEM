@@ -9,6 +9,7 @@ import pyproj
 
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
+from pygimli.viewer.mpl import showStitchedModels
 
 from .plotting import plotSymbols, showSounding
 from .modelling import fopSAEM
@@ -125,7 +126,7 @@ class CSEMData():
             self.depth = depth
         else:
             self.depth = np.hstack((0,
-                                    np.cumsum(10**np.linspace(0.8, 1.6, 15))))
+                                    np.cumsum(10**np.linspace(0.8, 1.5, 15))))
 
         self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
         self.fop1d.modelTrans.setLowerBound(1.0)
@@ -171,20 +172,24 @@ class CSEMData():
             model = self.invertSounding(startModel=30, show=False)
             self.MODELS.append(model)
 
+        dx = np.sqrt(np.diff(self.rx[nn])**2 + np.diff(self.ry[nn])**2)
+        self.xLine = np.cumsum(np.hstack((0., dx)))
         self.showSection()
 
     def showSection(self, **kwargs):
         """Show all results along a line."""
-        from pygimli.viewer.mpl import showStitchedModels
         kwargs.setdefault("cMap", "Spectral")
         kwargs.setdefault("cMin", 1)
-        kwargs.setdefault("cMin", 100)
+        kwargs.setdefault("cMax", 100)
         kwargs.setdefault("logScale", True)
-        THKMOD = [np.hstack((np.diff(self.depth), model))
-                  for model in self.MODELS]
-
         fig, ax = plt.subplots()
-        showStitchedModels(THKMOD, ax=ax, **kwargs)
+        # showStitchedModels(self.MODELS, ax=ax, x=self.xLine,  # pg>1.2.2
+        #                    thk=np.diff(self.depth), **kwargs)
+        THKMOD = [np.hstack((np.diff(self.depth), model))
+                  for model in self.MODELS]  # obsolete with pg>1.2.2
+
+        showStitchedModels(THKMOD, ax=ax, x=self.xLine, **kwargs)
+        return ax
 
     def showDepthMap(self, **kwargs):
         """Show resistivity depth map."""
