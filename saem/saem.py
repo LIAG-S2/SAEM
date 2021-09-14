@@ -56,12 +56,41 @@ class CSEMData():
 
         # self.f = np.squeeze=MAT["f"]*1.0
         self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
-        self.f = np.squeeze(MAT["f"])
+        self.f = np.squeeze(MAT["f"]) * 1.0
         self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
         self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
-        self.alt = MAT["alt"][0] - self.txAlt
+        self.rz = MAT["alt"][0]
+        self.alt = self.rz - self.txAlt
         self.createConfig()
+        self.detectLines()
+
+    def detectLines(self, show=False):
+        """Split data in lines for line-wise processing."""
+        dx = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+        sdx = np.hstack((0, np.diff(np.sign(np.diff(self.rx))), 0))
+        sdy = np.hstack((0, np.diff(np.sign(np.diff(self.ry))), 0))
+        self.line = np.ones_like(self.rx) * np.nan
+        nLine = 1
+        act = True
+        for i in range(len(sdx)):
+            if sdx[i] != 0:
+                act = not act
+                if act:
+                    nLine += 1
+            if sdy[i] != 0:
+                act = not act
+                if act:
+                    nLine += 1
+            if i > 0 and dx[i-1] > 50:
+                act = True
+                nLine += 1
+
+            if act:
+                self.line[i] = nLine
+
+        if show:
+            self.showField(self.line)
 
     def filter(self, fmin=0, fmax=1e6, f=-1):
         """Filter data according ."""
@@ -160,9 +189,11 @@ class CSEMData():
 
         return self.model
 
-    def invertLine(self, nn=None, **kwargs):
+    def invertLine(self, nn=None, line=None, **kwargs):
         """Invert all soundings along a line."""
-        if nn is None:
+        if line is not None:
+            nn = np.nonzero(self.line == line)[0]
+        elif nn is None:
             nn = range(len(self.rx))
 
         self.MODELS = []
@@ -174,6 +205,12 @@ class CSEMData():
 
         dx = np.sqrt(np.diff(self.rx[nn])**2 + np.diff(self.ry[nn])**2)
         self.xLine = np.cumsum(np.hstack((0., dx)))
+        self.zLine = self.rz[nn]
+        txm, tym = np.mean(self.tx), np.mean(self.ty)
+        d2a = (self.rx[nn[0]] - txm)**2 + (self.ry[nn[0]] - tym)**2
+        d2b = (self.rx[nn[-1]] - txm)**2 + (self.ry[nn[-1]] - tym)**2
+        if d2b < d2a:  # line running towards transmitter
+            self.xLine = self.xLine[-1] - self.xLine
         self.showSection()
 
     def showSection(self, **kwargs):
@@ -182,13 +219,18 @@ class CSEMData():
         kwargs.setdefault("cMin", 1)
         kwargs.setdefault("cMax", 100)
         kwargs.setdefault("logScale", True)
-        fig, ax = plt.subplots()
+        if "ax" in kwargs:
+            ax = kwargs.pop("ax")
+        else:
+            fig, ax = plt.subplots()
+
         # showStitchedModels(self.MODELS, ax=ax, x=self.xLine,  # pg>1.2.2
         #                    thk=np.diff(self.depth), **kwargs)
         THKMOD = [np.hstack((np.diff(self.depth), model))
                   for model in self.MODELS]  # obsolete with pg>1.2.2
 
-        showStitchedModels(THKMOD, ax=ax, x=self.xLine, **kwargs)
+        showStitchedModels(THKMOD, ax=ax, x=self.xLine, #topo=self.zLine,
+                           **kwargs)
         return ax
 
     def showDepthMap(self, **kwargs):
@@ -231,7 +273,8 @@ class CSEMData():
             fig, ax = plt.subplots()
 
         background = kwargs.pop("background", None)
-        ax.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
+        ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
+        ax.plot(self.tx, self.ty, "k*-", zorder=-1)
         if isinstance(field, str):
             field = getattr(self, field)
 
@@ -261,9 +304,9 @@ class CSEMData():
             if self.verbose:
                 print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
 
-        kwA = dict(cmap="Spectral_r", radius=10, clim=(-3, 1), numpoints=0)
+        kwA = dict(cMap="Spectral_r", radius=10, clim=(-3, 1), numpoints=0)
         kwA.update(kwAmp)
-        kwP = dict(cmap="hsv", radius=10, clim=(-180, 180), numpoints=0)
+        kwP = dict(cMap="hsv", radius=10, clim=(-180, 180), numpoints=0)
         kwP.update(kwPhase)
         allcmp = ["x", "y", "z"]
         # modify allcmp to show only subset
@@ -298,11 +341,18 @@ class CSEMData():
     def generateDataPDF(self, pdffile=None, **kwargs):
         """Generate a multi-page pdf file containing all data."""
         pdffile = pdffile or self.basename + "-data.pdf"
-        ax = None
         with PdfPages(pdffile) as pdf:
+            fig, ax = plt.subplots(ncols=2, figsize=(9, 7), sharey=True)
+            self.showField(np.arange(len(self.rx)), ax=ax[0],
+                           cMap="Spectral_r")
+            ax[0].set_title("Sounding number")
+            self.showField(self.line, ax=ax[1], cMap="Spectral_r")
+            ax[1].set_title("Line number")
+            fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+            ax = None
             for i in range(len(self.f)):
                 fig, ax = self.showData(nf=i, ax=ax)
-                fig.savefig(pdf, format='pdf', bbox_inches="tight")
+                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 for a in ax.flat:
                     a.cla()
 

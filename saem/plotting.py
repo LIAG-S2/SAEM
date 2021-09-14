@@ -41,7 +41,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     return ax
 
 
-def plotSymbols(x, y, w, ax=None, cmap="Spectral",
+def plotSymbols(x, y, w, ax=None, cMap="Spectral",
                 clim=None, radius=10, numpoints=0, colorBar=True):
     """Plot circles or rectangles for each point in a map.
 
@@ -76,7 +76,7 @@ def plotSymbols(x, y, w, ax=None, cmap="Spectral",
 
         patches.append(rect)
 
-    pc = collections.PatchCollection(patches, cmap=cmap, linewidths=0)
+    pc = collections.PatchCollection(patches, cmap=cMap, linewidths=0)
     pc.set_array(w)
     ax.add_collection(pc)
     pc.set_clim(clim)
