@@ -11,7 +11,7 @@ txgeo = np.array([[7.921688738, 53.498075347],
 utm = pyproj.Proj(proj='utm', zone=32, ellps='WGS84')
 
 self = CSEMData(datafile="data_f*.mat", txPos=utm(*txgeo), txalt=5)
-# self.DATAZ *= -1  # why?
+self.DATAZ *= -1  # why?
 self.filter(fmin=50, fmax=5000)
 # self.filter(f=12000)
 # self.filter(f=7000)
