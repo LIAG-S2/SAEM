@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
+from matplotlib.colors import LogNorm, Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 # import seaborn as sns
 
@@ -41,8 +42,8 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     return ax
 
 
-def plotSymbols(x, y, w, ax=None, cMap="Spectral",
-                clim=None, radius=10, numpoints=0, colorBar=True):
+def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False,
+                cMin=None, cMax=None, radius=10, numpoints=0, colorBar=True):
     """Plot circles or rectangles for each point in a map.
 
     Parameters
@@ -64,8 +65,10 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral",
         fig, ax = plt.subplots()
         ax.plot(x, y, ".", ms=0, zorder=-10)
 
-    if clim is None:
-        clim = [min(w), max(w)]
+    if cMin is None:
+        cMin = min(w)
+    if cMax is None:
+        cMax = max(w)
 
     patches = []
     for xi, yi in zip(x, y):
@@ -76,10 +79,17 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral",
 
         patches.append(rect)
 
+    norm = None
+    if logScale and cMin > 0:
+        norm = LogNorm(vmin=cMin, vmax=cMax)
+    else:
+        norm = Normalize(vmin=cMin, vmax=cMax)
+
     pc = collections.PatchCollection(patches, cmap=cMap, linewidths=0)
+    pc.set_norm(norm)
     pc.set_array(w)
     ax.add_collection(pc)
-    pc.set_clim(clim)
+    pc.set_clim([cMin, cMax])
     if colorBar:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)

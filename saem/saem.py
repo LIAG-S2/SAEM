@@ -26,6 +26,7 @@ class CSEMData():
         self.cmp = [0, 0, 1]  # active components
         self.txAlt = kwargs.pop("txalt")
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
+        self.depth = None
         if "datafile" in kwargs:
             self.loadData(kwargs["datafile"])
 
@@ -151,11 +152,12 @@ class CSEMData():
         if nrx is not None:
             self.setPos(nrx)
 
-        if depth is not None:
-            self.depth = depth
-        else:
-            self.depth = np.hstack((0,
-                                    np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+        if self.depth is None:
+            if depth is not None:
+                self.depth = depth
+            else:
+                self.depth = np.hstack(
+                    (0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
 
         self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
         self.fop1d.modelTrans.setLowerBound(1.0)
@@ -197,11 +199,15 @@ class CSEMData():
             nn = range(len(self.rx))
 
         self.MODELS = []
+        # set up depth before
+        self.depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+        self.allModels = np.ones([len(self.rx), len(self.depth)])
         model = 100
         for n in nn:
             self.setPos(n)
             model = self.invertSounding(startModel=30, show=False)
             self.MODELS.append(model)
+            self.allModels[n, :] = model
 
         dx = np.sqrt(np.diff(self.rx[nn])**2 + np.diff(self.ry[nn])**2)
         self.xLine = np.cumsum(np.hstack((0., dx)))
@@ -211,6 +217,8 @@ class CSEMData():
         d2b = (self.rx[nn[-1]] - txm)**2 + (self.ry[nn[-1]] - tym)**2
         if d2b < d2a:  # line running towards transmitter
             self.xLine = self.xLine[-1] - self.xLine
+
+        self.savez("models.npz")
         self.showSection()
 
     def showSection(self, **kwargs):
@@ -265,6 +273,9 @@ class CSEMData():
 
         return ax
 
+    def showLineData(self, line=0):
+        """."""
+
     def showField(self, field, **kwargs):
         """."""
         if "ax" in kwargs:
@@ -291,7 +302,10 @@ class CSEMData():
         elif background is not None:
             pg.viewer.mpl.underlayMap(ax, self.utm, vendor=background)
 
-    def showData(self, nf=0, ax=None, figsize=(9, 7), kwAmp={}, kwPhase={}):
+        return ax
+
+    def showData(self, nf=0, ax=None, figsize=(9, 7), kwAmp={}, kwPhase={},
+                 **kwargs):
         """Show all three components as amp/phi or real/imag plots.
 
         Parameters
@@ -310,6 +324,7 @@ class CSEMData():
         kwP.update(kwPhase)
         allcmp = ["x", "y", "z"]
         # modify allcmp to show only subset
+        amphi = kwargs.pop("amphi", True)
         if ax is None:
             fig, ax = plt.subplots(ncols=3, nrows=2,
                                    sharex=True, sharey=True, figsize=figsize)
@@ -321,11 +336,20 @@ class CSEMData():
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
         for j, cmp in enumerate(allcmp):
             data = getattr(self, "DATA"+cmp.upper())
-            plotSymbols(self.rx, self.ry, np.log10(np.abs(data[nf])),
-                        ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kwA)
-            plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
-                        ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kwP)
-            ax[0, j].set_title("log10 T"+cmp+" [nT/A]")
+            if amphi:
+                plotSymbols(self.rx, self.ry, np.log10(np.abs(data[nf])),
+                            ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kwA)
+                plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
+                            ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kwP)
+                ax[0, j].set_title("log10 T"+cmp+" [nT/A]")
+                ax[1, j].set_title(r"$\phi$"+cmp+" [°]")
+            else:
+                plotSymbols(self.rx, self.ry, np.real(data[nf]),
+                            ax=ax[0, j], colorBar=(j == len(allcmp)-1))
+                plotSymbols(self.rx, self.ry, np.imag(data[nf]),
+                            ax=ax[1, j], colorBar=(j == len(allcmp)-1))
+                ax[0, j].set_title("real T"+cmp+" [nT/A]")
+                ax[1, j].set_title("imag T"+cmp+" [nT/A]")
 
         for a in ax.flat:
             a.set_aspect(1.0)
