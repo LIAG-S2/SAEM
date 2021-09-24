@@ -12,7 +12,7 @@ from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 
 from .plotting import plotSymbols, showSounding
-from .modelling import fopSAEM
+from .modelling import fopSAEM, bipole
 
 
 class CSEMData():
@@ -27,6 +27,7 @@ class CSEMData():
         self.txAlt = kwargs.pop("txalt")
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
         self.depth = None
+        self.prim = None
         if "datafile" in kwargs:
             self.loadData(kwargs["datafile"])
 
@@ -104,6 +105,9 @@ class CSEMData():
         self.DATAX = self.DATAX[ind, :]
         self.DATAY = self.DATAY[ind, :]
         self.DATAZ = self.DATAZ[ind, :]
+        if self.prim is not None:
+            for i in range(3):
+                self.prim[i] = self.prim[i][ind, :]
 
     def mask(self):
         pass
@@ -237,7 +241,7 @@ class CSEMData():
         THKMOD = [np.hstack((np.diff(self.depth), model))
                   for model in self.MODELS]  # obsolete with pg>1.2.2
 
-        showStitchedModels(THKMOD, ax=ax, x=self.xLine, #topo=self.zLine,
+        showStitchedModels(THKMOD, ax=ax, x=self.xLine,  # topo=self.zLine,
                            **kwargs)
         return ax
 
@@ -305,7 +309,7 @@ class CSEMData():
         return ax
 
     def showData(self, nf=0, ax=None, figsize=(9, 7), kwAmp={}, kwPhase={},
-                 **kwargs):
+                 scale=0, **kwargs):
         """Show all three components as amp/phi or real/imag plots.
 
         Parameters
@@ -318,13 +322,18 @@ class CSEMData():
             if self.verbose:
                 print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
 
-        kwA = dict(cMap="Spectral_r", radius=10, clim=(-3, 1), numpoints=0)
+        kwA = dict(cMap="Spectral_r", radius=10, cMin=-3, cMax=1, numpoints=0)
         kwA.update(kwAmp)
-        kwP = dict(cMap="hsv", radius=10, clim=(-180, 180), numpoints=0)
+        kwP = dict(cMap="hsv", radius=10, cMin=-180, cMax=180, numpoints=0)
         kwP.update(kwPhase)
+        amphi = kwargs.pop("amphi", True)
+        if scale:
+            amphi = False
+            if self.prim is None:
+                self.computePrimaryFields()
+
         allcmp = ["x", "y", "z"]
         # modify allcmp to show only subset
-        amphi = kwargs.pop("amphi", True)
         if ax is None:
             fig, ax = plt.subplots(ncols=3, nrows=2,
                                    sharex=True, sharey=True, figsize=figsize)
@@ -335,7 +344,9 @@ class CSEMData():
             a.plot(self.tx, self.ty, "wx-", lw=2)
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
         for j, cmp in enumerate(allcmp):
-            data = getattr(self, "DATA"+cmp.upper())
+            data = getattr(self, "DATA"+cmp.upper()).copy()
+            if scale:
+                data /= self.prim[j]
             if amphi:
                 plotSymbols(self.rx, self.ry, np.log10(np.abs(data[nf])),
                             ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kwA)
@@ -345,9 +356,9 @@ class CSEMData():
                 ax[1, j].set_title(r"$\phi$"+cmp+" [°]")
             else:
                 plotSymbols(self.rx, self.ry, np.real(data[nf]),
-                            ax=ax[0, j], colorBar=(j == len(allcmp)-1))
+                            ax=ax[0, j])
                 plotSymbols(self.rx, self.ry, np.imag(data[nf]),
-                            ax=ax[1, j], colorBar=(j == len(allcmp)-1))
+                            ax=ax[1, j])
                 ax[0, j].set_title("real T"+cmp+" [nT/A]")
                 ax[1, j].set_title("imag T"+cmp+" [nT/A]")
 
@@ -361,6 +372,21 @@ class CSEMData():
         fig.suptitle("f="+str(self.f[nf])+"Hz")
 
         return fig, ax
+
+    def computePrimaryFields(self):
+        """Compute primary fields."""
+        cfg = dict(self.cfg)
+        fak = 4e-7 * np.pi * 1e9  # H->B and T in nT
+        cfg["rec"] = [self.rx, self.ry, -self.alt, 0, 0]  # x
+        self.pfx = bipole(res=[2e14], depth=[], xdirect=True,
+                          freqtime=self.f, **cfg).real * fak
+        cfg["rec"][3:5] = [90, 0]  # y
+        self.pfy = bipole(res=[2e14], depth=[], xdirect=True,
+                          freqtime=self.f, **cfg).real * fak
+        cfg["rec"][3:5] = [0, 90]  # z
+        self.pfz = bipole(res=[2e14], depth=[], xdirect=True,
+                          freqtime=self.f, **cfg).real * fak
+        self.prim = [self.pfx, self.pfy, self.pfz]
 
     def generateDataPDF(self, pdffile=None, **kwargs):
         """Generate a multi-page pdf file containing all data."""

@@ -1,12 +1,12 @@
 import numpy as np
-import empymod
+from empymod import bipole
 import pygimli as pg
 
 
 def fwd(res, dep, inp, freqs):
     """Call empymods function bipole with the above arguments."""
     assert len(res) == len(dep), str(len(res)) + "/" + str(len(dep))
-    OUT = empymod.bipole(res=np.concatenate(([2e14], res)),
+    OUT = bipole(res=np.concatenate(([2e14], res)),
                          depth=dep, freqtime=freqs, **inp)
 
     my = 4e-7 * np.pi
