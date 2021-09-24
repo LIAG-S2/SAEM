@@ -11,8 +11,8 @@ import pygimli as pg
 txpos = np.array([[559497.46, 5784467.953],
                   [559026.532, 5784301.022]]).T
 self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-self.showField(self.line)
 self.DATAX *= -1  # why?
+self.showField(self.line)
 self.filter(fmin=50, fmax=20000)
 self.filter(f=12000)
 self.filter(f=7000)
@@ -27,6 +27,7 @@ self.setPos(325, show=True)
 self.cmp[0] = 1  # no x (Tx)
 self.cmp[1] = 1
 self.showSounding()
+dgfdgd
 # %%
 # self.showField("alt", background="BKG")
 # self.generateDataPDF()

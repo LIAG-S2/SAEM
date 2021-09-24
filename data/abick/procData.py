@@ -18,12 +18,13 @@ self.filter(fmin=50, fmax=5000)
 # self.filter(f=29000)
 print(self.f)
 print(self)
-# self.showData(nf=1)
+self.showData(nf=1)
 # %%
 self.setPos(10)
 self.cmp[0] = 1
 self.cmp[1] = 0
 self.showSounding(amphi=False)
+dfsdfsd
 # %%
 self.invertLine(range(9, 32), maxIter=8)
 # %%
