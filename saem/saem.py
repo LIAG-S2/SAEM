@@ -4,6 +4,7 @@ from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import pyproj
 
@@ -277,8 +278,41 @@ class CSEMData():
 
         return ax
 
-    def showLineData(self, line=0):
-        """."""
+    def showLineData(self, line=None, amphi=True):
+        """Show data of a line as pcolor."""
+        if line is not None:
+            nn = np.nonzero(self.line == line)[0]
+        else:
+            nn = np.arange(len(self.rx))
+
+        fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
+                               sharex=True, sharey=True)
+        ncmp = 0
+        allcmp = ['x', 'y', 'z']
+        for i in range(3):
+            if self.cmp[i] > 0:
+                data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
+                if amphi:
+                    pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
+                                              cmap="Spectral_r")
+                    pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
+                                              cMap="hsv")
+                    pc2.set_clim([-180, 180])
+                else:
+                    pc1 = ax[0, ncmp].matshow(np.real(data),
+                                              cmap="Spectral_r")
+                    pc2 = ax[1, ncmp].matshow(np.real(data),
+                                              cmap="Spectral_r")
+
+                divider = make_axes_locatable(ax[0, ncmp])
+                cax = divider.append_axes("bottom", size="15%", pad=0.15)
+                plt.colorbar(pc1, cax=cax, orientation="horizontal")
+                divider = make_axes_locatable(ax[1, ncmp])
+                cax = divider.append_axes("bottom", size="15%", pad=0.15)
+                plt.colorbar(pc2, cax=cax, orientation="horizontal")
+                ncmp += 1
+
+        ax[0, 0].set_ylim(ax[0, 0].get_ylim()[::-1])
 
     def showField(self, field, **kwargs):
         """."""

@@ -30,13 +30,13 @@ class fopSAEM(pg.Modelling):
         """Forward response."""
         resp = []
         if self.cmp[0]:
-            self.cfg['rec'][3:5] = (0, 0)
+            self.cfg['rec'][3:5] = (0, 0)  # x
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
         if self.cmp[1]:
-            self.cfg['rec'][3:5] = (90, 0)
+            self.cfg['rec'][3:5] = (90, 0)  # y
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
         if self.cmp[2]:
-            self.cfg['rec'][3:5] = (0, 90)
+            self.cfg['rec'][3:5] = (0, 90)  # z
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
 
         return np.hstack((np.real(resp), np.imag(resp)))
