@@ -95,7 +95,7 @@ class CSEMData():
         if show:
             self.showField(self.line)
 
-    def filter(self, fmin=0, fmax=1e6, f=-1):
+    def filter(self, fmin=0, fmax=1e6, f=-1, nInd=None, nMin=None, nMax=None):
         """Filter data according ."""
         bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
         if f > 0:
@@ -109,6 +109,25 @@ class CSEMData():
         if self.prim is not None:
             for i in range(3):
                 self.prim[i] = self.prim[i][ind, :]
+
+        if nMin is not None or nMax is not None:
+            if nMin is None:
+                nMin = 0
+            if nMax is None:
+                nMax = len(self.rx)
+
+            nInd = range(nMin, nMax)
+
+        if nInd is not None:
+            for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
+                setattr(self, tok, getattr(self, tok)[nInd])
+
+            self.DATAX = self.DATAX[:, nInd]
+            self.DATAY = self.DATAY[:, nInd]
+            self.DATAZ = self.DATAZ[:, nInd]
+            if self.prim is not None:
+                for i in range(3):
+                    self.prim[i] = self.prim[i][:, nInd]
 
     def mask(self):
         pass
@@ -286,7 +305,7 @@ class CSEMData():
             nn = np.arange(len(self.rx))
 
         fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
-                               sharex=True, sharey=True)
+                               sharex=True, sharey=True, squeeze=False)
         ncmp = 0
         allcmp = ['x', 'y', 'z']
         for i in range(3):

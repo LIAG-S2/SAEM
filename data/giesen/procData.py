@@ -24,9 +24,9 @@ print(self)
 # self.generateDataPDF()
 # self.showField("alt", background="BKG")
 # %%
-# self.setPos(320, show=True)  # middle
+self.setPos(320, show=True)  # middle
 # self.setPos(333, show=True)  # close to transmitter
-self.setPos(310, show=True)
+# self.setPos(310, show=True)
 self.cmp = [1, 1, 1]
 self.showSounding(amphi=False)
 # %%
@@ -48,3 +48,11 @@ ax.figure.savefig(f"line{line}-result.pdf", bbox_inches="tight")
 # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
 # self.showSounding(nrx=20)
 self.showField(range(len(self.rx)))
+# %%
+self.invertSounding(maxIter=1, lam=100000)
+from pygimli.utils import modCovar
+# %%
+var, MCMs = modCovar(self.inv1d.inv)
+# %%
+pc = plt.matshow(MCMs, cmap="bwr")
+pc.set_clim(-1, 1)
