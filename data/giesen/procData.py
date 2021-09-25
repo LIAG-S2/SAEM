@@ -1,10 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from saem import CSEMData
-import pygimli as pg
-# from pygimli.viewer.mpl import drawModel1D
-
-
 
 
 # %% import transmitter (better by kmlread)
@@ -35,24 +31,11 @@ print(self.depth)
 # %%
 self.cmp[0] = 0  # no x (Tx)
 self.cmp[1] = 1
-self.invertSounding(absError=0.002, relError=0.02, lam=10)
+# %
+ikw = dict(absError=0.001, relError=0.03, lam=3)
+self.invertSounding(**ikw)
 # %%
-dgfdgd
-# %%
-line = 10
-self.invertLine(line=line)
+line = 16
+self.invertLine(line=line, **ikw)
 ax=self.showSection(cMin=3, cMax=200)
 ax.figure.savefig(f"line{line}-result.pdf", bbox_inches="tight")
-# %%
-# ax = self.showSounding(response=resp)
-# plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-# self.showSounding(nrx=20)
-self.showField(range(len(self.rx)))
-# %%
-self.invertSounding(maxIter=1, lam=100000)
-from pygimli.utils import modCovar
-# %%
-var, MCMs = modCovar(self.inv1d.inv)
-# %%
-pc = plt.matshow(MCMs, cmap="bwr")
-pc.set_clim(-1, 1)

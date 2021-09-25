@@ -7,7 +7,7 @@ def fwd(res, dep, inp, freqs):
     """Call empymods function bipole with the above arguments."""
     assert len(res) == len(dep), str(len(res)) + "/" + str(len(dep))
     OUT = bipole(res=np.concatenate(([2e14], res)),
-                         depth=dep, freqtime=freqs, **inp)
+                 depth=dep, freqtime=freqs, **inp)
 
     my = 4e-7 * np.pi
     OUT *= my * 1e9

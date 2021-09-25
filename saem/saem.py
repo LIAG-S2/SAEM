@@ -138,7 +138,9 @@ class CSEMData():
                     [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
                     'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
-                    'srcpts': 11, 'htarg': {'pts_per_dec': -1}, 'verb': 1}
+                    'srcpts': 5,
+                    'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
+                    'verb': 1}
 
     def setPos(self, nrx, position=None, show=False):
         """The ."""
@@ -242,7 +244,7 @@ class CSEMData():
         if d2b < d2a:  # line running towards transmitter
             self.xLine = self.xLine[-1] - self.xLine
 
-        self.savez("models.npz")
+        np.savez("models.npz", self.MODELS, self.xLine)
         self.showSection()
 
     def showSection(self, **kwargs):
