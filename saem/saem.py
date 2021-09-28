@@ -125,6 +125,8 @@ class CSEMData():
             self.DATAX = self.DATAX[:, nInd]
             self.DATAY = self.DATAY[:, nInd]
             self.DATAZ = self.DATAZ[:, nInd]
+            if hasattr(self, 'MODELS'):
+                self.MODELS = self.MODELS[nInd, :]
             if self.prim is not None:
                 for i in range(3):
                     self.prim[i] = self.prim[i][:, nInd]
@@ -299,7 +301,7 @@ class CSEMData():
 
         return ax
 
-    def showLineData(self, line=None, amphi=True):
+    def showLineData(self, line=None, amphi=True, plim=[-180, 180], alim=None):
         """Show data of a line as pcolor."""
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -316,9 +318,11 @@ class CSEMData():
                 if amphi:
                     pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
                                               cmap="Spectral_r")
+                    if alim is not None:
+                        pc1.set_clim(alim)
                     pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
                                               cMap="hsv")
-                    pc2.set_clim([-180, 180])
+                    pc2.set_clim(plim)
                 else:
                     pc1 = ax[0, ncmp].matshow(np.real(data),
                                               cmap="Spectral_r")
@@ -326,14 +330,21 @@ class CSEMData():
                                               cmap="Spectral_r")
 
                 divider = make_axes_locatable(ax[0, ncmp])
-                cax = divider.append_axes("bottom", size="15%", pad=0.15)
-                plt.colorbar(pc1, cax=cax, orientation="horizontal")
+                cax = divider.append_axes("right", size="5%", pad=0.15)
+                plt.colorbar(pc1, cax=cax, orientation="vertical")
                 divider = make_axes_locatable(ax[1, ncmp])
-                cax = divider.append_axes("bottom", size="15%", pad=0.15)
-                plt.colorbar(pc2, cax=cax, orientation="horizontal")
+                cax = divider.append_axes("right", size="5%", pad=0.15)
+                plt.colorbar(pc2, cax=cax, orientation="vertical")
+                ax[0, ncmp].set_title("B"+allcmp[i])
                 ncmp += 1
 
         ax[0, 0].set_ylim(ax[0, 0].get_ylim()[::-1])
+        yt = np.arange(0, len(self.f), 2)
+        for aa in ax[:, 0]:
+            aa.set_yticks(yt)
+            aa.set_yticklabels(["{:.0f}".format(self.f[yy]) for yy in yt])
+            aa.set_ylabel("f (Hz)")
+        return fig, ax
 
     def showField(self, field, **kwargs):
         """."""
@@ -346,22 +357,25 @@ class CSEMData():
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
         if isinstance(field, str):
+            kwargs.setdefault("label", field)
             field = getattr(self, field)
 
-        plotSymbols(self.rx, self.ry, field, ax=ax, **kwargs)
+        ax, cb = plotSymbols(self.rx, self.ry, field, ax=ax, **kwargs)
 
         ax.set_aspect(1.0)
         x0 = np.floor(min(self.rx) / 1e4) * 1e4
         y0 = np.floor(min(self.ry) / 1e4) * 1e4
         ax.ticklabel_format(useOffset=x0, axis='x')
         ax.ticklabel_format(useOffset=y0, axis='y')
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
         if background == "BKG":
             pg.viewer.mpl.underlayBKGMap(
                 ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
         elif background is not None:
             pg.viewer.mpl.underlayMap(ax, self.utm, vendor=background)
 
-        return ax
+        return ax, cb
 
     def showData(self, nf=0, ax=None, figsize=(9, 7), kwAmp={}, kwPhase={},
                  scale=0, **kwargs):
@@ -460,6 +474,22 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 for a in ax.flat:
                     a.cla()
+
+    def generateModelPDF(self, pdffile=None, **kwargs):
+        """Generate a PDF of all models."""
+        dep = self.depth.copy()
+        dep[:-1] += np.diff(self.depth) / 2
+        pdffile = pdffile or self.basename + "-models5.pdf"
+        kwargs.setdefault('cMin', 3)
+        kwargs.setdefault('cMax', 200)
+        kwargs.setdefault('logScale', True)
+        with PdfPages(pdffile) as pdf:
+            fig, ax = plt.subplots()
+            for i in range(self.MODELS.shape[1]):
+                self.showField(self.MODELS[:, i], ax=ax, **kwargs)
+                ax.set_title('z = {:.1f}'.format(dep[i]))
+                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+                ax.cla()
 
 
 if __name__ == "__main__":

@@ -42,7 +42,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     return ax
 
 
-def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False,
+def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
                 cMin=None, cMax=None, radius=10, numpoints=0, colorBar=True):
     """Plot circles or rectangles for each point in a map.
 
@@ -61,6 +61,7 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False,
     numpoint : int
         number of points (0 means circle)
     """
+    assert len(x) == len(y) == len(w), "Vector lengths have to match!"
     if ax is None:
         fig, ax = plt.subplots()
         ax.plot(x, y, ".", ms=0, zorder=-10)
@@ -93,6 +94,8 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False,
     if colorBar:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(pc, cax=cax)
+        cb = plt.colorbar(pc, cax=cax)
+        if label:
+            cb.set_label(label)
 
-    return pc
+    return ax, cb
