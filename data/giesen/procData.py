@@ -35,7 +35,19 @@ self.cmp[1] = 1
 ikw = dict(absError=0.001, relError=0.03, lam=3)
 self.invertSounding(**ikw)
 # %%
-line = 16
+line = 6
 self.invertLine(line=line, **ikw)
-ax=self.showSection(cMin=3, cMax=200)
+ax = self.showSection(cMin=3, cMax=200)
 ax.figure.savefig(f"line{line}-result.pdf", bbox_inches="tight")
+# %%
+fig, ax = self.showLineData(line, plim=[-60, 0])
+# %%
+self.cmp[0] = 0
+from matplotlib.backends.backend_pdf import PdfPages
+pdffile = self.basename + "-linedata.pdf"
+with PdfPages(pdffile) as pdf:
+    for l in np.unique(self.line):
+        if np.isfinite(l) and len(np.nonzero(self.line == l)[0]) > 3:
+            fig, ax = self.showLineData(l, plim=[-90, 45], alim=[-2.5, 0.5])
+            fig.suptitle('line = {:.0f}'.format(l))
+            fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")

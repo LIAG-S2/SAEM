@@ -271,6 +271,7 @@ class CSEMData():
 
     def showDepthMap(self, **kwargs):
         """Show resistivity depth map."""
+        pass
 
     def showSounding(self, nrx=None, position=None, response=None,
                      **kwargs):
@@ -301,15 +302,17 @@ class CSEMData():
 
         return ax
 
-    def showLineData(self, line=None, amphi=True, plim=[-180, 180], alim=None):
+    def showLineData(self, line=None, amphi=True, plim=[-180, 180],
+                     ax=None, alim=None):
         """Show data of a line as pcolor."""
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
         else:
             nn = np.arange(len(self.rx))
 
-        fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
-                               sharex=True, sharey=True, squeeze=False)
+        if ax is None:
+            fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2, squeeze=False,
+                                   sharex=True, sharey=True)
         ncmp = 0
         allcmp = ['x', 'y', 'z']
         for i in range(3):
@@ -344,7 +347,8 @@ class CSEMData():
             aa.set_yticks(yt)
             aa.set_yticklabels(["{:.0f}".format(self.f[yy]) for yy in yt])
             aa.set_ylabel("f (Hz)")
-        return fig, ax
+
+        return ax
 
     def showField(self, field, **kwargs):
         """."""
@@ -457,23 +461,38 @@ class CSEMData():
                           freqtime=self.f, **cfg).real * fak
         self.prim = [self.pfx, self.pfy, self.pfz]
 
-    def generateDataPDF(self, pdffile=None, **kwargs):
+    def generateDataPDF(self, pdffile=None, linewise=False, **kwargs):
         """Generate a multi-page pdf file containing all data."""
-        pdffile = pdffile or self.basename + "-data.pdf"
+        if linewise:
+            pdffile = pdffile or self.basename + "-linedata.pdf"
+        else:
+            pdffile = pdffile or self.basename + "-data.pdf"
+
         with PdfPages(pdffile) as pdf:
-            fig, ax = plt.subplots(ncols=2, figsize=(9, 7), sharey=True)
-            self.showField(np.arange(len(self.rx)), ax=ax[0],
-                           cMap="Spectral_r")
-            ax[0].set_title("Sounding number")
-            self.showField(self.line, ax=ax[1], cMap="Spectral_r")
-            ax[1].set_title("Line number")
-            fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
-            ax = None
-            for i in range(len(self.f)):
-                fig, ax = self.showData(nf=i, ax=ax)
+            if linewise:
+                fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
+                                       squeeze=False, sharex=True, sharey=True)
+                for li in np.unique(self.line):
+                    nn = np.nonzero(self.line == li)[0]
+                    if np.isfinite(li) and len(nn) > 3:
+                        self.showLineData(li, plim=[-90, 45],
+                                          ax=ax, alim=[-2.5, 0.5])
+                        fig.suptitle('line = {:.0f}'.format(li))
+                        fig.savefig(pdf, format='pdf')  # bbox_inches="tight")
+            else:
+                fig, ax = plt.subplots(ncols=2, figsize=(9, 7), sharey=True)
+                self.showField(np.arange(len(self.rx)), ax=ax[0],
+                               cMap="Spectral_r")
+                ax[0].set_title("Sounding number")
+                self.showField(self.line, ax=ax[1], cMap="Spectral_r")
+                ax[1].set_title("Line number")
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
-                for a in ax.flat:
-                    a.cla()
+                ax = None
+                for i in range(len(self.f)):
+                    fig, ax = self.showData(nf=i, ax=ax)
+                    fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+                    for a in ax.flat:
+                        a.cla()
 
     def generateModelPDF(self, pdffile=None, **kwargs):
         """Generate a PDF of all models."""
