@@ -91,6 +91,7 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
     pc.set_array(w)
     ax.add_collection(pc)
     pc.set_clim([cMin, cMax])
+    cb = None
     if colorBar:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)

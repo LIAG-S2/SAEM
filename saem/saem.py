@@ -49,7 +49,10 @@ class CSEMData():
         filename = filenames[0]
         self.basename = filename.replace(".mat", "")
         MAT = loadmat(filename)
+        if len(filenames) > 1:
+            print("read "+filename)
         for filename in filenames[1:]:
+            print("reading "+filename)
             MAT1 = loadmat(filename)
             assert len(MAT["f"]) == len(MAT1["f"]), filename+" nf not matching"
             assert np.allclose(MAT["f"], MAT1["f"]), filename+" f not matching"
@@ -94,6 +97,10 @@ class CSEMData():
 
         if show:
             self.showField(self.line)
+
+    def removeNoneLineData(self):
+        """Remove data not belonging to a specific line."""
+        self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, fmin=0, fmax=1e6, f=-1, nInd=None, nMin=None, nMax=None):
         """Filter data according ."""
@@ -174,18 +181,28 @@ class CSEMData():
         ax.set_aspect(1.0)
         ax.grid(True)
 
+    def skinDepths(self, rho=30):
+        """Compute skin depth based on a medium resistivity."""
+        return np.sqrt(rho/self.f) * 500
+
+    def createDepthVector(self, rho=30, nl=15):
+        """Create depth vector."""
+        sd = self.skinDepths(rho=rho)
+        depth = np.hstack((0, pg.utils.grange(min(sd)*0.5, max(sd)*1.2,
+                                              n=nl, log=True)))
+        # depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+        return depth
+
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
                        relError=0.03, absError=0.001, **kwargs):
         """Invert a single sounding."""
         if nrx is not None:
             self.setPos(nrx)
 
+        if depth is not None:
+            self.depth = depth
         if self.depth is None:
-            if depth is not None:
-                self.depth = depth
-            else:
-                self.depth = np.hstack(
-                    (0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+            self.depth = self.createDepthVector()
 
         self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
         self.fop1d.modelTrans.setLowerBound(1.0)
@@ -219,7 +236,7 @@ class CSEMData():
 
         return self.model
 
-    def invertLine(self, nn=None, line=None, **kwargs):
+    def invertLine(self, line=None, nn=None, **kwargs):
         """Invert all soundings along a line."""
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -228,12 +245,14 @@ class CSEMData():
 
         self.MODELS = []
         # set up depth before
-        self.depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+        if self.depth is None:
+            self.depth = self.createDepthVector()
+
         self.allModels = np.ones([len(self.rx), len(self.depth)])
         model = 100
         for n in nn:
             self.setPos(n)
-            model = self.invertSounding(startModel=30, show=False)
+            model = self.invertSounding(startModel=30, show=False, **kwargs)
             self.MODELS.append(model)
             self.allModels[n, :] = model
 
@@ -341,12 +360,16 @@ class CSEMData():
                 ax[0, ncmp].set_title("B"+allcmp[i])
                 ncmp += 1
 
-        ax[0, 0].set_ylim(ax[0, 0].get_ylim()[::-1])
+        ax[0, 0].set_ylim([-0.5, len(self.f)-0.5])
+        # ax[0, 0].set_ylim(ax[0, 0].get_ylim()[::-1])
         yt = np.arange(0, len(self.f), 2)
         for aa in ax[:, 0]:
             aa.set_yticks(yt)
             aa.set_yticklabels(["{:.0f}".format(self.f[yy]) for yy in yt])
             aa.set_ylabel("f (Hz)")
+
+        for a in ax.flat:
+            a.set_aspect('auto')
 
         return ax
 
@@ -468,11 +491,14 @@ class CSEMData():
         else:
             pdffile = pdffile or self.basename + "-data.pdf"
 
+        figsize = kwargs.pop("figsize", [9, 7])
         with PdfPages(pdffile) as pdf:
             if linewise:
                 fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
-                                       squeeze=False, sharex=True, sharey=True)
-                for li in np.unique(self.line):
+                                       figsize=figsize, squeeze=False,
+                                       sharex=True, sharey=True)
+                ul = np.unique(self.line)
+                for li in ul[ul > 0]:
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
                         self.showLineData(li, plim=[-90, 45],
@@ -480,7 +506,7 @@ class CSEMData():
                         fig.suptitle('line = {:.0f}'.format(li))
                         fig.savefig(pdf, format='pdf')  # bbox_inches="tight")
             else:
-                fig, ax = plt.subplots(ncols=2, figsize=(9, 7), sharey=True)
+                fig, ax = plt.subplots(ncols=2, figsize=figsize, sharey=True)
                 self.showField(np.arange(len(self.rx)), ax=ax[0],
                                cMap="Spectral_r")
                 ax[0].set_title("Sounding number")
@@ -489,7 +515,7 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax = None
                 for i in range(len(self.f)):
-                    fig, ax = self.showData(nf=i, ax=ax)
+                    fig, ax = self.showData(nf=i, ax=ax, figsize=figsize)
                     fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                     for a in ax.flat:
                         a.cla()
