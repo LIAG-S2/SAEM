@@ -188,10 +188,10 @@ class CSEMData():
     def createDepthVector(self, rho=30, nl=15):
         """Create depth vector."""
         sd = self.skinDepths(rho=rho)
-        depth = np.hstack((0, pg.utils.grange(min(sd)*0.5, max(sd)*1.2,
-                                              n=nl, log=True)))
+        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
+                                                   n=nl, log=True)))
         # depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
-        return depth
+        # return depth
 
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
                        relError=0.03, absError=0.001, **kwargs):
@@ -530,8 +530,8 @@ class CSEMData():
         kwargs.setdefault('logScale', True)
         with PdfPages(pdffile) as pdf:
             fig, ax = plt.subplots()
-            for i in range(self.MODELS.shape[1]):
-                self.showField(self.MODELS[:, i], ax=ax, **kwargs)
+            for i in range(self.allModels.shape[1]):
+                self.showField(self.allModels[:, i], ax=ax, **kwargs)
                 ax.set_title('z = {:.1f}'.format(dep[i]))
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
