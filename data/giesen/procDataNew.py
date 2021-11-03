@@ -36,3 +36,4 @@ ax.figure.savefig(f"line{line}-resultY.pdf", bbox_inches="tight")
 dfsfsdf
 # %%
 self.invertLine(**ikw)
+self.generateModelPDF()

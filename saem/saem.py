@@ -29,6 +29,8 @@ class CSEMData():
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
         self.depth = None
         self.prim = None
+        self.origin = [0, 0, 0]
+        self.A = np.array([[1, 0], [0, 1]])
         if "datafile" in kwargs:
             self.loadData(kwargs["datafile"])
 
@@ -70,6 +72,37 @@ class CSEMData():
         self.alt = self.rz - self.txAlt
         self.createConfig()
         self.detectLines()
+
+    def rotateBack(self):
+        """Rotate coordinate system back."""
+        self.tx, self.ty = self.A.T.dot(np.array([self.tx, self.ty]))
+        self.rx, self.ry = self.A.T.dot(np.vstack([self.rx, self.ry]))
+        self.tx += self.origin[0]
+        self.ty += self.origin[1]
+        self.rx += self.origin[0]
+        self.ry += self.origin[1]
+        self.origin = [0, 0, 0]
+        self.A = np.array([[1, 0], [0, 1]])
+
+    def rotatePositions(self, ang=None, line=None):
+        """Rotate positions so that transmitter is x-oriented."""
+        self.rotateBack()  # always go back to original system
+        self.origin = [np.mean(self.tx), np.mean(self.ty)]
+        if ang is None:
+            if line is None:
+                ang = np.arctan2(np.diff(self.ty),
+                                 np.diff(self.tx))[0] + np.pi / 2
+            else:
+                rx = self.rx[self.line == line]
+                ry = self.ry[self.line == line]
+                ang = np.median(np.arctan2(ry-ry[0], rx-rx[0]))
+
+        self.A = np.array([[np.cos(ang), np.sin(ang)],
+                           [-np.sin(ang), np.cos(ang)]])
+        self.tx, self.ty = self.A.dot(np.array([self.tx-self.origin[0],
+                                                self.ty-self.origin[1]]))
+        self.rx, self.ry = self.A.dot(np.vstack([self.rx-self.origin[0],
+                                                 self.ry-self.origin[1]]))
 
     def detectLines(self, show=False):
         """Split data in lines for line-wise processing."""
