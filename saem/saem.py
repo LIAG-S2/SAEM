@@ -595,6 +595,8 @@ class CSEMData():
         if line is None:  # take all
             ind = np.nonzero(self.line > 0)[0]
         else:
+            if line == "all":
+                line = np.arange(1, max(self.line)+1)
             if hasattr(line, "__iter__"):
                 for i in line:
                     self.saveData(line=i)
