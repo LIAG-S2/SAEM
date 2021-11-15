@@ -34,6 +34,8 @@ class CSEMData():
         if "datafile" in kwargs:
             self.loadData(kwargs["datafile"])
 
+        self.basename = kwargs.pop("basename", self.basename)
+
     def __repr__(self):
         """String representation of the class."""
         sdata = "CSEM data with {:d} stations and {:d} frequencies".format(
@@ -46,10 +48,10 @@ class CSEMData():
 
     def loadData(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
+        self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = glob(filename)
         assert len(filenames) > 0
         filename = filenames[0]
-        self.basename = filename.replace(".mat", "")
         MAT = loadmat(filename)
         if len(filenames) > 1:
             print("read "+filename)
@@ -83,6 +85,10 @@ class CSEMData():
         self.ry += self.origin[1]
         self.origin = [0, 0, 0]
         self.A = np.array([[1, 0], [0, 1]])
+        for i in range(len(self.f)):
+            Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
+            self.DATAX[i, :] = Bxy[0, :]
+            self.DATAY[i, :] = Bxy[1, :]
 
     def rotatePositions(self, ang=None, line=None):
         """Rotate positions so that transmitter is x-oriented."""
@@ -101,15 +107,24 @@ class CSEMData():
                            [-np.sin(ang), np.cos(ang)]])
         self.tx, self.ty = self.A.dot(np.array([self.tx-self.origin[0],
                                                 self.ty-self.origin[1]]))
+        self.tx = np.round(self.tx*10+0.001) / 10
         self.rx, self.ry = self.A.dot(np.vstack([self.rx-self.origin[0],
                                                  self.ry-self.origin[1]]))
+
+        for i in range(len(self.f)):
+            Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
+            self.DATAX[i, :] = Bxy[0, :]
+            self.DATAY[i, :] = Bxy[1, :]
+
+        self.createConfig()  # make sure rotated Tx is in cfg
+        self.angle = ang
 
     def detectLines(self, show=False):
         """Split data in lines for line-wise processing."""
         dx = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
         sdx = np.hstack((0, np.diff(np.sign(np.diff(self.rx))), 0))
         sdy = np.hstack((0, np.diff(np.sign(np.diff(self.ry))), 0))
-        self.line = np.ones_like(self.rx) * np.nan
+        self.line = np.zeros_like(self.rx, dtype=int)
         nLine = 1
         act = True
         for i in range(len(sdx)):
@@ -201,7 +216,7 @@ class CSEMData():
         if show:
             self.showPos()
 
-    def showPos(self, ax=None):
+    def showPos(self, ax=None, line=None):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -210,6 +225,10 @@ class CSEMData():
         ax.plot(self.tx, self.ty, "r-", markersize=4)
         if hasattr(self, "nrx"):
             ax.plot(self.rx[self.nrx], self.ry[self.nrx], "bo", markersize=5)
+
+        if line is not None:
+            ax.plot(self.rx[self.line == line],
+                    self.ry[self.line == line], "g-")
 
         ax.set_aspect(1.0)
         ax.grid(True)
@@ -221,9 +240,9 @@ class CSEMData():
     def createDepthVector(self, rho=30, nl=15):
         """Create depth vector."""
         sd = self.skinDepths(rho=rho)
-        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
-                                                   n=nl, log=True)))
-        # depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+        self.depth = -np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
+                                                    n=nl, log=True)))
+        # depth = -np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
         # return depth
 
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
@@ -239,7 +258,9 @@ class CSEMData():
 
         self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
         self.fop1d.modelTrans.setLowerBound(1.0)
-        self.model = np.ones_like(self.depth) * 100
+        if not hasattr(self, "model"):
+            self.model = np.ones_like(self.depth) * 100
+
         if check:
             self.response1d = self.fop1d(self.model)
         else:
@@ -569,9 +590,70 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 
+    def saveData(self, fname=None, line=None, **kwargs):
+        """Save data in numpy format for 2D/3D inversion."""
+        if line is None:  # take all
+            ind = np.nonzero(self.line > 0)[0]
+        else:
+            if hasattr(line, "__iter__"):
+                for i in line:
+                    self.saveData(line=i)
+                return
+            else:
+                ind = np.nonzero(self.line == line)[0]
+
+        allcmp = ['X', 'Y', 'Z']
+        if fname is None:
+            # %%
+            fname = self.basename
+            if line is not None:
+                fname += "-line" + str(line)
+
+            for i in range(3):
+                if self.cmp[i]:
+                    fname += "B" + allcmp[i].lower()
+        # %%
+        meany = 0  # np.median(self.ry[ind])
+        ypos = np.round(self.ry[ind]-meany)  # get them to a straight line
+        rxpos = np.round(np.column_stack((self.rx[ind], ypos,
+                                          self.rz[ind]-self.txAlt))*10)/10
+        nF = len(self.f)
+        nT = 1
+        nR = rxpos.shape[0]
+        nC = sum(self.cmp)
+        # nData = nT * nR * nC * nF
+        DATA = []
+        dataR = np.zeros([nT, nF, nR, nC])
+        dataI = np.zeros([nT, nF, len(ind), nC])
+        kC = 0
+        cmp = []
+        for iC in range(3):
+            if self.cmp[iC]:
+                dd = -getattr(self, 'DATA'+allcmp[iC])[:, ind]
+                dataR[0, :, :, kC] = dd.real
+                dataI[0, :, :, kC] = dd.imag
+                cmp.append('H_'+allcmp[iC].lower())
+                kC += 1
+        # %% error estimation
+        absError = kwargs.pop("absError", 0.0015)
+        relError = kwargs.pop("relError", 0.04)
+        errorR = np.abs(dataR) * relError + absError
+        errorI = np.abs(dataI) * relError + absError
+        fak = 1  # 1e-9
+        data = dict(dataR=dataR*fak, dataI=dataI*fak,
+                    errorR=errorR*fak, errorI=errorI*fak,
+                    tx_ids=[0], rx=rxpos, cmp=cmp)
+        DATA.append(data)
+        # %% save them to NPY
+        np.savez(fname+".npz",
+                 tx=[np.column_stack((self.tx, self.ty-meany, self.tx*0))],
+                 freqs=self.f,
+                 DATA=DATA,
+                 origin=self.origin,  # global coordinates with altitude
+                 rotation=self.angle)
+
 
 if __name__ == "__main__":
-    # import transmitter (better by kmlread)
     txpos = np.array([[559497.46, 5784467.953],
                       [559026.532, 5784301.022]]).T
     self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
