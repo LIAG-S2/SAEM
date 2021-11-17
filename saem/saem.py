@@ -11,6 +11,7 @@ import pyproj
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
+from pygimli.core.math import symlog
 
 from .plotting import plotSymbols, showSounding
 from .modelling import fopSAEM, bipole
@@ -151,7 +152,7 @@ class CSEMData():
         self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, fmin=0, fmax=1e6, f=-1, nInd=None, nMin=None, nMax=None):
-        """Filter data according ."""
+        """Filter data according to frequency range and indices."""
         bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
         if f > 0:
             bind[np.argmin(np.abs(self.f - f))] = False
@@ -376,7 +377,7 @@ class CSEMData():
         return ax
 
     def showLineData(self, line=None, amphi=True, plim=[-180, 180],
-                     ax=None, alim=None):
+                     ax=None, alim=None, log=False):
         """Show data of a line as pcolor."""
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -400,10 +401,27 @@ class CSEMData():
                                               cMap="hsv")
                     pc2.set_clim(plim)
                 else:
-                    pc1 = ax[0, ncmp].matshow(np.real(data),
-                                              cmap="Spectral_r")
-                    pc2 = ax[1, ncmp].matshow(np.real(data),
-                                              cmap="Spectral_r")
+                    if log:
+                        tol = 1e-3
+                        if isinstance(symlog, float):
+                            tol = symlog
+                        pc1 = ax[0, ncmp].matshow(
+                            symlog(np.real(data), tol), cmap="bwr")
+                        if alim is not None:
+                            aa = symlog(alim[0], tol)
+                            pc1.set_clim([-aa, aa])
+                        pc2 = ax[1, ncmp].matshow(
+                            symlog(np.imag(data)), cmap="bwr")
+                        if alim is not None:
+                            aa = symlog(alim[1], tol)
+                            pc2.set_clim([-aa, aa])
+                    else:
+                        pc1 = ax[0, ncmp].matshow(np.real(data), cmap="bwr")
+                        if alim is not None:
+                            pc1.set_clim([-alim[0], alim[0]])
+                        pc2 = ax[1, ncmp].matshow(np.imag(data), cmap="bwr")
+                        if alim is not None:
+                            pc2.set_clim([-alim[1], alim[1]])
 
                 divider = make_axes_locatable(ax[0, ncmp])
                 cax = divider.append_axes("right", size="5%", pad=0.15)
@@ -421,6 +439,7 @@ class CSEMData():
             aa.set_yticks(yt)
             aa.set_yticklabels(["{:.0f}".format(self.f[yy]) for yy in yt])
             aa.set_ylabel("f (Hz)")
+
 
         for a in ax.flat:
             a.set_aspect('auto')
@@ -472,11 +491,16 @@ class CSEMData():
             if self.verbose:
                 print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
 
-        kwA = dict(cMap="Spectral_r", radius=10, cMin=-3, cMax=1, numpoints=0)
+        alim = kwargs.pop("alim", [-3, 0])
+        plim = kwargs.pop("plim", [-180, 180])
+        kwA = dict(cMap="Spectral_r", radius=10, cMin=alim[0], cMax=alim[1],
+                   numpoints=0)
         kwA.update(kwAmp)
-        kwP = dict(cMap="hsv", radius=10, cMin=-180, cMax=180, numpoints=0)
+        kwP = dict(cMap="hsv", radius=10, cMin=plim[0], cMax=plim[1],
+                   numpoints=0)
         kwP.update(kwPhase)
         amphi = kwargs.pop("amphi", True)
+        overlay = kwargs.pop("overlay", True)
         if scale:
             amphi = False
             if self.prim is None:
@@ -516,8 +540,13 @@ class CSEMData():
             a.set_aspect(1.0)
             a.ticklabel_format(useOffset=550000, axis='x')
             a.ticklabel_format(useOffset=5.78e6, axis='y')
-            pg.viewer.mpl.underlayBKGMap(
-                a, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+            if overlay:
+                try:
+                    pg.viewer.mpl.underlayBKGMap(
+                        a, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+                except Exception:
+                    print("could not load BKG data")
+                    overlay = False
 
         fig.suptitle("f="+str(self.f[nf])+"Hz")
 
@@ -545,18 +574,28 @@ class CSEMData():
         else:
             pdffile = pdffile or self.basename + "-data.pdf"
 
+        plim = kwargs.pop("plim", [-90, 0])
+        if kwargs.get("amphi", False):
+            alim = kwargs.pop("alim", [1, 1])  # real/imag max
+            kwargs.setdefault("log", True)
+        else:
+            alim = kwargs.pop("alim", [-2.5, 0])
         figsize = kwargs.pop("figsize", [9, 7])
         with PdfPages(pdffile) as pdf:
             if linewise:
+                fig, ax = plt.subplots(figsize=figsize)
+                self.showField(self.line, ax=ax, cMap="Spectral_r")
+                ax.figure.savefig(pdf, format="pdf")
                 fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
                                        figsize=figsize, squeeze=False,
                                        sharex=True, sharey=True)
+
                 ul = np.unique(self.line)
                 for li in ul[ul > 0]:
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
-                        self.showLineData(li, plim=[-90, 45],
-                                          ax=ax, alim=[-2.5, 0.5])
+                        self.showLineData(li, plim=plim,
+                                          ax=ax, alim=alim, **kwargs)
                         fig.suptitle('line = {:.0f}'.format(li))
                         fig.savefig(pdf, format='pdf')  # bbox_inches="tight")
             else:
