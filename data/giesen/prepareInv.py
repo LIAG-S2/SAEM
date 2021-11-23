@@ -10,7 +10,7 @@ self = CSEMData(datafile="data_f*.mat", txPos=txgeo, txalt=70,
 self.DATAY *= -1  # why?
 self.cmp = [1, 1, 1]
 # %%
-self.filter(fmin=100, fmax=20000)
+self.filter(fmin=50, fmax=20000)
 self.filter(f=12000)
 # self.filter(f=7000)
 # %%
@@ -23,9 +23,10 @@ self.cmp = [1, 0, 1]
 self.line[self.rx < 100] = 0
 self.line[self.rx > 700] = 0
 self.removeNoneLineData()
-# self.generateDataPDF()
+self.generateDataPDF()
 # self.generateDataPDF(linewise=True)
-self.generateDataPDF(linewise=True, amphi=False, alim=[.3, .3], log=True)  # , log=True, alim=[1, 1])
+self.generateDataPDF(linewise=True, amphi=False, alim=[1., 1.], log=True)  # , log=True, alim=[1, 1])
+sdfsfsf
 self.saveData(line="all")
 # self.filter(nInd=np.nonzero(self.line > 0)[0])
 self.filter(nInd=np.nonzero(self.line < 15)[0])

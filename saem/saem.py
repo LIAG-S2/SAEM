@@ -406,12 +406,12 @@ class CSEMData():
                         if isinstance(symlog, float):
                             tol = symlog
                         pc1 = ax[0, ncmp].matshow(
-                            symlog(np.real(data), tol), cmap="bwr")
+                            symlog(np.real(data), tol), cmap="seismic")
                         if alim is not None:
                             aa = symlog(alim[0], tol)
                             pc1.set_clim([-aa, aa])
                         pc2 = ax[1, ncmp].matshow(
-                            symlog(np.imag(data)), cmap="bwr")
+                            symlog(np.imag(data)), cmap="seismic")
                         if alim is not None:
                             aa = symlog(alim[1], tol)
                             pc2.set_clim([-aa, aa])
@@ -491,16 +491,25 @@ class CSEMData():
             if self.verbose:
                 print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
 
-        alim = kwargs.pop("alim", [-3, 0])
-        plim = kwargs.pop("plim", [-180, 180])
-        kwA = dict(cMap="Spectral_r", radius=10, cMin=alim[0], cMax=alim[1],
-                   numpoints=0)
-        kwA.update(kwAmp)
-        kwP = dict(cMap="hsv", radius=10, cMin=plim[0], cMax=plim[1],
-                   numpoints=0)
-        kwP.update(kwPhase)
-        amphi = kwargs.pop("amphi", True)
         overlay = kwargs.pop("overlay", True)
+        amphi = kwargs.pop("amphi", True)
+        if amphi:
+            alim = kwargs.pop("alim", [-3, 0])
+            plim = kwargs.pop("plim", [-180, 180])
+            kwA = dict(cMap="Spectral_r", cMin=alim[0], cMax=alim[1],
+                       radius=10, numpoints=0)
+            kwA.update(kwAmp)
+            kwP = dict(cMap="hsv", cMin=plim[0], cMax=plim[1],
+                       radius=10, numpoints=0)
+            kwP.update(kwPhase)
+        else:
+            log = kwargs.pop("log", True)
+            alim = kwargs.pop("alim", [1e-3, 1])
+            if log:
+                alim[1] = symlog(alim[1], tol=alim[0])
+            kwA = dict(cMap="seismic", radius=10, cMin=-alim[1], cMax=alim[1],
+                       numpoints=0)
+            kwA.update(kwAmp)
         if scale:
             amphi = False
             if self.prim is None:
@@ -529,17 +538,27 @@ class CSEMData():
                 ax[0, j].set_title("log10 T"+cmp+" [nT/A]")
                 ax[1, j].set_title(r"$\phi$"+cmp+" [°]")
             else:
-                plotSymbols(self.rx, self.ry, np.real(data[nf]),
-                            ax=ax[0, j])
-                plotSymbols(self.rx, self.ry, np.imag(data[nf]),
-                            ax=ax[1, j])
+                if log:
+                    plotSymbols(self.rx, self.ry,
+                                symlog(np.real(data[nf]), tol=alim[0]),
+                                ax=ax[0, j], **kwA)
+                    plotSymbols(self.rx, self.ry,
+                                symlog(np.imag(data[nf]), tol=alim[0]),
+                                ax=ax[1, j], **kwA)
+                else:
+                    plotSymbols(self.rx, self.ry, np.real(data[nf]),
+                                ax=ax[0, j], **kwA)
+                    plotSymbols(self.rx, self.ry, np.imag(data[nf]),
+                                ax=ax[1, j], **kwA)
+
                 ax[0, j].set_title("real T"+cmp+" [nT/A]")
                 ax[1, j].set_title("imag T"+cmp+" [nT/A]")
 
         for a in ax.flat:
             a.set_aspect(1.0)
-            a.ticklabel_format(useOffset=550000, axis='x')
-            a.ticklabel_format(useOffset=5.78e6, axis='y')
+            a.plot(self.tx, self.ty, "k*-")
+            # a.ticklabel_format(useOffset=550000, axis='x')
+            # a.ticklabel_format(useOffset=5.78e6, axis='y')
             if overlay:
                 try:
                     pg.viewer.mpl.underlayBKGMap(
@@ -608,10 +627,14 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax = None
                 for i in range(len(self.f)):
-                    fig, ax = self.showData(nf=i, ax=ax, figsize=figsize)
+                    fig, ax = self.showData(nf=i, ax=ax, figsize=figsize,
+                                            **kwargs)
                     fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
-                    for a in ax.flat:
-                        a.cla()
+                    plt.close(fig)
+                    ax = None
+                    # fig.add_subplot()
+                    # for a in ax.flat:
+                        # a.cla()
 
     def generateModelPDF(self, pdffile=None, **kwargs):
         """Generate a PDF of all models."""
@@ -665,7 +688,7 @@ class CSEMData():
         # nData = nT * nR * nC * nF
         DATA = []
         dataR = np.zeros([nT, nF, nR, nC])
-        dataI = np.zeros([nT, nF, len(ind), nC])
+        dataI = np.zeros([nT, nF, nR, nC])
         kC = 0
         cmp = []
         for iC in range(3):
