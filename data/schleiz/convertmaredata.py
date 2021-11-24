@@ -178,20 +178,21 @@ class Mare2dEMData():
 
         return out
 
-    def saveData(self, tx=None, absError=1e-12, relError=0.02, topo=0):
+    def saveData(self, tx=None, absError=1e-4, relError=0.05, topo=0):
         """Save data for inversion with custEM."""
         if tx is None:
             tx = np.arange(len(self.txpos)) + 1
 
         DATA = []
         TX = []
+        fak = 1e9
         fname = self.basename + "_B_Tx"
         for it, txi in enumerate(np.atleast_1d(tx)):
             part = self.getPart(tx=txi, typ="B", clean=True)
-            matX = part.getDataMatrix(field="Bx")
-            matZ = part.getDataMatrix(field="Bz")
-            assert matX.shape == matZ.shape, "Bx and Bz not matching"
             txl = self.txpos[txi-1, 3]
+            matX = part.getDataMatrix(field="Bx") * txl * fak
+            matZ = part.getDataMatrix(field="Bz") * txl * fak
+            assert matX.shape == matZ.shape, "Bx and Bz not matching"
             TX.append(np.column_stack((
                 [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
                 self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
@@ -204,13 +205,14 @@ class Mare2dEMData():
                 dataR[0, :, :, 1] = matZ.real
                 dataI[0, :, :, 0] = matX.imag
                 dataI[0, :, :, 1] = matZ.imag
-                fak = 1e9
                 errorR = np.zeros([1, *matX.shape, 2])
-                errorR[0, :, :, 0] = np.abs(matX) * relError + absError
-                errorR[0, :, :, 1] = np.abs(matZ) * relError + absError
-                errorI = errorR
-                data = dict(dataR=dataR*fak, dataI=dataI*fak,
-                            errorR=errorR*fak, errorI=errorI*fak,
+                errorR[0, :, :, 0] = np.abs(matX.real) * relError + absError
+                errorR[0, :, :, 1] = np.abs(matZ.real) * relError + absError
+                errorI = np.zeros([1, *matX.shape, 2])
+                errorI[0, :, :, 0] = np.abs(matX.imag) * relError + absError
+                errorI[0, :, :, 1] = np.abs(matZ.imag) * relError + absError
+                data = dict(dataR=dataR, dataI=dataI,
+                            errorR=errorR, errorI=errorI,
                             tx_ids=[int(txi-1)],
                             rx=part.rxpos*np.array([1, 1, topo]),
                             cmp=["Bx", "Bz"])
@@ -230,9 +232,7 @@ class Mare2dEMData():
         """Generate a multipage pdf of all data."""
         DATA = self.DATA
         uty = np.unique(DATA["Type"].astype(int))
-        # uf = np.unique(DATA["Freq"].astype(int))
-        # ur = np.unique(DATA["Rx"].astype(int))
-        ut = np.unique(DATA["Tx"].astype(int))
+        ut = np.unique(self.tx())
         fig = plt.figure()
         tol = 1e-5
         # urx = np.unique(self.rxpos[:, 0])
@@ -284,6 +284,7 @@ class Mare2dEMData():
                                          tt, int(self.txpos[it, 0])))
                         ax.figure.savefig(pdf, format='pdf')
 
+
 # %%
 self = Mare2dEMData("Ball.emdata")
 print(self)
@@ -333,7 +334,8 @@ if 0:
     print(TX1)
     # %%
     # %% check for duplicate sensors and their ordering
-    _, indF, indB = np.unique(rxpos[:, 0], return_index=True, return_inverse=True)
+    _, indF, indB = np.unique(
+        rxpos[:, 0], return_index=True, return_inverse=True)
     rxSorted = rxpos[indF, :]
     i = 111
     print(rxpos[i, :], rxSorted[indB[i], :])

@@ -41,7 +41,7 @@ with np.load(invmod+".npz", allow_pickle=True) as ALL:
         errorI = np.concatenate([errorI, data["errorI"].ravel()])
 
 skip_domains = [0, 1]
-sig_bg = 1e-2
+sig_bg = 1e-3
 rx_tri = mu.refine_rx(rxs[0], 1., 30.)  # needs to be in loop!
 rx_tri = []
 for rxi in rxs:
@@ -87,13 +87,18 @@ errorvec = np.abs(np.hstack((errorR, errorI))/datavec)
 
 fop = MultiFWD(invmod, invmesh, pgmesh, list(freqs), cmps, tx_ids,
                skip_domains, sig_bg, n_cores=140, ini_data=datavec)
-fop.setRegionProperties("*", limits=[1e-4, 1])
+fop.setRegionProperties("*", limits=[1e-5, 1])
+if 0:
+    model = pg.Vector(pgmesh.cellCount(), 0.001)
+    response = fop(model)
+    print(len(response))
+    sdfsdfsfd
 # set up inv
-inv = pg.Inversion()
+inv = pg.Inversion(verbose=True, debug=True)
 inv.setForwardOperator(fop)
 C = pg.matrix.GeostatisticConstraintsMatrix(mesh=pgmesh, I=[50, 10])
 fop.setConstraints(C)
-dT = pg.trans.TransSymLog(1e-6)
+dT = pg.trans.TransSymLog(1e-4)
 inv.dataTrans = dT
 
 # run inversion
