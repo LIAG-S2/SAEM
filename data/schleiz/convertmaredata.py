@@ -172,8 +172,11 @@ class Mare2dEMData():
             elif typ[i] == ptyp:
                 phi[nf[i], nr[i]] = vals[i]
 
-        print(np.any(np.isnan(amp)), np.any(np.isnan(phi)))
-        return amp * np.exp(np.deg2rad(phi)*1j)
+        out = amp * np.exp(np.deg2rad(phi)*1j)
+        if np.any(np.isnan(out)):
+            print("Found NaN values!")
+
+        return out
 
     def saveData(self, tx=None, absError=1e-12, relError=0.02, topo=0):
         """Save data for inversion with custEM."""
@@ -184,12 +187,17 @@ class Mare2dEMData():
         TX = []
         fname = self.basename + "_B_Tx"
         for it, txi in enumerate(np.atleast_1d(tx)):
-            fname += "{}".format(txi)
             part = self.getPart(tx=txi, typ="B", clean=True)
             matX = part.getDataMatrix(field="Bx")
             matZ = part.getDataMatrix(field="Bz")
             assert matX.shape == matZ.shape, "Bx and Bz not matching"
+            txl = self.txpos[txi-1, 3]
+            TX.append(np.column_stack((
+                [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
+                self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
+                [self.txpos[txi-1, 2]*topo, self.txpos[txi-1, 2]*topo])))
             if len(matX) > 0:
+                fname += "{}".format(txi)
                 dataR = np.zeros([1, *matX.shape, 2])
                 dataI = np.zeros([1, *matZ.shape, 2])
                 dataR[0, :, :, 0] = matX.real
@@ -208,18 +216,15 @@ class Mare2dEMData():
                             cmp=["Bx", "Bz"])
                 DATA.append(data)
 
-                txl = self.txpos[txi-1, 3]
-                TX.append(np.column_stack((
-                    [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
-                    self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
-                    [self.txpos[txi-1, 2]*topo, self.txpos[txi-1, 2]*topo])))
-
-        np.savez(fname+".npz",
-                 tx=TX,
-                 freqs=self.f,
-                 DATA=DATA,
-                 origin=self.origin,  # global coordinates with altitude
-                 rotation=self.angle)
+        if len(TX) > 1:
+            print(len(TX), TX)
+        if len(DATA) > 0:
+            np.savez(fname+".npz",
+                     tx=TX,
+                     freqs=self.f,
+                     DATA=DATA,
+                     origin=self.origin,  # global coordinates with altitude
+                     rotation=self.angle)
 
     def generateDataPDF(self):
         """Generate a multipage pdf of all data."""
@@ -285,7 +290,6 @@ print(self)
 if 1:  # frequency decimation to octave-wise (factor 2): 28->10 frequencies
     # %%
     freq = self.DATA["Freq"].astype(int) - 1
-    # print(np.unique(freq))
     find = np.arange(0, len(self.f), 3)
     aind = -np.ones(len(self.f))
     aind[find] = np.arange(len(find))
@@ -294,7 +298,6 @@ if 1:  # frequency decimation to octave-wise (factor 2): 28->10 frequencies
     self.DATA["Freq"] = aind[freq] + 1
     self.DATA = self.DATA[ind]
     print(self)
-    # print(np.unique(self.DATA["Freq"]))
 
 # %% save files for every single transmitter and whole
 for i in range(6):
