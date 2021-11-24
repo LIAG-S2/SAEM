@@ -87,11 +87,14 @@ if 1:
     sdfsfsdf
 
 # %% run inversion
-datavec = np.hstack((dataR, dataI))
-errorvec = np.abs(np.hstack((errorR, errorI))/datavec)
+mask = np.isfinite(dataR+dataI+errorR+errorI)
+datavec = np.hstack((dataR[mask], dataI[mask]))
+errorvec = np.hstack((errorR[mask], errorI[mask]))
+relerror = np.abs(errorvec/datavec)
 
 fop = MultiFWD(invmod, invmesh, pgmesh, list(freqs), cmps, tx_ids,
-               skip_domains, sig_bg, n_cores=140, ini_data=datavec)
+               skip_domains, sig_bg, n_cores=140, ini_data=datavec,
+               mask=mask)
 fop.setRegionProperties("*", limits=[1e-4, 1])
 # set up inv
 inv = pg.Inversion(verbose=True)  # , debug=True)
@@ -102,7 +105,7 @@ dT = pg.trans.TransSymLog(1e-3)
 inv.dataTrans = dT
 
 # run inversion
-invmodel = inv.run(datavec, errorvec, lam=40,  # zWeight=0.3,
+invmodel = inv.run(datavec, relerror, lam=40,  # zWeight=0.3,
                    startModel=sig_bg, maxIter=10,
                    verbose=True, robustData=True)
 # %% save results
