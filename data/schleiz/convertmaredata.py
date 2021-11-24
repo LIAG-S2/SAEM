@@ -172,7 +172,7 @@ class Mare2dEMData():
             elif typ[i] == ptyp:
                 phi[nf[i], nr[i]] = vals[i]
 
-        print(np.nonzero(np.isnan(amp)), np.nonzero(np.isnan(phi)))
+        print(np.any(np.isnan(amp)), np.any(np.isnan(phi)))
         return amp * np.exp(np.deg2rad(phi)*1j)
 
     def saveData(self, tx=None, absError=1e-12, relError=0.02, topo=0):
@@ -279,31 +279,44 @@ class Mare2dEMData():
                                          tt, int(self.txpos[it, 0])))
                         ax.figure.savefig(pdf, format='pdf')
 
-
+# %%
 self = Mare2dEMData("Ball.emdata")
 print(self)
-self.saveData(tx=1)
+if 1:  # frequency decimation to octave-wise (factor 2): 28->10 frequencies
+    # %%
+    freq = self.DATA["Freq"].astype(int) - 1
+    # print(np.unique(freq))
+    find = np.arange(0, len(self.f), 3)
+    aind = -np.ones(len(self.f))
+    aind[find] = np.arange(len(find))
+    self.f = np.take(self.f, find)
+    ind = np.in1d(freq, find)
+    self.DATA["Freq"] = aind[freq] + 1
+    self.DATA = self.DATA[ind]
+    print(self)
+    # print(np.unique(self.DATA["Freq"]))
+
+# %% save files for every single transmitter and whole
+for i in range(6):
+    self.saveData(tx=i+1)
+
+self.saveData()
 # %%
 if 0:
     # %%
-    TX1B = self.getPart(tx=1, typ="B", clean=True)  # , clean=True)  # , typ=)
+    TX1B = self.getPart(tx=1, typ="B", clean=True)  # , clean=True)
     print(TX1B)
     TX1B.saveData()
-    # %%
-    TX2B = self.getPart(tx=[1, 2], typ="B", clean=True)  # , clean=True)  # , typ=)
-    print(TX2B)
-    # %%
-    TX3 = self.getPart(tx=3, clean=True)
-    mat = TX3.getDataMatrix("Bx")
     # %%
     mat = TX1B.getDataMatrix("Bx")
     plt.matshow(np.abs(mat))
     plt.matshow(np.angle(mat))
     # %%
-    for i in range(6):
-        self.saveData(tx=i+1)
-
-    self.saveData()
+    TX2B = self.getPart(tx=[1, 2], typ="B", clean=True)  # , clean=True)
+    print(TX2B)
+    # %%
+    TX3 = self.getPart(tx=3, clean=True)
+    mat = TX3.getDataMatrix("Bx")
     # %%
     TX1E = self.getPart(tx=1, typ="E", clean=True)  # , clean=True)  # , typ=)
     print(TX1E)
