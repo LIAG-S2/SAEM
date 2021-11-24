@@ -191,7 +191,7 @@ class Mare2dEMData():
             part = self.getPart(tx=txi, typ="B", clean=True)
             txl = self.txpos[txi-1, 3]
             matX = part.getDataMatrix(field="Bx") * txl * fak
-            matZ = part.getDataMatrix(field="Bz") * txl * fak
+            matZ = -part.getDataMatrix(field="Bz") * txl * fak
             assert matX.shape == matZ.shape, "Bx and Bz not matching"
             TX.append(np.column_stack((
                 [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
