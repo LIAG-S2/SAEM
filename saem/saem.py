@@ -440,7 +440,6 @@ class CSEMData():
             aa.set_yticklabels(["{:.0f}".format(self.f[yy]) for yy in yt])
             aa.set_ylabel("f (Hz)")
 
-
         for a in ax.flat:
             a.set_aspect('auto')
 
@@ -634,7 +633,7 @@ class CSEMData():
                     ax = None
                     # fig.add_subplot()
                     # for a in ax.flat:
-                        # a.cla()
+                    #     a.cla()
 
     def generateModelPDF(self, pdffile=None, **kwargs):
         """Generate a PDF of all models."""
@@ -696,7 +695,7 @@ class CSEMData():
                 dd = -getattr(self, 'DATA'+allcmp[iC])[:, ind]
                 dataR[0, :, :, kC] = dd.real
                 dataI[0, :, :, kC] = dd.imag
-                cmp.append('H_'+allcmp[iC].lower())
+                cmp.append('B'+allcmp[iC].lower())
                 kC += 1
         # %% error estimation
         absError = kwargs.pop("absError", 0.0015)
