@@ -211,7 +211,7 @@ class Mare2dEMData():
                 errorI = errorR
                 data = dict(dataR=dataR*fak, dataI=dataI*fak,
                             errorR=errorR*fak, errorI=errorI*fak,
-                            tx_ids=[txi-1],
+                            tx_ids=[int(txi-1)],
                             rx=part.rxpos*np.array([1, 1, topo]),
                             cmp=["Bx", "Bz"])
                 DATA.append(data)

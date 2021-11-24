@@ -20,7 +20,7 @@ def topo_f(x, y=None):
 
 # %% define mesh paramters
 invmod = 'Ball_B_Tx1'
-#invmod = 'Ball_B_Tx123456'
+#invmod = 'Ball_B_Tx12456'
 invmesh = 'Prisms'
 
 dataR, dataI = [], []
@@ -31,6 +31,7 @@ with np.load(invmod+".npz", allow_pickle=True) as ALL:
     print(tx)
     DATA = ALL["DATA"]
     rxs = [data["rx"] for data in DATA]
+    # tx_ids = [[int(txi) for txi in data["tx_ids"]] for data in DATA]
     tx_ids = [data["tx_ids"] for data in DATA]
     cmps = [data["cmp"] for data in DATA]
     for i, data in enumerate(DATA):
