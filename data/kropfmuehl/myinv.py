@@ -14,6 +14,7 @@ from custEM.inv.inv_utils import MultiFWD
 
 xt, zt = np.loadtxt("topo.txt", unpack=True)
 
+
 def topo_f(x, y=None):
     return np.interp(x, xt, zt)
     # return(x/20. + np.sin(x*1e-2) * 10.)
@@ -77,13 +78,14 @@ for rx in rxs:
 P.PrismWorld.call_tetgen(tet_param='-pDq1.3aA', print_infos=False)
 pgmesh = pg.load('meshes/mesh_create/' + invmesh + '.bms')
 # pgmesh = P.xzmesh  # is 3D
-if 1:
+if 0:
     ax, cb = pg.show(pgmesh)
     for rx in rxs:
         ax.plot(rx[:, 0], rx[:, 2], ".")
     for txi in tx:
         for txii in txi:
-            ax.plot(txii[:, 0], txii[:, 2], "kv")
+            print(txii)
+            ax.plot(txii[0], txii[2], "mv")
     sdfsfsdf
 
 # %% run inversion
@@ -94,7 +96,7 @@ relerror = np.abs(errorvec/datavec)
 
 fop = MultiFWD(invmod, invmesh, pgmesh, list(freqs), cmps, tx_ids,
                skip_domains, sig_bg, n_cores=140, ini_data=datavec,
-               mask=mask)
+               data_mask=mask)
 fop.setRegionProperties("*", limits=[1e-4, 1])
 # set up inv
 inv = pg.Inversion(verbose=True)  # , debug=True)
