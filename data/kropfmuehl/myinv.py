@@ -17,16 +17,15 @@ xt, zt = np.loadtxt("topo.txt", unpack=True)
 
 def topo_f(x, y=None):
     return np.interp(x, xt, zt)
-    # return(x/20. + np.sin(x*1e-2) * 10.)
-
 
 # %% define mesh paramters
-invmod = 'P5f2_B_Tx12'
+dataname = 'P5f2_B_Tx12'
+invmod = dataname + '_l40'
 invmesh = 'Prisms'
 
 dataR, dataI = [], []
 errorR, errorI = [], []
-with np.load(invmod+".npz", allow_pickle=True) as ALL:
+with np.load(dataname+".npz", allow_pickle=True) as ALL:
     freqs = list(ALL["freqs"])
     tx = ALL["tx"]
     print(tx)
@@ -43,25 +42,27 @@ with np.load(invmod+".npz", allow_pickle=True) as ALL:
 
 skip_domains = [0, 1]
 sig_bg = 3e-3
-rx_tri = mu.refine_rx(rxs[0], 1., 30.)  # needs to be in loop!
-rx_tri = []
-for rxi in rxs:
-    rx_tri.extend(mu.refine_rx(rxi, 1., 30.))
-# rx_tri = [mu.refine_rx(rxi, 1., 30.) for rxi in rxs]
+
+refm_size = 1.
+rxs_resolved = mu.resolve_rx_overlaps(rxs, refm_size)
+
+rx_tri = mu.refine_rx(rxs_resolved, refm_size, 30.)
 
 bound = 200
 minrx = min([min(data["rx"][:, 0]) for data in DATA])
 maxrx = max([max(data["rx"][:, 0]) for data in DATA])
+
 ##############################################################################
 # %% generate 2.5D prism inversion mesh
 P = PrismWorld(name=invmesh,
                x_extent=[minrx-bound, maxrx+bound],
-               x_reduction=600.,
-               y_depth=800.,
-               z_depth=800.,
+               x_reduction=500.,
+               y_depth=1000.,
+               z_depth=1200.,
                n_prisms=200,
                tx=[txi for txi in tx],
-               surface_rx=rx_tri,
+               orthogonal_tx=[True] * len(tx),
+               #surface_rx=rx_tri,
                prism_area=50000,
                prism_quality=34,
                x_dim=[-1e5, 1e5],
@@ -70,6 +71,7 @@ P = PrismWorld(name=invmesh,
                topo=topo_f,
                )
 
+P.PrismWorld.add_paths(rx_tri)
 for rx in rxs:
     P.PrismWorld.add_rx(rx)
 
@@ -86,7 +88,7 @@ if 0:
         for txii in txi:
             print(txii)
             ax.plot(txii[0], txii[2], "mv")
-    sdfsfsdf
+
 
 # %% run inversion
 mask = np.isfinite(dataR+dataI+errorR+errorI)
