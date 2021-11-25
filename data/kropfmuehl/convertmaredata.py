@@ -9,12 +9,9 @@ self.chooseF(every=2)
 print(self)
 print(self.f)
 self.basename += "f2"
-self.generateDataPDF()
+#self.generateDataPDF()
 # %%
-self.saveData()
+self.saveData(topo=1)
 for tx in [1, 2]:
-    self.saveData(tx=tx)
-# %%
-ind = np.argsort(self.rxpos[:, 0])
-topo = self.rxpos[ind, ::2]
-np.savetxt("topo.txt", topo)
+    self.saveData(tx=tx, topo=1)
+
