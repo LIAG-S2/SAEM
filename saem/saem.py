@@ -631,9 +631,7 @@ class CSEMData():
                     fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                     plt.close(fig)
                     ax = None
-                    # fig.add_subplot()
-                    # for a in ax.flat:
-                    #     a.cla()
+                    # for a in ax.flat: a.cla()
 
     def generateModelPDF(self, pdffile=None, **kwargs):
         """Generate a PDF of all models."""
@@ -684,7 +682,6 @@ class CSEMData():
         nT = 1
         nR = rxpos.shape[0]
         nC = sum(self.cmp)
-        # nData = nT * nR * nC * nF
         DATA = []
         dataR = np.zeros([nT, nF, nR, nC])
         dataI = np.zeros([nT, nF, nR, nC])
