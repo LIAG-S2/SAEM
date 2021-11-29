@@ -13,13 +13,15 @@ from custEM.meshgen import meshgen_utils as mu
 from custEM.inv.inv_utils import MultiFWD
 
 xt, zt = np.loadtxt("topo.txt", unpack=True)
+zt = np.abs(zt)
 
 
 def topo_f(x, y=None):
     return np.interp(x, xt, zt)
 
+
 # %% define mesh paramters
-dataname = 'P5f2_B_Tx12'
+dataname = 'GOS_raw_inversion_ByBz_B_Tx123.npz'
 invmod = dataname + '_l40'
 invmesh = 'Prisms'
 
