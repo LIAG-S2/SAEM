@@ -66,6 +66,13 @@ class Mare2dEMData():
             lines = fid.readlines()
             i = 0
             while "Freq" not in lines[i]:
+                if lines[i].startswith("UTM"):
+                    sline = lines[i].split()
+                    self.origin = [float(sline[-2]), float(sline[-3]), 0]
+                    self.angle = float(sline[-1])
+                    self.utmzone = int(sline[-5])
+                    print("UTM", self.utmzone, self.origin, self.angle)
+
                 i += 1
 
             nf = lastint(lines[i])
@@ -77,7 +84,7 @@ class Mare2dEMData():
             lines[i] = lines[i].replace("!", " ")
             TX = np.genfromtxt(lines[i:i+nt+1], names=True)
             self.txpos = np.column_stack([TX["Y"], TX["X"], -TX["Z"],
-                                          TX["Length"]])
+                                          TX["Length"], TX["Azimuth"]])
             i += nt + 1
             nr = lastint(lines[i])
             i += 1
@@ -93,6 +100,57 @@ class Mare2dEMData():
             # self.DATA["Tx"] = self.DATA["Tx"].astype(int)
             # self.DATA = pd.DataFrame(self.DATA)
             self.basename = filename.rstrip(".emdata")
+
+    def local2global(self, xy):
+        """Transform local to global coordinates."""
+        # %%
+        ang = np.deg2rad(self.angle)
+        A = np.array([[np.cos(ang), -np.sin(ang)],
+                      [np.sin(ang), np.cos(ang)]])
+        return xy.dot(A) + self.origin[:2]
+
+    def rxPositions(self, globalCoordinates=True):
+        """Receiver positions in global coordinates."""
+        return self.local2global(
+            self.rxpos[:, :2]) if globalCoordinates else self.rxpos[:, :2]
+
+    def txPositions(self, globalCoordinates=False):
+        """Return transmitter positions."""
+        # %
+        TX = []
+        for it, txi in enumerate(self.txpos):
+            # %
+            x, y, z = txi[:3]
+            length = txi[3]
+            ang = np.deg2rad(txi[4] if len(txi) > 4 else 0)
+            rot = np.array([[np.cos(ang), np.sin(ang)],
+                            [-np.sin(ang), np.cos(ang)]])
+            pp = rot.dot([[0, 0], [1, -1]]).T * length / 2
+            pp[:, 0] += txi[0]
+            pp[:, 1] += txi[1]
+            pp = np.column_stack((pp, [txi[2], txi[2]]))
+            if globalCoordinates:
+                pp = self.local2global(pp[:, :2])
+                pp += self.origin[:2]
+
+            TX.append(pp)
+
+        return TX
+        # %
+
+    def showPositions(self, globalCoordinates=False):
+        """Show positions."""
+        # %%
+        TX = self.txPositions(globalCoordinates)
+        fig, ax = plt.subplots()
+        rxpos = self.rxPositions(globalCoordinates)
+        ax.plot(rxpos[:, 0], rxpos[:, 1], "b.")
+        for tx in TX:
+            ax.plot(tx[:, 0], tx[:, 1], "r-")
+
+        ax.set_aspect(1.0)
+        ax.grid(True)
+        # %%
 
     def rx(self):
         """Receiver index."""

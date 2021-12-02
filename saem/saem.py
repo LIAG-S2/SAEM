@@ -31,6 +31,7 @@ class CSEMData():
         self.depth = None
         self.prim = None
         self.origin = [0, 0, 0]
+        self.angle = 0
         self.A = np.array([[1, 0], [0, 1]])
         if "datafile" in kwargs:
             self.loadData(kwargs["datafile"])
@@ -87,7 +88,8 @@ class CSEMData():
         self.origin = [0, 0, 0]
         self.A = np.array([[1, 0], [0, 1]])
         for i in range(len(self.f)):
-            Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
+            # self.A.T.dot
+            Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
             self.DATAX[i, :] = Bxy[0, :]
             self.DATAY[i, :] = Bxy[1, :]
 
@@ -113,7 +115,8 @@ class CSEMData():
                                                  self.ry-self.origin[1]]))
 
         for i in range(len(self.f)):
-            Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
+            # self.A.dot
+            Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
             self.DATAX[i, :] = Bxy[0, :]
             self.DATAY[i, :] = Bxy[1, :]
 
@@ -350,6 +353,7 @@ class CSEMData():
     def showSounding(self, nrx=None, position=None, response=None,
                      **kwargs):
         """Show amplitude and phase data."""
+        cmp = kwargs.pop("cmp", self.cmp)
         if nrx is not None or position is not None:
             self.setPos(nrx, position)
 
@@ -357,12 +361,12 @@ class CSEMData():
         allcmp = ['x', 'y', 'z']
         if response is not None:
             respRe, respIm = np.reshape(response, (2, -1))
-            respRe = np.reshape(respRe, (sum(self.cmp), -1))
-            respIm = np.reshape(respIm, (sum(self.cmp), -1))
+            respRe = np.reshape(respRe, (sum(cmp), -1))
+            respIm = np.reshape(respIm, (sum(cmp), -1))
 
         ncmp = 0
         for i in range(3):
-            if self.cmp[i] > 0:
+            if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
                 ax = showSounding(data, self.f, ax=ax, color="C"+str(i),
                                   marker="x", label="B"+allcmp[i], **kwargs)
@@ -377,20 +381,21 @@ class CSEMData():
         return ax
 
     def showLineData(self, line=None, amphi=True, plim=[-180, 180],
-                     ax=None, alim=None, log=False):
+                     ax=None, alim=None, log=False, **kwargs):
         """Show data of a line as pcolor."""
+        cmp = kwargs.pop("cmp", self.cmp)
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
         else:
             nn = np.arange(len(self.rx))
 
         if ax is None:
-            fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2, squeeze=False,
+            fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
                                    sharex=True, sharey=True)
         ncmp = 0
         allcmp = ['x', 'y', 'z']
         for i in range(3):
-            if self.cmp[i] > 0:
+            if cmp[i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
                 if amphi:
                     pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
@@ -587,6 +592,7 @@ class CSEMData():
 
     def generateDataPDF(self, pdffile=None, linewise=False, **kwargs):
         """Generate a multi-page pdf file containing all data."""
+        cmp = kwargs.pop("cmp", self.cmp)
         if linewise:
             pdffile = pdffile or self.basename + "-linedata.pdf"
         else:
@@ -604,7 +610,7 @@ class CSEMData():
                 fig, ax = plt.subplots(figsize=figsize)
                 self.showField(self.line, ax=ax, cMap="Spectral_r")
                 ax.figure.savefig(pdf, format="pdf")
-                fig, ax = plt.subplots(ncols=sum(self.cmp), nrows=2,
+                fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
                                        figsize=figsize, squeeze=False,
                                        sharex=True, sharey=True)
 
@@ -651,6 +657,7 @@ class CSEMData():
 
     def saveData(self, fname=None, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
+        cmp = kwargs.pop("cmp", self.cmp)
         if line is None:  # take all
             ind = np.nonzero(self.line > 0)[0]
         else:
@@ -671,7 +678,7 @@ class CSEMData():
                 fname += "-line" + str(line)
 
             for i in range(3):
-                if self.cmp[i]:
+                if cmp[i]:
                     fname += "B" + allcmp[i].lower()
         # %%
         meany = 0  # np.median(self.ry[ind])
@@ -681,18 +688,18 @@ class CSEMData():
         nF = len(self.f)
         nT = 1
         nR = rxpos.shape[0]
-        nC = sum(self.cmp)
+        nC = sum(cmp)
         DATA = []
         dataR = np.zeros([nT, nF, nR, nC])
         dataI = np.zeros([nT, nF, nR, nC])
         kC = 0
-        cmp = []
+        Cmp = []
         for iC in range(3):
-            if self.cmp[iC]:
+            if cmp[iC]:
                 dd = -getattr(self, 'DATA'+allcmp[iC])[:, ind]
                 dataR[0, :, :, kC] = dd.real
                 dataI[0, :, :, kC] = dd.imag
-                cmp.append('B'+allcmp[iC].lower())
+                Cmp.append('B'+allcmp[iC].lower())
                 kC += 1
         # %% error estimation
         absError = kwargs.pop("absError", 0.0015)
@@ -702,7 +709,7 @@ class CSEMData():
         fak = 1  # 1e-9
         data = dict(dataR=dataR*fak, dataI=dataI*fak,
                     errorR=errorR*fak, errorI=errorI*fak,
-                    tx_ids=[0], rx=rxpos, cmp=cmp)
+                    tx_ids=[0], rx=rxpos, cmp=Cmp)
         DATA.append(data)
         # %% save them to NPY
         np.savez(fname+".npz",
@@ -723,8 +730,6 @@ if __name__ == "__main__":
     # self.showField("alt", background="BKG")
     # self.invertSounding(nrx=20)
     # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    # self.cmp[0] = 1
-    # self.cmp[1] = 1
     self.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()
