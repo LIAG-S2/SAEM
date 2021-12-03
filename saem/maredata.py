@@ -28,6 +28,7 @@ class Mare2dEMData():
         self.DATA = []
         self.origin = [0, 0, 0]
         self.angle = 0
+        self.utmzone = 32
         nameType = {}  # [""] * 50
         xyz = "yxz"  # changed x and y position
         for i in range(3):
@@ -116,7 +117,6 @@ class Mare2dEMData():
 
     def txPositions(self, globalCoordinates=False):
         """Return transmitter positions."""
-        # %
         TX = []
         for it, txi in enumerate(self.txpos):
             # %
@@ -131,26 +131,44 @@ class Mare2dEMData():
             pp = np.column_stack((pp, [txi[2], txi[2]]))
             if globalCoordinates:
                 pp = self.local2global(pp[:, :2])
-                pp += self.origin[:2]
 
             TX.append(pp)
 
         return TX
         # %
 
-    def showPositions(self, globalCoordinates=False):
+    def showPositions(self, globalCoordinates=False, background="BKG",
+                      **kwargs):
         """Show positions."""
-        # %%
+        save = kwargs.pop("save", False)
         TX = self.txPositions(globalCoordinates)
-        fig, ax = plt.subplots()
+        if "ax" in kwargs:
+            ax = kwargs.pop("ax")
+        else:
+            _, ax = plt.subplots()
+
+        print(ax)
         rxpos = self.rxPositions(globalCoordinates)
-        ax.plot(rxpos[:, 0], rxpos[:, 1], "b.")
+        kwargs.setdefault("markersize", 1)
+        ax.plot(rxpos[:, 0], rxpos[:, 1], "b.", **kwargs)
         for tx in TX:
             ax.plot(tx[:, 0], tx[:, 1], "r-")
 
         ax.set_aspect(1.0)
         ax.grid(True)
-        # %%
+        if globalCoordinates:
+            if background == "BKG":
+                from pygimli.viewer.mpl import underlayBKGMap
+                underlayBKGMap(ax, utmzone=self.utmzone,
+                               uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+            elif background is not None:
+                from pygimli.viewer.mpl import underlayMap
+                underlayMap(ax, self.utmzone, vendor=background)
+
+        if save:
+            ax.figure.savefig(self.basename+"-pos.pdf",
+                              bbox_inches="tight", dpi=300)
+        return ax
 
     def rx(self):
         """Receiver index."""

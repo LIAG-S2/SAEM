@@ -4,8 +4,10 @@ from saem.maredata import Mare2dEMData
 self = Mare2dEMData("GOS_raw_inversion_ByBz.emdata")
 print(self)
 self.showPositions()
-self.showPositions(True)
-
+# %%
+ax = self.showPositions(True, markersize=1, save=True)
+# ax.figure.savefig(self.basename+"-pos.pdf", bbox_inches="tight", dpi=300)
+# %%
 asdadasd
 # %%
 self.chooseF(every=2)
