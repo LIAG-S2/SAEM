@@ -1,6 +1,6 @@
 Format:  EMResp_2.2
 !Data editted using plotMARE2DEM_CSEM.m
-UTM of x,y origin (UTM zone, N, E, 2D strike): 0 N          0.0          0.0      0
+UTM of x,y origin (UTM zone, N, E, 2D strike): 33 N          5607477.4          275384.4      42
 Phase Convention: lag
 Reciprocity Used: 
 # CSEM Frequencies:    23

@@ -1,5 +1,6 @@
 Format:  EMData_2.2
 !synth
+UTM of x,y origin (UTM zone, N, E, 2D strike): 33 N          5607472.3          275389.7      51
 Phase Convention: lead
 Reciprocity Used: 
 # CSEM Frequencies:    28
