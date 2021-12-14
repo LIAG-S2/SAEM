@@ -672,7 +672,6 @@ class CSEMData():
 
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
-            # %%
             fname = self.basename
             if line is not None:
                 fname += "-line" + str(line)
@@ -680,7 +679,11 @@ class CSEMData():
             for i in range(3):
                 if cmp[i]:
                     fname += "B" + allcmp[i].lower()
-        # %%
+
+        else:
+            if fname.startswith("+"):
+                fname = self.basename + "-" + fname
+
         meany = 0  # np.median(self.ry[ind])
         ypos = np.round(self.ry[ind]-meany)  # get them to a straight line
         rxpos = np.round(np.column_stack((self.rx[ind], ypos,
@@ -701,7 +704,7 @@ class CSEMData():
                 dataI[0, :, :, kC] = dd.imag
                 Cmp.append('B'+allcmp[iC].lower())
                 kC += 1
-        # %% error estimation
+        # error estimation
         absError = kwargs.pop("absError", 0.0015)
         relError = kwargs.pop("relError", 0.04)
         errorR = np.abs(dataR) * relError + absError
@@ -711,7 +714,7 @@ class CSEMData():
                     errorR=errorR*fak, errorI=errorI*fak,
                     tx_ids=[0], rx=rxpos, cmp=Cmp)
         DATA.append(data)
-        # %% save them to NPY
+        # save them to NPY
         np.savez(fname+".npz",
                  tx=[np.column_stack((self.tx, self.ty-meany, self.tx*0))],
                  freqs=self.f,
