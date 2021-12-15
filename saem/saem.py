@@ -690,15 +690,15 @@ class CSEMData():
         nR = rxpos.shape[0]
         nC = sum(cmp)
         DATA = []
-        dataR = np.zeros([nT, nF, nR, nC])
-        dataI = np.zeros([nT, nF, nR, nC])
+        dataR = np.zeros([nT, nC, nF, nR])
+        dataI = np.zeros_like(dataR)
         kC = 0
         Cmp = []
         for iC in range(3):
             if cmp[iC]:
-                dd = -getattr(self, 'DATA'+allcmp[iC])[:, ind]
-                dataR[0, :, :, kC] = dd.real
-                dataI[0, :, :, kC] = dd.imag
+                dd = getattr(self, 'DATA'+allcmp[iC])[:, ind]
+                dataR[0, kC, :, :] = dd.real
+                dataI[0, kC, :, :] = dd.imag
                 Cmp.append('B'+allcmp[iC].lower())
                 kC += 1
         # %% error estimation
