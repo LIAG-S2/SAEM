@@ -6,11 +6,12 @@ self.saveData(topo=1)
 # %%
 ax = self.showPositions(True)
 ax.figure.savefig(self.basename+"-pos.pdf", bbox_inches="tight", dpi=300)
+self.saveData(topo=1)
+
 # %%
 lotem = Mare2dEMData("Ball.emdata")
 ax = lotem.showPositions(True)
-ax.figure.savefig(self.basename+"-pos.pdf", bbox_inches="tight", dpi=300)
-# self.saveData()
+ax.figure.savefig(lotem.basename+"-pos.pdf", bbox_inches="tight", dpi=300)
 # %%
 # for tx in range(5):
 #     part1 = self.getPart(tx=tx+1)

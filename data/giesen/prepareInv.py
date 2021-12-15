@@ -15,6 +15,7 @@ self.filter(f=12000)
 # self.saveData(cmp=[1,1,1])
 # sdfsdfsfd
 # self.showLineData(line, alim=[-2, 0], plim=[-90, 0])
+self.saveData(self.basename+"-unrotated", cmp=[1, 1, 1])
 # %%
 self.showPos()
 self.cmp = [1, 1, 0]
