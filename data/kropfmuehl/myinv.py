@@ -18,6 +18,7 @@ xt, zt = np.loadtxt("topo.txt", unpack=True)
 def topo_f(x, y=None):
     return np.interp(x, xt, zt)
 
+
 # %% define mesh paramters
 dataname = 'P5f2_B_Tx12'
 invmod = dataname + '_l40'
@@ -62,7 +63,7 @@ P = PrismWorld(name=invmesh,
                n_prisms=200,
                tx=[txi for txi in tx],
                orthogonal_tx=[True] * len(tx),
-               #surface_rx=rx_tri,
+               # surface_rx=rx_tri,
                prism_area=50000,
                prism_quality=34,
                x_dim=[-1e5, 1e5],
@@ -76,7 +77,7 @@ for rx in rxs:
     P.PrismWorld.add_rx(rx)
 
 # %%
-
+sdsdfsd
 P.PrismWorld.call_tetgen(tet_param='-pDq1.3aA', print_infos=False)
 pgmesh = pg.load('meshes/mesh_create/' + invmesh + '.bms')
 # pgmesh = P.xzmesh  # is 3D

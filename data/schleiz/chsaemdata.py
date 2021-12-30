@@ -2,6 +2,7 @@ import numpy as np
 from saem.maredata import Mare2dEMData
 
 self = Mare2dEMData("L07_bybz_edited.emdata")
+self.saveData(topo=1)
 # %%
 ax = self.showPositions(True)
 ax.figure.savefig(self.basename+"-pos.pdf", bbox_inches="tight", dpi=300)
