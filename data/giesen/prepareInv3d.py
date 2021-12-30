@@ -10,6 +10,7 @@ self = CSEMData(datafile="data_f*.mat", txPos=txgeo, txalt=70,
 self.DATAY *= -1  # why?
 self.filter(fmin=50, fmax=20000)
 self.filter(f=12000)
+self.showData(0)
 # %%
 rot = CSEMData(datafile="data_f*.mat", txPos=txgeo, txalt=70,
                basename="giesen")
@@ -24,8 +25,11 @@ n = np.nonzero((rot.rx > 100)*(rot.rx < 700))[0]
 # %%
 self.filter(nInd=n)
 self.filter(nInd=np.arange(0, len(self.rx), 4))
+self.removeNoneLineData()
 self.showPos()
 self.basename += "-take4org"
+self.showData(0)
+sdfssdfsf
 # %%
 self.saveData(cmp=[1, 1, 1])
 for i in range(3):
