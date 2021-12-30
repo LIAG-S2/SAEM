@@ -458,8 +458,25 @@ class CSEMData():
 
     def showLineData(self, line=None, amphi=True, plim=[-180, 180],
                      ax=None, alim=None, log=False, **kwargs):
+        """Show data of a line as pcolor.
+
+        Parameters
+        ----------
+        line : int
+            line number to show. If not given all nonzero lines are used.
+        cmp : [bool, bool, bool]
+            components to plot. If not specified, use self.cmp
+        amphi : bool [True]
+            use (log10) amplitude and phase or real and imaginary part
+        alim : [float, float]
+            limits for the amplitude
+        plim : [float, float]
+            limits for the phase
+        log : bool|float
+            use logarithm (symlog) for amplitude and phase
+            if float, this is the (white) tolerance
+        """
         cmp = kwargs.pop("cmp", self.cmp)
-        # """Show data of a line as pcolor."""
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
         else:
@@ -473,7 +490,7 @@ class CSEMData():
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
-                if amphi:
+                if amphi:  # amplitud and phase
                     pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
                                               cmap="Spectral_r")
                     if alim is not None:
@@ -481,18 +498,18 @@ class CSEMData():
                     pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
                                               cMap="hsv")
                     pc2.set_clim(plim)
-                else:
+                else:  # real and imaginary part
                     if log:
                         tol = 1e-3
-                        if isinstance(symlog, float):
-                            tol = symlog
+                        if isinstance(log, float):
+                            tol = log
                         pc1 = ax[0, ncmp].matshow(
                             symlog(np.real(data), tol), cmap="seismic")
                         if alim is not None:
                             aa = symlog(alim[0], tol)
                             pc1.set_clim([-aa, aa])
                         pc2 = ax[1, ncmp].matshow(
-                            symlog(np.imag(data)), cmap="seismic")
+                            symlog(np.imag(data), tol), cmap="seismic")
                         if alim is not None:
                             aa = symlog(alim[1], tol)
                             pc2.set_clim([-aa, aa])
