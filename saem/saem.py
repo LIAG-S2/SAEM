@@ -35,6 +35,8 @@ class CSEMData():
             receiver positions
         f : iterable
             frequencies
+        cmp : [int, int, int]
+            active components
         alt : float
             flight altitude
         """
@@ -42,13 +44,15 @@ class CSEMData():
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
-        self.cmp = [0, 0, 1]  # active components
+        self.cmp = kwargs.pop("cmp", [1, 0, 1])  # active components
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
         self.rx = kwargs.pop("rx", np.array([100.0]))
         self.ry = np.zeros_like(self.rx)
-        self.alt = kwargs.pop("alt", 0.0)
-        self.rz = np.zeros_like(self.rx) * self.alt
+        self.f = kwargs.pop("f", [])
+        self.rz = np.zeros_like(self.rx) * kwargs.pop("alt", 0.0)
+        self.line = np.ones_like(self.rx, dtype=int)
+        self.alt = self.rz - self.txAlt
         self.depth = None
         self.prim = None
         self.origin = [0, 0, 0]
@@ -58,6 +62,7 @@ class CSEMData():
             self.loadData(kwargs["datafile"])
 
         self.basename = kwargs.pop("basename", self.basename)
+        self.createConfig()
 
     def __repr__(self):
         """String representation of the class."""
@@ -68,6 +73,16 @@ class CSEMData():
         spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])
 
         return "\n".join((sdata, stx, spos))
+
+    @property
+    def nRx(self):
+        """Number of receiver positions."""
+        return len(self.rx)
+
+    @property
+    def nF(self):
+        """Number of frequencies."""
+        return len(self.f)
 
     def loadData(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
@@ -95,12 +110,26 @@ class CSEMData():
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
-        self.createConfig()
         self.detectLines()
 
-    def simulate(self, rho, thk):
+    def simulate(self, rho, thk, **kwargs):
         """Simulate data by assuming 1D layered model."""
-        pass
+        cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
+        self.createConfig()
+        depth = np.hstack((0., np.cumsum(thk)))
+        self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
+        self.DATAY = np.zeros_like(self.DATAX)
+        self.DATAZ = np.zeros_like(self.DATAX)
+        for ix in range(self.nRx):
+            self.setPos(ix)
+            fop1d = fopSAEM(depth, self.cfg, self.f, cmp)
+            resp = fop1d.response(rho)
+
+            respR, respI = np.reshape(resp, (2, -1))
+            respC = np.reshape(respR+respI*1j, (3, -1))
+            self.DATAX[:, ix] = respC[0, :]
+            self.DATAY[:, ix] = respC[1, :]
+            self.DATAZ[:, ix] = respC[2, :]
 
     def rotateBack(self):
         """Rotate coordinate system back to previously stored origin/angle."""
@@ -274,7 +303,7 @@ class CSEMData():
 
         ax.plot(self.rx, self.ry, "b.", markersize=2)
         ax.plot(self.tx, self.ty, "r-", markersize=4)
-        if hasattr(self, "nrx"):
+        if hasattr(self, "nrx") and self.nrx < self.nRx:
             ax.plot(self.rx[self.nrx], self.ry[self.nrx], "bo", markersize=5)
 
         if line is not None:
@@ -429,8 +458,8 @@ class CSEMData():
 
     def showLineData(self, line=None, amphi=True, plim=[-180, 180],
                      ax=None, alim=None, log=False, **kwargs):
-        """Show data of a line as pcolor."""
         cmp = kwargs.pop("cmp", self.cmp)
+        # """Show data of a line as pcolor."""
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
         else:

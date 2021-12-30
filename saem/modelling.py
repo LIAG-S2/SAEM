@@ -37,7 +37,7 @@ class fopSAEM(pg.Modelling):
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
         if self.cmp[2]:
             self.cfg['rec'][3:5] = (0, 90)  # z
-            resp.extend(fwd(model, self.dep, self.cfg, self.f))
+            resp.extend(-fwd(model, self.dep, self.cfg, self.f))
 
         return np.hstack((np.real(resp), np.imag(resp)))
 
