@@ -21,13 +21,34 @@ class CSEMData():
     """Class for CSEM frequency sounding."""
 
     def __init__(self, **kwargs):
+        """Initialize CSEM data class
+
+        Parameters
+        ----------
+        datafile : str
+            data file to load
+        basename : str [datafile without extension]
+            name for data (exporting, figures etc.)
+        txPos : array
+            transmitter position as polygone
+        rx/ry/rz : iterable
+            receiver positions
+        f : iterable
+            frequencies
+        alt : float
+            flight altitude
+        """
         self.basename = "noname"
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
         self.cmp = [0, 0, 1]  # active components
-        self.txAlt = kwargs.pop("txalt")
+        self.txAlt = kwargs.pop("txalt", 0.0)
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
+        self.rx = kwargs.pop("rx", np.array([100.0]))
+        self.ry = np.zeros_like(self.rx)
+        self.alt = kwargs.pop("alt", 0.0)
+        self.rz = np.zeros_like(self.rx) * self.alt
         self.depth = None
         self.prim = None
         self.origin = [0, 0, 0]
@@ -76,6 +97,10 @@ class CSEMData():
         self.alt = self.rz - self.txAlt
         self.createConfig()
         self.detectLines()
+
+    def simulate(self, rho, thk):
+        """Simulate data by assuming 1D layered model."""
+        pass
 
     def rotateBack(self):
         """Rotate coordinate system back."""
@@ -203,7 +228,7 @@ class CSEMData():
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
                     'verb': 1}
 
-    def setPos(self, nrx, position=None, show=False):
+    def setPos(self, nrx=0, position=None, show=False):
         """The ."""
         if position:
             dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
