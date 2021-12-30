@@ -103,7 +103,7 @@ class CSEMData():
         pass
 
     def rotateBack(self):
-        """Rotate coordinate system back."""
+        """Rotate coordinate system back to previously stored origin/angle."""
         self.tx, self.ty = self.A.T.dot(np.array([self.tx, self.ty]))
         self.rx, self.ry = self.A.T.dot(np.vstack([self.rx, self.ry]))
         self.tx += self.origin[0]
@@ -118,10 +118,29 @@ class CSEMData():
             self.DATAX[i, :] = Bxy[0, :]
             self.DATAY[i, :] = Bxy[1, :]
 
-    def rotatePositions(self, ang=None, line=None):
-        """Rotate positions so that transmitter is x-oriented."""
+    def rotate(self, ang=None, line=None, origin=None):
+        """Rotate positions and fields to a local coordinate system.
+
+        Rotate the lines
+
+        The origin and angle is stored so that original coordinates can be
+        restored by rotateBack() which is called first (angle is global).
+
+        Parameters
+        ----------
+        ang : float
+            angle to rotate [otherwise determined from Tx or line positions]
+        line : int [None]
+            determine angle from specific line to be on x axis, if not given
+            the angle is determined from Tx position so that it is on y axis
+        origin : [float, float]
+            origin of coordinate system, if not given, center of Tx
+        """
         self.rotateBack()  # always go back to original system
-        self.origin = [np.mean(self.tx), np.mean(self.ty)]
+        if origin is None:
+            self.origin = [np.mean(self.tx), np.mean(self.ty)]
+        else:
+            self.origin = origin
         if ang is None:
             if line is None:
                 ang = np.arctan2(np.diff(self.ty),
@@ -147,6 +166,9 @@ class CSEMData():
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
+
+    def rotatePositions(self, *args, **kwargs):  # backward compatibility
+        self.rotate(*args, **kwargs)
 
     def detectLines(self, show=False):
         """Split data in lines for line-wise processing."""
