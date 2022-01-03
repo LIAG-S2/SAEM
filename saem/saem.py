@@ -20,13 +20,13 @@ from .modelling import fopSAEM, bipole
 class CSEMData():
     """Class for CSEM frequency sounding."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, datafile=None, **kwargs):
         """Initialize CSEM data class
 
         Parameters
         ----------
         datafile : str
-            data file to load
+            data file to load if not None
         basename : str [datafile without extension]
             name for data (exporting, figures etc.)
         txPos : array
@@ -58,8 +58,8 @@ class CSEMData():
         self.origin = [0, 0, 0]
         self.angle = 0
         self.A = np.array([[1, 0], [0, 1]])
-        if "datafile" in kwargs:
-            self.loadData(kwargs["datafile"])
+        if datafile is not None:
+            self.loadData(datafile)
 
         self.basename = kwargs.pop("basename", self.basename)
         self.createConfig()
@@ -85,6 +85,35 @@ class CSEMData():
         return len(self.f)
 
     def loadData(self, filename):
+        """Load any data format."""
+        if filename.endswith(".npz"):
+            self.loadNpzFile(filename)
+        elif filename.endswith(".mat"):
+            self.loadMatFile(filename)
+
+        self.detectLines()
+
+    def loadNpzFile(self, filename):
+        """Load data from numpy zipped file (inversion ready)."""
+        self.basename = filename.replace(".npz", "")
+        ALL = np.load(filename, allow_pickle=True)
+        freqs = ALL["freqs"]
+        txgeo = ALL["tx"][0][:, :2].T
+        data = ALL["DATA"][0]
+        rxs = data["rx"]
+        self.__init__(txPos=txgeo, basename="giesen", f=freqs,
+                      rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+        self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
+        self.DATAY = np.zeros_like(self.DATAX)
+        self.DATAZ = np.zeros_like(self.DATAX)
+        for ic, cmp in enumerate(data["cmp"]):
+            setattr(self, "DATA"+cmp[1].upper(),
+                    data["dataR"][0, ic, :, :] +
+                    data["dataI"][0, ic, :, :] * 1j)
+
+        self.cmp = [np.any(getattr(self, "DATA"+cc)) for cc in ["X", "Y", "Z"]]
+
+    def loadMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = glob(filename)
@@ -102,7 +131,6 @@ class CSEMData():
                 if key[0] != "_" and key != "f":
                     MAT[key] = np.hstack([MAT[key], MAT1[key]])
 
-        # self.f = np.squeeze=MAT["f"]*1.0
         self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
         self.f = np.squeeze(MAT["f"]) * 1.0
         self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
@@ -110,7 +138,6 @@ class CSEMData():
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
-        self.detectLines()
 
     def simulate(self, rho, thk, **kwargs):
         """Simulate data by assuming 1D layered model."""
@@ -564,7 +591,7 @@ class CSEMData():
 
         ax.set_aspect(1.0)
         x0 = np.floor(min(self.rx) / 1e4) * 1e4
-        y0 = np.floor(min(self.ry) / 1e4) * 1e4
+        y0 = np.floor(np.median(self.ry) / 1e4) * 1e4
         ax.ticklabel_format(useOffset=x0, axis='x')
         ax.ticklabel_format(useOffset=y0, axis='y')
         ax.set_xlabel("x (m)")
