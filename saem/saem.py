@@ -328,6 +328,7 @@ class CSEMData():
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
                        relError=0.03, absError=0.001, **kwargs):
         """Invert a single sounding."""
+        kwargs.setdefault("verbose", False)
         if nrx is not None:
             self.setPos(nrx)
 
@@ -360,7 +361,7 @@ class CSEMData():
             self.model = self.inv1d.run(datavec, relativeError,
                                         startModel=kwargs.pop('startModel',
                                                               self.model),
-                                        verbose=False, **kwargs)
+                                        **kwargs)
             self.response1d = self.inv1d.response.array()
 
         if show:
