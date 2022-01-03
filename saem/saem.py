@@ -48,9 +48,9 @@ class CSEMData():
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
         self.rx = kwargs.pop("rx", np.array([100.0]))
-        self.ry = np.zeros_like(self.rx)
+        self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
         self.f = kwargs.pop("f", [])
-        self.rz = np.zeros_like(self.rx) * kwargs.pop("alt", 0.0)
+        self.rz = np.ones_like(self.rx) * kwargs.pop("alt", 0.0)
         self.line = np.ones_like(self.rx, dtype=int)
         self.alt = self.rz - self.txAlt
         self.depth = None
@@ -320,9 +320,9 @@ class CSEMData():
     def createDepthVector(self, rho=30, nl=15):
         """Create depth vector."""
         sd = self.skinDepths(rho=rho)
-        self.depth = -np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
-                                                    n=nl, log=True)))
-        # depth = -np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
+        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
+                                                   n=nl, log=True)))
+        # depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
         # return depth
 
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
@@ -351,14 +351,16 @@ class CSEMData():
 
             self.inv1d = pg.Inversion(fop=self.fop1d)
             transModel = pg.trans.TransLogLU(1, 1000)
+            transData = pg.trans.TransSymLog(tol=1e-3)
             self.inv1d.transModel = transModel
+            self.inv1d.transData = transData
             datavec = np.hstack((np.real(data), np.imag(data)))
             absoluteError = np.abs(datavec) * relError + absError
             relativeError = np.abs(absoluteError/datavec)
             self.model = self.inv1d.run(datavec, relativeError,
                                         startModel=kwargs.pop('startModel',
                                                               self.model),
-                                        verbose=True, **kwargs)
+                                        verbose=False, **kwargs)
             self.response1d = self.inv1d.response.array()
 
         if show:
