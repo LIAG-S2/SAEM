@@ -592,8 +592,10 @@ class CSEMData():
         ax.set_aspect(1.0)
         x0 = np.floor(min(self.rx) / 1e4) * 1e4
         y0 = np.floor(np.median(self.ry) / 1e4) * 1e4
-        ax.ticklabel_format(useOffset=x0, axis='x')
-        ax.ticklabel_format(useOffset=y0, axis='y')
+        if x0 > 100000 or y0 > 100000:
+            ax.ticklabel_format(useOffset=x0, axis='x')
+            ax.ticklabel_format(useOffset=y0, axis='y')
+
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
         if background == "BKG":
@@ -618,7 +620,9 @@ class CSEMData():
             if self.verbose:
                 print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
 
-        overlay = kwargs.pop("overlay", True)
+        background = kwargs.pop("background", None)
+        if background is not None and kwargs.pop("overlay", False):  # bwc
+            background = "BKG"
         amphi = kwargs.pop("amphi", True)
         if amphi:
             alim = kwargs.pop("alim", [-3, 0])
@@ -686,13 +690,11 @@ class CSEMData():
             a.plot(self.tx, self.ty, "k*-")
             # a.ticklabel_format(useOffset=550000, axis='x')
             # a.ticklabel_format(useOffset=5.78e6, axis='y')
-            if overlay:
-                try:
-                    pg.viewer.mpl.underlayBKGMap(
-                        a, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
-                except Exception:
-                    print("could not load BKG data")
-                    overlay = False
+            if background == "BKG":
+                pg.viewer.mpl.underlayBKGMap(
+                    ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+            elif background is not None:
+                pg.viewer.mpl.underlayMap(ax, self.utm, vendor=background)
 
         fig.suptitle("f="+str(self.f[nf])+"Hz")
 
