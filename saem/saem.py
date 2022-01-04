@@ -116,7 +116,7 @@ class CSEMData():
     def loadMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
         self.basename = filename.replace("*", "").replace(".mat", "")
-        filenames = glob(filename)
+        filenames = sorted(glob(filename))
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
