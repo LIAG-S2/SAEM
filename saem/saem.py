@@ -96,14 +96,14 @@ class CSEMData():
 
     def loadNpzFile(self, filename):
         """Load data from numpy zipped file (inversion ready)."""
-        self.basename = filename.replace(".npz", "")
         ALL = np.load(filename, allow_pickle=True)
         freqs = ALL["freqs"]
         txgeo = ALL["tx"][0][:, :2].T
         data = ALL["DATA"][0]
         rxs = data["rx"]
-        self.__init__(txPos=txgeo, basename="giesen", f=freqs,
+        self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+        self.basename = filename.replace(".npz", "")
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
         self.DATAZ = np.zeros_like(self.DATAX)
@@ -880,9 +880,28 @@ class CSEMData():
 
     def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-5,
                         save=False, **kwargs):
-        """Show Jacobian row (model distribution for specific data)."""
-        allcmp = 'xyz'
-        allP = ["Re", "Im"]
+        """Show Jacobian row (model distribution for specific data).
+
+        Parameters
+        ----------
+        iI : int [1]
+            real (0) or imaginary (1) part
+        iC : int
+            component (out of existing ones!)
+        iF : int [0]
+            frequency index (into self.f)
+        iR : int [0]
+            receiver number
+        cM : float [1.5]
+            color scale maximum
+        tol : float
+            tolerance/threshold for symlog transformation
+
+        **kwargs are passed to the show function
+        """
+        allcmp = ['Bx', 'By', 'Bz']
+        scmp = [allcmp[i] for i in np.nonzero(self.cmp)[0]]
+        allP = ["Re ", "Im "]
         nD = self.J.rows() // 2
         nC = sum(self.cmp)
         nF = self.nF
@@ -895,7 +914,7 @@ class CSEMData():
                          colorBar=False, xlabel="x (m)", ylabel="z (m)")
         ax.plot(np.mean(self.tx), 5, "k*")
         ax.plot(self.rx[iR], 10, "kv")
-        st = allP[iI]+" B"+allcmp[iC]+", f={:.0f}Hz, x={:.0f}m".format(
+        st = allP[iI] + scmp[iC] + ", f={:.0f}Hz, x={:.0f}m".format(
             self.f[iF], self.rx[iR])
         ax.set_title(st)
         fn = st.replace(" ", "_").replace(",", "").replace("=", "")
