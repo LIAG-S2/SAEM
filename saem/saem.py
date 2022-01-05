@@ -1,4 +1,5 @@
 from glob import glob
+import os.path
 import numpy as np
 from scipy.io import loadmat
 
@@ -810,7 +811,7 @@ class CSEMData():
                 fname = self.basename + "-" + fname
 
         meany = 0  # np.median(self.ry[ind])
-        ypos = np.round(self.ry[ind]-meany)  # get them to a straight line
+        ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
         rxpos = np.round(np.column_stack((self.rx[ind], ypos,
                                           self.rz[ind]-self.txAlt))*10)/10
         nF = len(self.f)
@@ -846,6 +847,62 @@ class CSEMData():
                  DATA=DATA,
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
+
+    def loadResults(self, datafile=None, invmesh="Prisms", dirname=None):
+        """Load inversion results from directory."""
+        datafile = datafile or self.basename
+        if dirname is None:
+            dirname = datafile+"_"+invmesh + "/"
+        if dirname[-1] != "/":
+            dirname += "/"
+
+        self.model = np.load(dirname + "inv_model.npy")
+        self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
+        respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+        response = np.load(respfiles[-1])
+        respR, respI = np.split(response, 2)
+        self.RESP = np.reshape(respR+respI*1j,
+                               [sum(self.cmp), self.nF, self.nRx])
+        self.J = None
+        self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
+        print(self.mesh)
+        jname = dirname+datafile+"_jacobian.bmat"
+        if os.path.exists(jname):
+            self.J = pg.load(jname)
+            print("Loaded jacobian: ", self.J.rows(), self.J.cols())
+
+    def showResult(self, **kwargs):
+        """Show inversion result."""
+        kwargs.setdefault("cMap", "Spectral")
+        kwargs.setdefault("xlabel", "x (m)")
+        kwargs.setdefault("ylabel", "z (m)")
+        pg.show(self.mesh, 1./self.model, **kwargs)
+
+    def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-5,
+                        save=False, **kwargs):
+        """Show Jacobian row (model distribution for specific data)."""
+        allcmp = 'xyz'
+        allP = ["Re", "Im"]
+        nD = self.J.rows() // 2
+        nC = sum(self.cmp)
+        nF = self.nF
+        nR = self.nRx
+        assert nD == nC * nF * nR, "Dimensions mismatch"
+        iD = nD*iI + iC*(nF*nR) + iF*nR + iR
+        Jrow = self.J.row(iD)
+        sens = symlog(Jrow / self.mesh.cellSizes(), tol=tol)
+        ax, cb = pg.show(self.mesh, sens, cMap="bwr", cMin=-cM, cMax=cM,
+                         colorBar=False, xlabel="x (m)", ylabel="z (m)")
+        ax.plot(np.mean(self.tx), 5, "k*")
+        ax.plot(self.rx[iR], 10, "kv")
+        st = allP[iI]+" B"+allcmp[iC]+", f={:.0f}Hz, x={:.0f}m".format(
+            self.f[iF], self.rx[iR])
+        ax.set_title(st)
+        fn = st.replace(" ", "_").replace(",", "").replace("=", "")
+        if save:
+            ax.figure.savefig("pics/"+fn+".pdf", bbox_inches="tight")
+
+        return ax
 
 
 if __name__ == "__main__":
