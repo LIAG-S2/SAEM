@@ -92,6 +92,7 @@ class CSEMData():
         elif filename.endswith(".mat"):
             self.loadMatFile(filename)
 
+        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
         self.detectLines()
 
     def loadNpzFile(self, filename):
@@ -103,6 +104,8 @@ class CSEMData():
         rxs = data["rx"]
         self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+        self.origin = ALL["origin"]
+        self.angle = float(ALL["rotation"])
         self.basename = filename.replace(".npz", "")
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
@@ -136,6 +139,7 @@ class CSEMData():
         self.f = np.squeeze(MAT["f"]) * 1.0
         self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
         self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
+        self.DATAY *= -1
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
@@ -363,7 +367,7 @@ class CSEMData():
         if depth is not None:
             self.depth = depth
         if self.depth is None:
-            self.depth = self.createDepthVector()
+            self.createDepthVector()
 
         self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
         self.fop1d.modelTrans.setLowerBound(1.0)
@@ -386,10 +390,9 @@ class CSEMData():
             datavec = np.hstack((np.real(data), np.imag(data)))
             absoluteError = np.abs(datavec) * relError + absError
             relativeError = np.abs(absoluteError/datavec)
-            self.model = self.inv1d.run(datavec, relativeError,
-                                        startModel=kwargs.pop('startModel',
-                                                              self.model),
-                                        **kwargs)
+            self.model = self.inv1d.run(
+                datavec, relativeError,
+                startModel=kwargs.pop('startModel', self.model), **kwargs)
             self.response1d = self.inv1d.response.array()
 
         if show:
@@ -411,7 +414,7 @@ class CSEMData():
         self.MODELS = []
         # set up depth before
         if self.depth is None:
-            self.depth = self.createDepthVector()
+            self.createDepthVector()
 
         self.allModels = np.ones([len(self.rx), len(self.depth)])
         model = 100
@@ -508,10 +511,9 @@ class CSEMData():
             if float, this is the (white) tolerance
         """
         cmp = kwargs.pop("cmp", self.cmp)
+        nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
-        else:
-            nn = np.arange(len(self.rx))
 
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
@@ -564,10 +566,19 @@ class CSEMData():
         ax[0, 0].set_ylim([-0.5, len(self.f)-0.5])
         # ax[0, 0].set_ylim(ax[0, 0].get_ylim()[::-1])
         yt = np.arange(0, len(self.f), 2)
+        ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
         for aa in ax[:, 0]:
             aa.set_yticks(yt)
-            aa.set_yticklabels(["{:.0f}".format(self.f[yy]) for yy in yt])
+            aa.set_yticklabels(ytl)
             aa.set_ylabel("f (Hz)")
+
+        # xt = np.arange(0, len(nn), 10)
+        xt = np.round(np.linspace(0, len(nn)-1, 7))
+        xtl = ["{:.0f}".format(self.rx[int(xx)]) for xx in xt]
+        for aa in ax[-1, :]:
+            aa.set_xticks(xt)
+            aa.set_xticklabels(xtl)
+            aa.set_xlabel("x (m)")
 
         for a in ax.flat:
             a.set_aspect('auto')
@@ -805,7 +816,6 @@ class CSEMData():
             for i in range(3):
                 if cmp[i]:
                     fname += "B" + allcmp[i].lower()
-
         else:
             if fname.startswith("+"):
                 fname = self.basename + "-" + fname
@@ -840,7 +850,6 @@ class CSEMData():
                     errorR=errorR*fak, errorI=errorI*fak,
                     tx_ids=[0], rx=rxpos, cmp=Cmp)
         DATA.append(data)
-        # save them to NPY
         np.savez(fname+".npz",
                  tx=[np.column_stack((self.tx, self.ty-meany, self.tx*0))],
                  freqs=self.f,
@@ -848,7 +857,8 @@ class CSEMData():
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
 
-    def loadResults(self, datafile=None, invmesh="Prisms", dirname=None):
+    def loadResults(self, datafile=None, invmesh="Prisms", dirname=None,
+                    jacobian=None):
         """Load inversion results from directory."""
         datafile = datafile or self.basename
         if dirname is None:
@@ -866,19 +876,22 @@ class CSEMData():
         self.J = None
         self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
         print(self.mesh)
-        jname = dirname+datafile+"_jacobian.bmat"
+        jacobian = jacobian or datafile+"_jacobian.bmat"
+        jname = dirname + jacobian
         if os.path.exists(jname):
             self.J = pg.load(jname)
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
     def showResult(self, **kwargs):
         """Show inversion result."""
+        kwargs.setdefault("logScale", True)
         kwargs.setdefault("cMap", "Spectral")
         kwargs.setdefault("xlabel", "x (m)")
         kwargs.setdefault("ylabel", "z (m)")
-        pg.show(self.mesh, 1./self.model, **kwargs)
+        kwargs.setdefault("label", r"$\rho$ ($\Omega$m)")
+        return pg.show(self.mesh, 1./self.model, **kwargs)
 
-    def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-5,
+    def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-7,
                         save=False, **kwargs):
         """Show Jacobian row (model distribution for specific data).
 
@@ -897,7 +910,7 @@ class CSEMData():
         tol : float
             tolerance/threshold for symlog transformation
 
-        **kwargs are passed to the show function
+        **kwargs are passed to ps.show (e.g. cMin, )
         """
         allcmp = ['Bx', 'By', 'Bz']
         scmp = [allcmp[i] for i in np.nonzero(self.cmp)[0]]
@@ -909,9 +922,11 @@ class CSEMData():
         assert nD == nC * nF * nR, "Dimensions mismatch"
         iD = nD*iI + iC*(nF*nR) + iF*nR + iR
         Jrow = self.J.row(iD)
-        sens = symlog(Jrow / self.mesh.cellSizes(), tol=tol)
-        ax, cb = pg.show(self.mesh, sens, cMap="bwr", cMin=-cM, cMax=cM,
-                         colorBar=False, xlabel="x (m)", ylabel="z (m)")
+        sens = symlog(Jrow / self.mesh.cellSizes() * self.model, tol=tol)
+        defaults = dict(cMap="bwr", cMin=-cM, cMax=cM, colorBar=False,
+                        xlabel="x (m)", ylabel="z (m)")
+        defaults.update(kwargs)
+        ax, cb = pg.show(self.mesh, sens, **defaults)
         ax.plot(np.mean(self.tx), 5, "k*")
         ax.plot(self.rx[iR], 10, "kv")
         st = allP[iI] + scmp[iC] + ", f={:.0f}Hz, x={:.0f}m".format(
