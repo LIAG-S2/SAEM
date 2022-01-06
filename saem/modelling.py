@@ -19,7 +19,7 @@ class fopSAEM(pg.Modelling):
     def __init__(self, depth, cfg, f, cmp=[0, 0, 1]):
         """Initialize the model."""
         super().__init__()
-        self.dep = depth
+        self.dep = -np.abs(depth)  # RHS pointing up
         self.cfg = cfg
         self.cmp = cmp
         self.f = f
@@ -37,7 +37,7 @@ class fopSAEM(pg.Modelling):
             resp.extend(fwd(model, self.dep, self.cfg, self.f))
         if self.cmp[2]:
             self.cfg['rec'][3:5] = (0, 90)  # z
-            resp.extend(-fwd(model, self.dep, self.cfg, self.f))
+            resp.extend(fwd(model, self.dep, self.cfg, self.f))
 
         return np.hstack((np.real(resp), np.imag(resp)))
 
