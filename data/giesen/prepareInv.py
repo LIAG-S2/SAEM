@@ -7,7 +7,6 @@ txgeo = np.array([[559497.46, 5784467.953],
                   [559026.532, 5784301.022]]).T
 self = CSEMData(datafile="data_f*.mat", txPos=txgeo, txalt=70,
                 basename="giesen")
-self.DATAY *= -1  # why?
 # %%
 self.filter(fmin=50, fmax=20000)
 self.filter(f=12000)

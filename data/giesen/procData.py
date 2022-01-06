@@ -7,7 +7,6 @@ from saem import CSEMData
 txpos = np.array([[559497.46, 5784467.953],
                   [559026.532, 5784301.022]]).T
 self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-self.DATAX *= -1  # why?
 self.showField(self.line)
 self.cmp[1] = 1
 self.cmp[2] = 0
