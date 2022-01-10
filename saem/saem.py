@@ -14,7 +14,7 @@ from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
 
-from .plotting import plotSymbols, showSounding
+from .plotting import plotSymbols, showSounding, underlayBackground
 from .modelling import fopSAEM, bipole
 
 
@@ -139,7 +139,7 @@ class CSEMData():
         self.f = np.squeeze(MAT["f"]) * 1.0
         self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
         self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
-        self.DATAY *= -1
+        self.DATAY *= -1  # unless changed in the processing scripts
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
@@ -328,7 +328,7 @@ class CSEMData():
         if show:
             self.showPos()
 
-    def showPos(self, ax=None, line=None):
+    def showPos(self, ax=None, line=None, background=None):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -340,10 +340,16 @@ class CSEMData():
 
         if line is not None:
             ax.plot(self.rx[self.line == line],
-                    self.ry[self.line == line], "g-")
+                    self.ry[self.line == line], "-", color="orange")
 
         ax.set_aspect(1.0)
         ax.grid(True)
+        ax.set_xlabel("Easting (m) UTM32N")
+        ax.set_ylabel("Northing (m) UTM32N")
+        if background:
+            underlayBackground(ax, background, self.utm)
+
+        return ax
 
     def skinDepths(self, rho=30):
         """Compute skin depth based on a medium resistivity."""
@@ -517,7 +523,8 @@ class CSEMData():
 
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
-                                   sharex=True, sharey=True)
+                                   sharex=True, sharey=True,
+                                   figsize=kwargs.pop("figsize", None))
         ncmp = 0
         allcmp = ['x', 'y', 'z']
         for i in range(3):
@@ -574,7 +581,7 @@ class CSEMData():
 
         # xt = np.arange(0, len(nn), 10)
         xt = np.round(np.linspace(0, len(nn)-1, 7))
-        xtl = ["{:.0f}".format(self.rx[int(xx)]) for xx in xt]
+        xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
         for aa in ax[-1, :]:
             aa.set_xticks(xt)
             aa.set_xticklabels(xtl)
@@ -610,11 +617,8 @@ class CSEMData():
 
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
-        if background == "BKG":
-            pg.viewer.mpl.underlayBKGMap(
-                ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
-        elif background is not None:
-            pg.viewer.mpl.underlayMap(ax, self.utm, vendor=background)
+        if background:
+            underlayBackground(ax, background, self.utm)
 
         return ax, cb
 
@@ -700,15 +704,10 @@ class CSEMData():
         for a in ax.flat:
             a.set_aspect(1.0)
             a.plot(self.tx, self.ty, "k*-")
-            # a.ticklabel_format(useOffset=550000, axis='x')
-            # a.ticklabel_format(useOffset=5.78e6, axis='y')
-            if background == "BKG":
-                pg.viewer.mpl.underlayBKGMap(
-                    ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
-            elif background is not None:
-                pg.viewer.mpl.underlayMap(ax, self.utm, vendor=background)
+            if background:
+                underlayBackground(ax, background, self.utm)
 
-        fig.suptitle("f="+str(self.f[nf])+"Hz")
+        fig.suptitle(self.basename+"  f="+str(self.f[nf])+"Hz")
 
         return fig, ax
 
@@ -862,7 +861,7 @@ class CSEMData():
         """Load inversion results from directory."""
         datafile = datafile or self.basename
         if dirname is None:
-            dirname = datafile+"_"+invmesh + "/"
+            dirname = datafile + "_" + invmesh + "/"
         if dirname[-1] != "/":
             dirname += "/"
 
@@ -874,12 +873,18 @@ class CSEMData():
         self.RESP = np.reshape(respR+respI*1j,
                                [sum(self.cmp), self.nF, self.nRx])
         self.J = None
-        self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
+        if os.path.exists(dirname+"invmesh.vtk"):
+            self.mesh = pg.load(dirname+"invmesh.vtk")
+        else:
+            self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
         print(self.mesh)
         jacobian = jacobian or datafile+"_jacobian.bmat"
         jname = dirname + jacobian
         if os.path.exists(jname):
             self.J = pg.load(jname)
+            print("Loaded jacobian: "+jname, self.J.rows(), self.J.cols())
+        elif os.path.exists(dirname+"jacobian.bmat"):
+            self.J = pg.load(dirname+"jacobian.bmat")
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
     def showResult(self, **kwargs):

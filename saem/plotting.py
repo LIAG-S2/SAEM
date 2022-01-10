@@ -7,6 +7,7 @@ from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
 from matplotlib.colors import LogNorm, Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from pygimli.viewer.mpl import underlayMap, underlayBKGMap
 # import seaborn as sns
 
 
@@ -100,3 +101,11 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
             cb.set_label(label)
 
     return ax, cb
+
+
+def underlayBackground(ax, background="BKG", utm=32):
+    """Underlay background from any map."""
+    if background == "BKG":
+        underlayBKGMap(ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+    else:
+        underlayMap(ax, utm, vendor=background)
