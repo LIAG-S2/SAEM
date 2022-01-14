@@ -63,6 +63,7 @@ class Mare2dEMData():
 
     def load(self, filename):
         """Load file (.emdata) into class."""
+        flipimag = 0
         with open(filename) as fid:
             lines = fid.readlines()
             i = 0
@@ -73,6 +74,11 @@ class Mare2dEMData():
                     self.angle = float(sline[-1])
                     self.utmzone = int(sline[-5])
                     print("UTM", self.utmzone, self.origin, self.angle)
+                elif lines[i].startswith("Phase Convention"):
+                    sline = lines[i].split()
+                    flipimag = sline[-1].startswith("lag")
+                    if flipimag:
+                        print("FLipImag lag")
 
                 i += 1
 
@@ -100,11 +106,16 @@ class Mare2dEMData():
             # self.DATA["Rx"] = self.DATA["Rx"].astype(int)
             # self.DATA["Tx"] = self.DATA["Tx"].astype(int)
             # self.DATA = pd.DataFrame(self.DATA)
-            self.basename = filename.rstrip(".emdata")
+            self.basename = filename.replace(".emdata", "")
+            # self.basename = filename.rstrip(".emdata")
+            # here we should correct all B/logB/E/logE for Tx length!
+            if flipimag:
+                for i, ty in enumerate(self.DATA["Type"]):
+                    if self.nameType[ty].startswith("Phs"):
+                        self.DATA["Data"][i] *= -1
 
     def local2global(self, xy):
         """Transform local to global coordinates."""
-        # %%
         ang = np.deg2rad(self.angle)
         A = np.array([[np.cos(ang), -np.sin(ang)],
                       [np.sin(ang), np.cos(ang)]])
@@ -117,25 +128,26 @@ class Mare2dEMData():
 
     def txPositions(self, globalCoordinates=False):
         """Return transmitter positions."""
-        TX = []
-        for it, txi in enumerate(self.txpos):
-            # %
-            x, y, z = txi[:3]
-            length = txi[3]
-            ang = np.deg2rad(txi[4] if len(txi) > 4 else 0)
-            rot = np.array([[np.cos(ang), np.sin(ang)],
-                            [-np.sin(ang), np.cos(ang)]])
-            pp = rot.dot([[0, 0], [1, -1]]).T * length / 2
-            pp[:, 0] += txi[0]
-            pp[:, 1] += txi[1]
-            pp = np.column_stack((pp, [txi[2], txi[2]]))
-            if globalCoordinates:
-                pp = self.local2global(pp[:, :2])
+        if isinstance(self.txpos, list):
+            return self.txpos
+        else:  # if self.txpos.shape[1] > 3:  # x,y,z,len,az,dip
+            TX = []
+            for it, txi in enumerate(self.txpos):
+                x, y, z = txi[:3]
+                length = txi[3]
+                ang = np.deg2rad(txi[4] if len(txi) > 4 else 0)
+                rot = np.array([[np.cos(ang), np.sin(ang)],
+                                [-np.sin(ang), np.cos(ang)]])
+                pp = rot.dot([[0, 0], [1, -1]]).T * length / 2
+                pp[:, 0] += txi[0]
+                pp[:, 1] += txi[1]
+                pp = np.column_stack((pp, [txi[2], txi[2]]))
+                if globalCoordinates:
+                    pp = self.local2global(pp[:, :2])
 
-            TX.append(pp)
+                TX.append(pp)
 
-        return TX
-        # %
+            return TX
 
     def showPositions(self, globalCoordinates=False, background="BKG",
                       **kwargs):
@@ -170,6 +182,10 @@ class Mare2dEMData():
                               bbox_inches="tight", dpi=300)
         return ax
 
+    def nData(self):
+        """Number of data."""
+        return len(self.DATA)
+
     def rx(self):
         """Receiver index."""
         return self.DATA["Rx"].astype(int)
@@ -177,6 +193,28 @@ class Mare2dEMData():
     def tx(self):
         """Receiver index."""
         return self.DATA["Tx"].astype(int)
+
+    def filter(self, ePhiMax=None, eAMax=None):
+        """Filter according to several criteria.
+
+        Parameters
+        ----------
+        ePhiMax : float
+            maximum phase error (%)
+        eAMax : float
+            maximum amplitude error (1, e.g. 0.08 means 8%)
+        xMin/xMax/yMin/yMax : float
+            minimum/maximum x value
+
+        """
+        fPhi = [self.nameType[t].startswith("Phs") for t in self.DATA["Type"]]
+        fA = np.logical_not(fPhi)
+        good = np.isfinite(self.DATA["Data"]*self.DATA["StdErr"])
+        errPhi = self.DATA["StdErr"][fPhi]
+        good[fPhi] = errPhi < ePhiMax
+        errA = self.DATA["StdErr"][fA]
+        good[fA] = errA < eAMax
+        self.DATA = self.DATA[good]
 
     def getPart(self, tx=None, typ=None, clean=False):
         """Get a subpart of the data."""
@@ -221,9 +259,12 @@ class Mare2dEMData():
         uT, indF, indB = np.unique(self.tx() - 1,
                                    return_index=True, return_inverse=True)
         self.DATA["Tx"] = indB + 1
-        self.txpos = self.txpos[uT, :]
+        if isinstance(self.txpos, list):
+            self.txpos = [self.txpos[i] for i in uT]
+        else:
+            self.txpos = self.txpos[uT, :]
 
-    def getDataMatrix(self, field="Bx", tx=None):
+    def getDataMatrix(self, field="Bx", tx=None, column="Data"):
         """Prepare custEM-ready data matrix."""
         mydata = self.getPart(tx=tx, typ=field)
 
@@ -238,7 +279,7 @@ class Mare2dEMData():
 
         amp = np.ones([len(mydata.f), mydata.rxpos.shape[0]]) * np.nan
         phi = np.ones([len(mydata.f), mydata.rxpos.shape[0]]) * np.nan
-        vals = mydata.DATA["Data"]
+        vals = mydata.DATA[column]
         typ = mydata.DATA["Type"]
         atyp = mydata.typeName["log10"+field]
         ptyp = mydata.typeName["Phs"+field]
@@ -273,39 +314,42 @@ class Mare2dEMData():
 
     def saveData(self, tx=None, absError=1e-4, relError=0.05, topo=0):
         """Save data for inversion with custEM."""
-        if tx is None:
-            tx = np.arange(len(self.txpos)) + 1
-
+        tx = tx or np.arange(len(self.txpos)) + 1
         DATA = []
         TX = []
         fak = 1e9
         fname = self.basename + "_B_Tx"
         for it, txi in enumerate(np.atleast_1d(tx)):
-            # %%
+            # assert matX.shape == matZ.shape, "Bx and Bz not matching"
+            if isinstance(self.txpos, list):
+                tt = self.txpos[txi-1]
+                txl = np.sum(np.sqrt(np.sum(np.diff(tt, axis=0)**2, axis=1)))
+                TX.append(tt)
+            else:
+                txl = self.txpos[txi-1, 3]
+                TX.append(np.column_stack((
+                    [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
+                    self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
+                    [self.txpos[txi-1, 2]*topo, self.txpos[txi-1, 2]*topo])))
             part = self.getPart(tx=txi, typ="B", clean=True)
-            txl = self.txpos[txi-1, 3]
             matX = part.getDataMatrix(field="Bx") * txl * fak
             matY = part.getDataMatrix(field="By") * txl * fak
             matZ = -part.getDataMatrix(field="Bz") * txl * fak
+            # errX = part.getDataMatrix(field="Bx", column="Stderr")
             mats = [matX, matY, matZ]
-            # assert matX.shape == matZ.shape, "Bx and Bz not matching"
-            # %%
-            TX.append(np.column_stack((
-                [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
-                self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
-                [self.txpos[txi-1, 2]*topo, self.txpos[txi-1, 2]*topo])))
-            # %%
             allcmp = ["x", "y", "z"]
             icmp = [i for i in range(3) if len(mats[i]) > 0]
-            # %%
             if len(icmp) > 0:
                 fname += "{}".format(txi)
-                dataR = np.zeros([1, *mats[icmp[0]].shape, len(icmp)])
+                dataR = np.zeros([1, len(icmp), *mats[icmp[0]].shape])
+                # dataR = np.zeros([1, *mats[icmp[0]].shape, len(icmp)])
                 dataI = np.zeros_like(dataR)
                 lcmp = 0
                 for i in icmp:
-                    dataR[0, :, :, lcmp] = mats[i].real
-                    dataI[0, :, :, lcmp] = mats[i].imag
+                    dataR[0, lcmp, :, :] = mats[i].real
+                    dataI[0, lcmp, :, :] = mats[i].imag
+                    # dataR[0, :, :, lcmp] = mats[i].real
+                    # dataI[0, :, :, lcmp] = mats[i].imag
                     lcmp += 1
 
                 errorR = np.abs(dataR) * relError + absError
@@ -316,7 +360,6 @@ class Mare2dEMData():
                             rx=part.rxpos*np.array([1, 1, topo]),
                             cmp=["B"+allcmp[i] for i in icmp])
                 DATA.append(data)
-            # %%
 
         if len(TX) > 1:
             print(len(TX), TX)
