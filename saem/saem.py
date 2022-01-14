@@ -51,13 +51,15 @@ class CSEMData():
         self.rx = kwargs.pop("rx", np.array([100.0]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
         self.f = kwargs.pop("f", [])
-        self.rz = np.ones_like(self.rx) * kwargs.pop("alt", 0.0)
+        self.rz = kwargs.pop("rz",
+                             np.ones_like(self.rx) * kwargs.pop("alt", 0.0))
         self.line = np.ones_like(self.rx, dtype=int)
         self.alt = self.rz - self.txAlt
         self.depth = None
         self.prim = None
         self.origin = [0, 0, 0]
         self.angle = 0
+        self.radius = 10
         self.A = np.array([[1, 0], [0, 1]])
         if datafile is not None:
             self.loadData(datafile)
@@ -94,6 +96,7 @@ class CSEMData():
 
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
         self.detectLines()
+        self.radius = np.median(np.diff(self.rx))
 
     def loadNpzFile(self, filename):
         """Load data from numpy zipped file (inversion ready)."""
@@ -262,20 +265,23 @@ class CSEMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
-    def filter(self, fmin=0, fmax=1e6, f=-1, nInd=None, nMin=None, nMax=None):
+    def filter(self, fmin=0, fmax=1e6, f=-1, fInd=None,
+               nInd=None, nMin=None, nMax=None):
         """Filter data according to frequency range and indices."""
-        bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
-        if f > 0:
-            bind[np.argmin(np.abs(self.f - f))] = False
+        if fInd is None:
+            bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
+            if f > 0:
+                bind[np.argmin(np.abs(self.f - f))] = False
 
-        ind = np.nonzero(bind)[0]
-        self.f = self.f[ind]
-        self.DATAX = self.DATAX[ind, :]
-        self.DATAY = self.DATAY[ind, :]
-        self.DATAZ = self.DATAZ[ind, :]
+            fInd = np.nonzero(bind)[0]
+
+        self.f = self.f[fInd]
+        self.DATAX = self.DATAX[fInd, :]
+        self.DATAY = self.DATAY[fInd, :]
+        self.DATAZ = self.DATAZ[fInd, :]
         if self.prim is not None:
             for i in range(3):
-                self.prim[i] = self.prim[i][ind, :]
+                self.prim[i] = self.prim[i][fInd, :]
 
         if nMin is not None or nMax is not None:
             if nMin is None:
@@ -593,7 +599,31 @@ class CSEMData():
         return ax
 
     def showField(self, field, **kwargs):
-        """."""
+        """Show any receiver-related field as color-coded rectangles/circles.
+
+        Parameters
+        ----------
+        field : iterable | str
+            field vector to plot or to extract from class, e.g. "line"
+        cmap : mpl.colormap | str ["Spectral"]
+            colormap
+        colorBar : bool [True]
+            draw colowbar
+        cMin/cMax : float
+            min/max values for colorbar
+        logScale : bool [False]
+            use logarithmic color scaling
+        label : str
+            label for the colorbar
+        radius : float
+            prescribing radius of symbol
+        numpoints : int
+            number of points (0 means circle)
+
+        Returns
+        -------
+        ax, cb : matplotlib axes and colorbar instances
+        """
         if "ax" in kwargs:
             ax = kwargs.pop("ax")
         else:
@@ -623,7 +653,7 @@ class CSEMData():
         return ax, cb
 
     def showData(self, nf=0, ax=None, figsize=(9, 7), kwAmp={}, kwPhase={},
-                 scale=0, **kwargs):
+                 scale=0, cmp=None, **kwargs):
         """Show all three components as amp/phi or real/imag plots.
 
         Parameters
@@ -631,6 +661,7 @@ class CSEMData():
         nf : int | float
             frequency index (int) or value (float) to plot
         """
+        cmp = cmp or self.cmp
         if isinstance(nf, float):
             nf = np.argmin(np.abs(self.f - nf))
             if self.verbose:
@@ -644,28 +675,28 @@ class CSEMData():
             alim = kwargs.pop("alim", [-3, 0])
             plim = kwargs.pop("plim", [-180, 180])
             kwA = dict(cMap="Spectral_r", cMin=alim[0], cMax=alim[1],
-                       radius=10, numpoints=0)
+                       radius=self.radius, numpoints=0)
             kwA.update(kwAmp)
             kwP = dict(cMap="hsv", cMin=plim[0], cMax=plim[1],
-                       radius=10, numpoints=0)
+                       radius=self.radius, numpoints=0)
             kwP.update(kwPhase)
         else:
             log = kwargs.pop("log", True)
             alim = kwargs.pop("alim", [1e-3, 1])
             if log:
                 alim[1] = symlog(alim[1], tol=alim[0])
-            kwA = dict(cMap="seismic", radius=10, cMin=-alim[1], cMax=alim[1],
-                       numpoints=0)
+            kwA = dict(cMap="seismic", cMin=-alim[1], cMax=alim[1],
+                       radius=self.radius, numpoints=0)
             kwA.update(kwAmp)
         if scale:
             amphi = False
             if self.prim is None:
                 self.computePrimaryFields()
 
-        allcmp = ["x", "y", "z"]
+        allcmp = np.take(["x", "y", "z"], np.nonzero(cmp)[0])
         # modify allcmp to show only subset
         if ax is None:
-            fig, ax = plt.subplots(ncols=3, nrows=2,
+            fig, ax = plt.subplots(ncols=len(allcmp), nrows=2,
                                    sharex=True, sharey=True, figsize=figsize)
         else:
             fig = ax.flat[0].figure
@@ -673,8 +704,8 @@ class CSEMData():
         for a in ax.flat:
             a.plot(self.tx, self.ty, "wx-", lw=2)
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
-        for j, cmp in enumerate(allcmp):
-            data = getattr(self, "DATA"+cmp.upper()).copy()
+        for j, cc in enumerate(allcmp):
+            data = getattr(self, "DATA"+cc.upper()).copy()
             if scale:
                 data /= self.prim[j]
             if amphi:
@@ -682,8 +713,8 @@ class CSEMData():
                             ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kwA)
                 plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
                             ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kwP)
-                ax[0, j].set_title("log10 T"+cmp+" [nT/A]")
-                ax[1, j].set_title(r"$\phi$"+cmp+" [°]")
+                ax[0, j].set_title("log10 T"+cc+" [nT/A]")
+                ax[1, j].set_title(r"$\phi$"+cc+" [°]")
             else:
                 if log:
                     plotSymbols(self.rx, self.ry,
@@ -698,8 +729,8 @@ class CSEMData():
                     plotSymbols(self.rx, self.ry, np.imag(data[nf]),
                                 ax=ax[1, j], **kwA)
 
-                ax[0, j].set_title("real T"+cmp+" [nT/A]")
-                ax[1, j].set_title("imag T"+cmp+" [nT/A]")
+                ax[0, j].set_title("real T"+cc+" [nT/A]")
+                ax[1, j].set_title("imag T"+cc+" [nT/A]")
 
         for a in ax.flat:
             a.set_aspect(1.0)

@@ -53,13 +53,19 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
         x and y positions
     w : iterable
         values to plot
-    cmap : mpl.colormap | str
+    cmap : mpl.colormap | str ["Spectral"]
         colormap
-    clim : (float, float)
+    colorBar : bool [True]
+        draw colowbar
+    cMin/cMax : float
         min/max values for colorbar
+    logScale : bool [False]
+        use logarithmic color scaling
+    label : str
+        label for the colorbar
     radius : float
         prescribing radius of symbol
-    numpoint : int
+    numpoints : int
         number of points (0 means circle)
     """
     assert len(x) == len(y) == len(w), "Vector lengths have to match!"
