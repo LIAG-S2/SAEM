@@ -236,9 +236,12 @@ class CSEMData():
 
     def detectLines(self, show=False):
         """Split data in lines for line-wise processing."""
-        dx = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        sdx = np.hstack((0, np.diff(np.sign(np.diff(self.rx))), 0))
-        sdy = np.hstack((0, np.diff(np.sign(np.diff(self.ry))), 0))
+        dt = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+        dtmin = np.median(dt) * 2
+        dx = np.round(np.diff(self.rx) / dt * 2)
+        dy = np.round(np.diff(self.ry) / dt * 2)
+        sdx = np.hstack((0, np.diff(np.sign(dx)), 0))
+        sdy = np.hstack((0, np.diff(np.sign(dy)), 0))
         self.line = np.zeros_like(self.rx, dtype=int)
         nLine = 1
         act = True
@@ -251,7 +254,7 @@ class CSEMData():
                 act = not act
                 if act:
                     nLine += 1
-            if i > 0 and dx[i-1] > 50:
+            if i > 0 and dt[i-1] > dtmin:
                 act = True
                 nLine += 1
 
@@ -692,6 +695,9 @@ class CSEMData():
         nf : int | float
             frequency index (int) or value (float) to plot
         """
+        if "what" in kwargs:
+            self.chooseData(kwargs["what"])
+
         cmp = cmp or self.cmp
         if isinstance(nf, float):
             nf = np.argmin(np.abs(self.f - nf))
