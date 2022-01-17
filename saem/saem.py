@@ -113,12 +113,19 @@ class CSEMData():
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
         self.DATAZ = np.zeros_like(self.DATAX)
+        self.ERRX = np.ones_like(self.DATAX)
+        self.ERRY = np.ones_like(self.DATAX)
+        self.ERRZ = np.ones_like(self.DATAX)
         for ic, cmp in enumerate(data["cmp"]):
             setattr(self, "DATA"+cmp[1].upper(),
                     data["dataR"][0, ic, :, :] +
                     data["dataI"][0, ic, :, :] * 1j)
+            setattr(self, "ERR"+cmp[1].upper(),
+                    data["errorR"][0, ic, :, :] +
+                    data["errorI"][0, ic, :, :] * 1j)
 
         self.cmp = [np.any(getattr(self, "DATA"+cc)) for cc in ["X", "Y", "Z"]]
+        self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
 
     def loadMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
@@ -505,7 +512,7 @@ class CSEMData():
 
         return ax
 
-    def chooseData(self, what):
+    def chooseData(self, what, tol=1e-3):
         """Choose data to show by showData or showLineData.
 
         Parameters
@@ -515,9 +522,9 @@ class CSEMData():
                 data - measured data
                 error - data error (NOT READY)
                 response - forward response (NOT READY)
-                misfit - misfit between data and response
+                misfit - absolute misfit between data and response
+                rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
-
         """
         if what.lower() == "data":
             self.DATAX, self.DATAY, self.DATAZ = self.DATA
@@ -526,10 +533,26 @@ class CSEMData():
         elif what.lower() == "misfit":
             [self.DATAX, self.DATAY, self.DATAZ] = [
                 self.DATA[i] - self.RESP[i] for i in range(3)]
+        elif what.lower() == "rmisfit":
+            # for i, DD in enumerate([self.DATAX, self.DATAY, self.DATAZ]):
+            for i in range(3):
+                rr = 1 - self.RESP[i].real/self.DATA[i].real
+                ii = 1 - self.RESP[i].imag/self.DATA[i].imag
+                rr[np.abs(rr) < tol] = 0
+                ii[np.abs(ii) < tol] = 0
+                # DD = rr + ii *1j
+                if i == 0:
+                    self.DATAX = rr + ii * 1j
+                elif i == 1:
+                    self.DATAY = rr + ii * 1j
+                elif i == 2:
+                    self.DATAZ = rr + ii * 1j
+
         elif what.lower() == "error":
-            pass
+            self.DATAX, self.DATAY, self.DATAZ = self.ERR
         elif what.lower() == "wmisfit":
-            pass
+            [self.DATAX, self.DATAY, self.DATAZ] = [
+                (self.DATA[i] - self.RESP[i]) / self.ERR[i] for i in range(3)]
         else:
             self.DATAX, self.DATAY, self.DATAZ = what
 
@@ -630,6 +653,9 @@ class CSEMData():
         for a in ax.flat:
             a.set_aspect('auto')
 
+        if "what" in kwargs:
+            self.chooseData("data")
+
         return ax
 
     def showField(self, field, **kwargs):
@@ -663,6 +689,7 @@ class CSEMData():
         else:
             fig, ax = plt.subplots()
 
+        kwargs.setdefault("radius", self.radius)
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
@@ -776,6 +803,9 @@ class CSEMData():
                 underlayBackground(ax, background, self.utm)
 
         fig.suptitle(self.basename+"  f="+str(self.f[nf])+"Hz")
+
+        if "what" in kwargs:
+            self.chooseData("data")
 
         return fig, ax
 
