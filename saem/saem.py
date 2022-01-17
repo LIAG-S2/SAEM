@@ -502,6 +502,34 @@ class CSEMData():
 
         return ax
 
+    def chooseData(self, what):
+        """Choose data to show by showData or showLineData.
+
+        Parameters
+        ----------
+        what : str
+            property or matrix to choose / show
+                data - measured data
+                error - data error (NOT READY)
+                response - forward response (NOT READY)
+                misfit - misfit between data and response
+                wmisfit - error-weighted misfit
+
+        """
+        if what.lower() == "data":
+            self.DATAX, self.DATAY, self.DATAZ = self.DATA
+        elif what.lower() == "response":
+            self.DATAX, self.DATAY, self.DATAZ = self.RESP
+        elif what.lower() == "misfit":
+            [self.DATAX, self.DATAY, self.DATAZ] = [
+                self.DATA[i] - self.RESP[i] for i in range(3)]
+        elif what.lower() == "error":
+            pass
+        elif what.lower() == "wmisfit":
+            pass
+        else:
+            self.DATAX, self.DATAY, self.DATAZ = what
+
     def showLineData(self, line=None, amphi=True, plim=[-180, 180],
                      ax=None, alim=None, log=False, **kwargs):
         """Show data of a line as pcolor.
@@ -522,6 +550,9 @@ class CSEMData():
             use logarithm (symlog) for amplitude and phase
             if float, this is the (white) tolerance
         """
+        if "what" in kwargs:
+            self.chooseData(kwargs["what"])
+
         cmp = kwargs.pop("cmp", self.cmp)
         nn = np.arange(len(self.rx))
         if line is not None:
@@ -898,11 +929,27 @@ class CSEMData():
 
         self.model = np.load(dirname + "inv_model.npy")
         self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
-        respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+        respfiles = sorted(glob(dirname+"response_iter*.npy"))
+        if len(respfiles) == 0:
+            respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+        if len(respfiles) == 0:
+            pg.error("Could not find response file")
+        # %
         response = np.load(respfiles[-1])
         respR, respI = np.split(response, 2)
-        self.RESP = np.reshape(respR+respI*1j,
-                               [sum(self.cmp), self.nF, self.nRx])
+        respC = respR + respI*1j
+        fx = np.isfinite((self.DATAX.ravel()))
+        fz = np.isfinite((self.DATAZ.ravel()))
+        ff = np.hstack((fx, fz))
+        RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
+                       dtype=np.complex) * np.nan
+        RESP[ff] = respC
+        RESP = np.reshape(RESP, [sum(self.cmp), self.nF, self.nRx])
+        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
+        self.RESP[np.nonzero(self.cmp)[0]] = RESP
+        # self.RESP = np.reshape(respR+respI*1j,
+        #                        [sum(self.cmp), self.nF, self.nRx])
+        # %
         self.J = None
         if os.path.exists(dirname+"invmesh.vtk"):
             self.mesh = pg.load(dirname+"invmesh.vtk")
