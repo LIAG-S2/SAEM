@@ -57,6 +57,9 @@ class CSEMData():
         self.alt = self.rz - self.txAlt
         self.depth = None
         self.prim = None
+        self.DATA = None
+        self.RESP = None
+        self.ERR = None
         self.origin = [0, 0, 0]
         self.angle = 0
         self.radius = 10
@@ -275,8 +278,7 @@ class CSEMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
-    def filter(self, fmin=0, fmax=1e6, f=-1, fInd=None,
-               nInd=None, nMin=None, nMax=None):
+    def filter(self, fmin=0, fmax=1e6, f=-1, fInd=None, nInd=None):
         """Filter data according to frequency range and indices."""
         if fInd is None:
             bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
@@ -286,33 +288,29 @@ class CSEMData():
             fInd = np.nonzero(bind)[0]
 
         self.f = self.f[fInd]
-        self.DATAX = self.DATAX[fInd, :]
-        self.DATAY = self.DATAY[fInd, :]
-        self.DATAZ = self.DATAZ[fInd, :]
-        if self.prim is not None:
+        self.DATA = self.DATA[:, fInd, :]
+        if np.any(self.RESP):
+            self.RESP = self.RESP[:, fInd, :]
+
+        if np.any(self.ERR):
+            self.ERR = self.ERR[:, fInd, :]
+
+        if np.any(self.prim):
             for i in range(3):
                 self.prim[i] = self.prim[i][fInd, :]
-
-        if nMin is not None or nMax is not None:
-            if nMin is None:
-                nMin = 0
-            if nMax is None:
-                nMax = len(self.rx)
-
-            nInd = range(nMin, nMax)
 
         if nInd is not None:
             for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
                 setattr(self, tok, getattr(self, tok)[nInd])
 
-            self.DATAX = self.DATAX[:, nInd]
-            self.DATAY = self.DATAY[:, nInd]
-            self.DATAZ = self.DATAZ[:, nInd]
+            self.DATA = self.DATA[:, :, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
             if self.prim is not None:
                 for i in range(3):
                     self.prim[i] = self.prim[i][:, nInd]
+
+        self.chooseData()  # make sure DATAX etc. have correct dimensions
 
     def mask(self):
         pass
@@ -512,7 +510,7 @@ class CSEMData():
 
         return ax
 
-    def chooseData(self, what, tol=1e-3):
+    def chooseData(self, what="data", tol=1e-3):
         """Choose data to show by showData or showLineData.
 
         Parameters
@@ -749,7 +747,7 @@ class CSEMData():
             alim = kwargs.pop("alim", [1e-3, 1])
             if log:
                 alim[1] = symlog(alim[1], tol=alim[0])
-            kwA = dict(cMap="seismic", cMin=-alim[1], cMax=alim[1],
+            kwA = dict(cMap="coolwarm", cMin=-alim[1], cMax=alim[1],
                        radius=self.radius, numpoints=0)
             kwA.update(kwAmp)
         if scale:
@@ -802,7 +800,11 @@ class CSEMData():
             if background:
                 underlayBackground(ax, background, self.utm)
 
-        fig.suptitle(self.basename+"  f="+str(self.f[nf])+"Hz")
+        basename = kwargs.pop("name", self.basename)
+        if "what" in kwargs:
+            basename += kwargs["what"]
+
+        fig.suptitle(basename+"  f="+str(self.f[nf])+"Hz")
 
         if "what" in kwargs:
             self.chooseData("data")
@@ -827,10 +829,12 @@ class CSEMData():
     def generateDataPDF(self, pdffile=None, linewise=False, **kwargs):
         """Generate a multi-page pdf file containing all data."""
         cmp = kwargs.pop("cmp", self.cmp)
+        what = kwargs.pop("what", "data")
+        self.chooseData(what)
         if linewise:
-            pdffile = pdffile or self.basename + "-linedata.pdf"
+            pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
         else:
-            pdffile = pdffile or self.basename + "-data.pdf"
+            pdffile = pdffile or self.basename + "-" + what + ".pdf"
 
         plim = kwargs.pop("plim", [-90, 0])
         if kwargs.get("amphi", False):
@@ -838,6 +842,7 @@ class CSEMData():
             kwargs.setdefault("log", True)
         else:
             alim = kwargs.pop("alim", [-2.5, 0])
+
         figsize = kwargs.pop("figsize", [9, 7])
         with PdfPages(pdffile) as pdf:
             if linewise:
