@@ -23,9 +23,13 @@ self = CSEMData(marefile.replace(".emdata", "_B_Tx2.npz"))
 print(self)
 self.cmp = [1, 0, 1]
 # self.generateDataPDF(figsize=(9, 4), amphi=0)
-self.showData(0, amphi=0, log=1, alim=[-3, 3])
+# dsfsfs
+# self.showData(0, amphi=0, log=1, alim=[-3, 3])
 # %% every second frequency
-self.filter(fInd=np.arange(0, self.nF, 2))
+# self.filter(fInd=np.hstack((0, np.arange(2, self.nF))))
+self.filter(fInd=np.arange(3, self.nF-1))
+self.showLineData(amphi=False, log=True)
+# self.filter(fInd=np.arange(3, self.nF-1))))
 print(self.DATA.shape, self.DATAX.shape)
 # %% remove data close to transmitter
 print(self.DATA.shape, self.DATAX.shape)
@@ -42,7 +46,8 @@ self.detectLines()
 # %%
 self.showPos()
 self.showData(0, amphi=0, log=1, alim=[-3, 3])
-self.basename = "schleiz-L6-9take2Tx2"
+# self.basename = "schleiz-L6-9take2Tx2"
+self.basename = "schleiz-L6-_16freq_Tx2"
 self.saveData(cmp=[1, 0, 1])
 if 0:
     self.generateDataPDF(figsize=(9, 4), amphi=0)  # , what="error")
