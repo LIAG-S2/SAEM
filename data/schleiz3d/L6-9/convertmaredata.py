@@ -26,10 +26,9 @@ self.cmp = [1, 0, 1]
 # dsfsfs
 # self.showData(0, amphi=0, log=1, alim=[-3, 3])
 # %% every second frequency
-# self.filter(fInd=np.hstack((0, np.arange(2, self.nF))))
-self.filter(fInd=np.arange(3, self.nF-1))
-self.showLineData(amphi=False, log=True)
-# self.filter(fInd=np.arange(3, self.nF-1))))
+self.filter(fInd=np.hstack((0, np.arange(2, self.nF))))
+# self.filter(fInd=np.arange(3, self.nF-1))
+self.showLineData(amphi=False, log=True, alim=[-3, 3])
 print(self.DATA.shape, self.DATAX.shape)
 # %% remove data close to transmitter
 print(self.DATA.shape, self.DATAX.shape)
@@ -42,7 +41,8 @@ print(self.DATA.shape, self.DATAX.shape)
 # %% every fourth receiver
 self.filter(nInd=np.arange(0, self.nRx, 2))
 print(self.DATA.shape, self.DATAX.shape)
-self.detectLines()
+self.line[:] = 1
+# self.detectLines()
 # %%
 self.showPos()
 self.showData(0, amphi=0, log=1, alim=[-3, 3])
@@ -52,5 +52,5 @@ self.saveData(cmp=[1, 0, 1])
 if 0:
     self.generateDataPDF(figsize=(9, 4), amphi=0)  # , what="error")
 # %%
-# fig, ax = plt.subplots()
-# ax.plot(self.rx, self.ry)
+new = CSEMData(self.basename+"BxBz.npz")
+new.showPos()

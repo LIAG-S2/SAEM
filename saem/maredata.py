@@ -53,7 +53,9 @@ class Mare2dEMData():
         sdata = "Mare2dEM data with {} data".format(len(self.DATA))
         sf = "{} frequencies ({:.1f}-{:.1f} Hz)".format(
             len(self.f), min(self.f), max(self.f))
-        stx = "{} transmitters".format(self.txpos.shape[0])
+        ntx = len(self.txpos) if isinstance(self.txpos,
+                                            list) else self.txpos.shape[0]
+        stx = "{} transmitters".format(ntx)
         srx = "{} receivers".format(self.rxpos.shape[0])
         sty = "Data types:"
         for ty in np.unique(self.DATA["Type"]):
@@ -61,9 +63,8 @@ class Mare2dEMData():
 
         return "\n".join((sdata, sf, stx + " , " + srx, sty))
 
-    def load(self, filename):
+    def load(self, filename, flipimag=0):
         """Load file (.emdata) into class."""
-        flipimag = 0
         with open(filename) as fid:
             lines = fid.readlines()
             i = 0
@@ -112,6 +113,8 @@ class Mare2dEMData():
             if flipimag:
                 for i, ty in enumerate(self.DATA["Type"]):
                     if self.nameType[ty].startswith("Phs"):
+                        self.DATA["Data"][i] *= -1
+                    if self.nameType[ty].startswith("Imag"):
                         self.DATA["Data"][i] *= -1
 
     def local2global(self, xy):
@@ -279,17 +282,28 @@ class Mare2dEMData():
 
         amp = np.ones([len(mydata.f), mydata.rxpos.shape[0]]) * np.nan
         phi = np.ones([len(mydata.f), mydata.rxpos.shape[0]]) * np.nan
+        re = np.ones([len(mydata.f), mydata.rxpos.shape[0]]) * np.nan
+        im = np.ones([len(mydata.f), mydata.rxpos.shape[0]]) * np.nan
         vals = mydata.DATA[column]
         typ = mydata.DATA["Type"]
         atyp = mydata.typeName["log10"+field]
         ptyp = mydata.typeName["Phs"+field]
+        rtyp = mydata.typeName["Real"+field]
+        ityp = mydata.typeName["Imag"+field]
         for i in range(len(mydata.DATA)):
             if typ[i] == atyp:
                 amp[nf[i], nr[i]] = 10**vals[i]
             elif typ[i] == ptyp:
                 phi[nf[i], nr[i]] = vals[i]
+            elif typ[i] == rtyp:
+                re[nf[i], nr[i]] = vals[i]
+            elif typ[i] == ityp:
+                im[nf[i], nr[i]] = vals[i]
 
         out = amp * np.exp(np.deg2rad(phi)*1j)
+        if not np.any(np.isfinite(out)):
+            print("Using real/imag instead")
+            out = re + im * 1j
         if np.any(np.isnan(out)):
             print("Found NaN values!")
 
@@ -312,6 +326,10 @@ class Mare2dEMData():
         self.DATA["Freq"] = aind[freq] + 1
         self.DATA = self.DATA[ind]
 
+    def correctTxLengths(self):
+        """Correct data by multiplying with the transmitter lengths."""
+        pass
+
     def saveData(self, tx=None, absError=1e-4, relError=0.05, topo=0):
         """Save data for inversion with custEM."""
         tx = tx or np.arange(len(self.txpos)) + 1
@@ -325,12 +343,14 @@ class Mare2dEMData():
                 tt = self.txpos[txi-1]
                 txl = np.sum(np.sqrt(np.sum(np.diff(tt, axis=0)**2, axis=1)))
                 TX.append(tt)
+                txl = 1
             else:
                 txl = self.txpos[txi-1, 3]
                 TX.append(np.column_stack((
                     [self.txpos[txi-1, 0], self.txpos[txi-1, 0]],
                     self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
                     [self.txpos[txi-1, 2]*topo, self.txpos[txi-1, 2]*topo])))
+
             part = self.getPart(tx=txi, typ="B", clean=True)
             matX = part.getDataMatrix(field="Bx") * txl * fak
             matY = part.getDataMatrix(field="By") * txl * fak
