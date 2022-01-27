@@ -15,8 +15,12 @@ mare.txpos = TX
 mare.showPositions()
 # %%
 mare.saveData()  # all transmitters
-for i in range(len(TX)):
+for i in range(len(TX)):  # into separate transmitters
     mare.saveData(tx=i+1, topo=1)
+
+raise SystemExit
+# The next part is for individual data manipulation (filtering etc.),
+# however only for single Tx (unless CSEMSurvey class is ready).
 # %% Now re-read the individual files into the CSEMData class
 for i in range(len(TX)):
     self = CSEMData(marefile.replace(".emdata", "_B_Tx{:d}.npz".format(i+1)))
