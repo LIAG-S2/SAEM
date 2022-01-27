@@ -8,7 +8,7 @@ print(mare)
 # %%
 TX = []
 for i in range(2):
-    y, x = np.loadtxt("Tx{:d}.dat".format(i+1), unpack=True)
+    x, y = np.loadtxt("Tx{:d}.dat".format(i+1), unpack=True)
     TX.append(np.column_stack((x, y, x*0)))
 
 mare.txpos = TX

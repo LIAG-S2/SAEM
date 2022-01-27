@@ -21,7 +21,7 @@ def lastint(line):
 class Mare2dEMData():
     """Class for holding Mare2dEM data."""
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, **kwargs):
         """Initialize class with possible load."""
         self.basename = "new"
         self.f = []
@@ -46,7 +46,7 @@ class Mare2dEMData():
         self.nameType = nameType
         self.typeName = {v: k for k, v in self.nameType.items()}
         if filename is not None:
-            self.load(filename)
+            self.load(filename, **kwargs)
 
     def __repr__(self):
         """String representation."""
@@ -63,7 +63,7 @@ class Mare2dEMData():
 
         return "\n".join((sdata, sf, stx + " , " + srx, sty))
 
-    def load(self, filename, flipimag=0):
+    def load(self, filename, flipimag=0, flipxy=False):
         """Load file (.emdata) into class."""
         with open(filename) as fid:
             lines = fid.readlines()
@@ -91,14 +91,22 @@ class Mare2dEMData():
             i += 1
             lines[i] = lines[i].replace("!", " ")
             TX = np.genfromtxt(lines[i:i+nt+1], names=True)
-            self.txpos = np.column_stack([TX["Y"], TX["X"], -TX["Z"],
-                                          TX["Length"], TX["Azimuth"]])
+            if flipxy:
+                self.txpos = np.column_stack([TX["Y"], TX["X"], -TX["Z"],
+                                              TX["Length"], TX["Azimuth"]])
+            else:
+                self.txpos = np.column_stack([TX["X"], TX["Y"], -TX["Z"],
+                                              TX["Length"], TX["Azimuth"]])
             i += nt + 1
             nr = lastint(lines[i])
             i += 1
             lines[i] = lines[i].replace("!", " ")
             RX = np.genfromtxt(lines[i:i+nr+1], names=True)
-            self.rxpos = np.column_stack([RX["Y"], RX["X"], -RX["Z"]])
+            if flipxy:
+                self.rxpos = np.column_stack([RX["Y"], RX["X"], -RX["Z"]])
+            else:
+                self.rxpos = np.column_stack([RX["X"], RX["Y"], -RX["Z"]])
+
             i += nr + 1
             nd = lastint(lines[i])
             i += 1
