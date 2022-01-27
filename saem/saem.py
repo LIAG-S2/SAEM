@@ -278,7 +278,7 @@ class CSEMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
-    def filter(self, fmin=0, fmax=1e6, f=-1, fInd=None, nInd=None):
+    def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None):
         """Filter data according to frequency range and indices."""
         if fInd is None:
             bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
@@ -529,13 +529,14 @@ class CSEMData():
         elif what.lower() == "response":
             self.DATAX, self.DATAY, self.DATAZ = self.RESP
         elif what.lower() == "misfit":
-            [self.DATAX, self.DATAY, self.DATAZ] = [
-                self.DATA[i] - self.RESP[i] for i in range(3)]
+            self.DATAX, self.DATAY, self.DATAZ = self.DATA - self.RESP
+            # [self.DATAX, self.DATAY, self.DATAZ] = [
+            #     self.DATA[i] - self.RESP[i] for i in range(3)]
         elif what.lower() == "rmisfit":
             # for i, DD in enumerate([self.DATAX, self.DATAY, self.DATAZ]):
             for i in range(3):
-                rr = 1 - self.RESP[i].real/self.DATA[i].real
-                ii = 1 - self.RESP[i].imag/self.DATA[i].imag
+                rr = 1 - self.RESP[i].real / self.DATA[i].real
+                ii = 1 - self.RESP[i].imag / self.DATA[i].imag
                 rr[np.abs(rr) < tol] = 0
                 ii[np.abs(ii) < tol] = 0
                 # DD = rr + ii *1j
@@ -545,12 +546,17 @@ class CSEMData():
                     self.DATAY = rr + ii * 1j
                 elif i == 2:
                     self.DATAZ = rr + ii * 1j
-
         elif what.lower() == "error":
             self.DATAX, self.DATAY, self.DATAZ = self.ERR
+        elif what.lower() == "relerror":
+            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-6)
+            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-6)
+            self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
         elif what.lower() == "wmisfit":
-            [self.DATAX, self.DATAY, self.DATAZ] = [
-                (self.DATA[i] - self.RESP[i]) / self.ERR[i] for i in range(3)]
+            self.DATAX, self.DATAY, self.DATAZ = (self.DATA -
+                                                  self.RESP) / self.ERR
+#            [self.DATAX, self.DATAY, self.DATAZ] = [
+#                (self.DATA[i] - self.RESP[i]) / self.ERR[i] for i in range(3)]
         else:
             self.DATAX, self.DATAY, self.DATAZ = what
 
@@ -622,12 +628,23 @@ class CSEMData():
                         if alim is not None:
                             pc2.set_clim([-alim[1], alim[1]])
 
-                divider = make_axes_locatable(ax[0, ncmp])
-                cax = divider.append_axes("right", size="5%", pad=0.15)
-                plt.colorbar(pc1, cax=cax, orientation="vertical")
-                divider = make_axes_locatable(ax[1, ncmp])
-                cax = divider.append_axes("right", size="5%", pad=0.15)
-                plt.colorbar(pc2, cax=cax, orientation="vertical")
+                for j in range(2):
+                    divider = make_axes_locatable(ax[j, ncmp])
+                    cax = divider.append_axes("right", size="5%", pad=0.15)
+                    cb = plt.colorbar(pc1, cax=cax, orientation="vertical")
+                    if i == sum(cmp):
+                        cb.set_ticks([-3, -2, -1, 0, 1, 2, 3])
+                        cb.set_ticklabels(["-1e3", "-100", "-10", "+/-1p",
+                                           "+10", "+100", "+1e3"])
+                    else:
+                        cb.set_ticks([])
+                # divider = make_axes_locatable(ax[1, ncmp])
+                # cax = divider.append_axes("right", size="5%", pad=0.15)
+                # cb = plt.colorbar(pc2, cax=cax, orientation="vertical")
+                # if i == sum(cmp):
+                #     cb.set_ticks([-3, -2, -1, 0, 1, 2, 3])
+                #     cb.set_ticklabels(["-1n", "-100p", "-10p", "+/-1p",
+                #                        "+10p", "+100p", "+1n"])
                 ax[0, ncmp].set_title("B"+allcmp[i])
                 ncmp += 1
 
@@ -732,7 +749,7 @@ class CSEMData():
         background = kwargs.pop("background", None)
         if background is not None and kwargs.pop("overlay", False):  # bwc
             background = "BKG"
-        amphi = kwargs.pop("amphi", True)
+        amphi = kwargs.pop("amphi", False)
         if amphi:
             alim = kwargs.pop("alim", [-3, 0])
             plim = kwargs.pop("plim", [-180, 180])
@@ -758,7 +775,7 @@ class CSEMData():
         allcmp = np.take(["x", "y", "z"], np.nonzero(cmp)[0])
         # modify allcmp to show only subset
         if ax is None:
-            fig, ax = plt.subplots(ncols=len(allcmp), nrows=2,
+            fig, ax = plt.subplots(ncols=len(allcmp), nrows=2, squeeze=False,
                                    sharex=True, sharey=True, figsize=figsize)
         else:
             fig = ax.flat[0].figure
@@ -766,6 +783,8 @@ class CSEMData():
         for a in ax.flat:
             a.plot(self.tx, self.ty, "wx-", lw=2)
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
+
+        ncmp = 0
         for j, cc in enumerate(allcmp):
             data = getattr(self, "DATA"+cc.upper()).copy()
             if scale:
@@ -775,24 +794,34 @@ class CSEMData():
                             ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kwA)
                 plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
                             ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kwP)
-                ax[0, j].set_title("log10 T"+cc+" [nT/A]")
+                ax[0, j].set_title("log10 T"+cc+" [pT/A]")
                 ax[1, j].set_title(r"$\phi$"+cc+" [°]")
             else:
                 if log:
-                    plotSymbols(self.rx, self.ry,
-                                symlog(np.real(data[nf]), tol=alim[0]),
-                                ax=ax[0, j], **kwA)
-                    plotSymbols(self.rx, self.ry,
-                                symlog(np.imag(data[nf]), tol=alim[0]),
-                                ax=ax[1, j], **kwA)
+                    _, cb1 = plotSymbols(self.rx, self.ry,
+                                      symlog(np.real(data[nf]), tol=alim[0]),
+                                      ax=ax[0, j], **kwA)
+                    _, cb2 = plotSymbols(self.rx, self.ry,
+                                      symlog(np.imag(data[nf]), tol=alim[0]),
+                                      ax=ax[1, j], **kwA)
                 else:
-                    plotSymbols(self.rx, self.ry, np.real(data[nf]),
-                                ax=ax[0, j], **kwA)
-                    plotSymbols(self.rx, self.ry, np.imag(data[nf]),
-                                ax=ax[1, j], **kwA)
+                    _, cb1 = plotSymbols(self.rx, self.ry, np.real(data[nf]),
+                                      ax=ax[0, j], **kwA)
+                    _, cb2 = plotSymbols(self.rx, self.ry, np.imag(data[nf]),
+                                      ax=ax[1, j], **kwA)
 
                 ax[0, j].set_title("real T"+cc+" [nT/A]")
                 ax[1, j].set_title("imag T"+cc+" [nT/A]")
+
+                for cb in [cb1, cb2]:
+                    if j == sum(cmp)-1:
+                        cb.set_ticks([-3, -2, -1, 0, 1, 2, 3])
+                        cb.set_ticklabels(["-1e3", "-100", "-10", "+/-1",
+                                           "+10", "+100", "+1e3"])
+                    else:
+                        cb.set_ticks([])
+
+            ncmp += 1
 
         for a in ax.flat:
             a.set_aspect(1.0)
