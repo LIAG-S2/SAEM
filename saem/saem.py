@@ -1046,6 +1046,22 @@ class CSEMData():
         kwargs.setdefault("label", r"$\rho$ ($\Omega$m)")
         return pg.show(self.mesh, 1./self.model, **kwargs)
 
+    def exportRxTxVTK(self, marker=1):
+        """Export Receiver and Transmitter positions as VTK file."""
+        rxmesh = pg.Mesh(3)
+        for i in range(self.nRx):
+            rxmesh.createNode([self.rx[i], self.ry[i], self.rz[i]], marker)
+
+        rxmesh.exportVTK(self.basename+"-rxpos.vtk")
+        txmesh = pg.Mesh(3)
+        for xx, yy in zip(self.tx, self.ty):
+            txmesh.createNode(xx, yy, self.txAlt)
+
+        for i in range(txmesh.nodeCount()-1):
+            txmesh.createEdge(txmesh.node(i), txmesh.node(i+1), marker)
+
+        txmesh.exportVTK(self.basename+"-txpos.vtk")
+
     def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-7,
                         save=False, **kwargs):
         """Show Jacobian row (model distribution for specific data).
