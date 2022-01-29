@@ -553,11 +553,10 @@ class CSEMData():
             ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-6)
             self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
         elif what.lower() == "wmisfit":
-            self.DATAX, self.DATAY, self.DATAZ = (self.DATA -
-                                                  self.RESP) / self.ERR
-#            [self.DATAX, self.DATAY, self.DATAZ] = [
-#                (self.DATA[i] - self.RESP[i]) / self.ERR[i] for i in range(3)]
-        else:
+            mis = self.DATA - self.RESP
+            wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+            self.DATAX, self.DATAY, self.DATAZ = wmis
+        else:  # try using the argument?
             self.DATAX, self.DATAY, self.DATAZ = what
 
     def showLineData(self, line=None, amphi=True, plim=[-180, 180],
@@ -997,29 +996,32 @@ class CSEMData():
         if dirname[-1] != "/":
             dirname += "/"
 
-        self.model = np.load(dirname + "inv_model.npy")
+        if os.path.exists(dirname + "inv_model.npy"):
+            self.model = np.load(dirname + "inv_model.npy")
+        else:
+            self.model = np.load(sorted(glob(dirname+"sig_iter_*.npy"))[0])
+
         self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
         respfiles = sorted(glob(dirname+"response_iter*.npy"))
         if len(respfiles) == 0:
             respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
         if len(respfiles) == 0:
             pg.error("Could not find response file")
-        # %
+
         response = np.load(respfiles[-1])
         respR, respI = np.split(response, 2)
         respC = respR + respI*1j
-        fx = np.isfinite((self.DATAX.ravel()))
-        fz = np.isfinite((self.DATAZ.ravel()))
-        ff = np.hstack((fx, fz))
+        ff = np.array([], dtype=bool)
+        for i in range(3):
+            if self.cmp[i]:
+                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
+                ff = np.hstack((ff, np.isfinite(tmp)))
         RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
                        dtype=np.complex) * np.nan
         RESP[ff] = respC
         RESP = np.reshape(RESP, [sum(self.cmp), self.nF, self.nRx])
         self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
-        # self.RESP = np.reshape(respR+respI*1j,
-        #                        [sum(self.cmp), self.nF, self.nRx])
-        # %
         self.J = None
         if os.path.exists(dirname+"invmesh.vtk"):
             self.mesh = pg.load(dirname+"invmesh.vtk")
