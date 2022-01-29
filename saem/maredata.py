@@ -338,7 +338,7 @@ class Mare2dEMData():
         """Correct data by multiplying with the transmitter lengths."""
         pass
 
-    def saveData(self, tx=None, absError=1e-4, relError=0.05, topo=0):
+    def saveData(self, tx=None, absError=1e-4, relError=0.05, topo=1):
         """Save data for inversion with custEM."""
         tx = tx or np.arange(len(self.txpos)) + 1
         DATA = []

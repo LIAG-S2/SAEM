@@ -24,7 +24,7 @@ raise SystemExit
 # %% Now re-read the individual files into the CSEMData class
 for i in range(len(TX)):
     self = CSEMData(marefile.replace(".emdata", "_B_Tx{:d}.npz".format(i+1)))
-    # self.radius = 100
+    self.radius = 100
     self.cmp = [0, 0, 1]
     # self.filter(6.)
     # self.filter(18.)
