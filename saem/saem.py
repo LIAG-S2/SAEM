@@ -590,7 +590,7 @@ class CSEMData():
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
                                    sharex=True, sharey=True,
-                                   figsize=kwargs.pop("figsize", None))
+                                   figsize=kwargs.pop("figsize", (10, 6)))
         ncmp = 0
         allcmp = ['x', 'y', 'z']
         for i in range(3):
@@ -627,23 +627,21 @@ class CSEMData():
                         if alim is not None:
                             pc2.set_clim([-alim[1], alim[1]])
 
-                for j in range(2):
+                for j, pc in enumerate([pc1, pc2]):
                     divider = make_axes_locatable(ax[j, ncmp])
                     cax = divider.append_axes("right", size="5%", pad=0.15)
-                    cb = plt.colorbar(pc1, cax=cax, orientation="vertical")
-                    if i == sum(cmp):
-                        cb.set_ticks([-3, -2, -1, 0, 1, 2, 3])
-                        cb.set_ticklabels(["-1e3", "-100", "-10", "+/-1p",
-                                           "+10", "+100", "+1e3"])
+                    cb = plt.colorbar(pc, cax=cax, orientation="vertical")
+                    if not amphi:
+                        if i == sum(cmp):
+                            cb.set_ticks([-3, -2, -1, 0, 1, 2, 3])
+                            cb.set_ticklabels(["-1e3", "-100", "-10", "+/-1p",
+                                               "+10", "+100", "+1e3"])
+                        else:
+                            cb.set_ticks([])
                     else:
-                        cb.set_ticks([])
-                # divider = make_axes_locatable(ax[1, ncmp])
-                # cax = divider.append_axes("right", size="5%", pad=0.15)
-                # cb = plt.colorbar(pc2, cax=cax, orientation="vertical")
-                # if i == sum(cmp):
-                #     cb.set_ticks([-3, -2, -1, 0, 1, 2, 3])
-                #     cb.set_ticklabels(["-1n", "-100p", "-10p", "+/-1p",
-                #                        "+10p", "+100p", "+1n"])
+                        tit = "log10(B) in nT/A" if j == 0 else "phi in °"
+                        cb.ax.set_title(tit)
+
                 ax[0, ncmp].set_title("B"+allcmp[i])
                 ncmp += 1
 
@@ -900,7 +898,7 @@ class CSEMData():
                 ax = None
                 for i in range(len(self.f)):
                     fig, ax = self.showData(nf=i, ax=ax, figsize=figsize,
-                                            **kwargs)
+                                            alim=alim, **kwargs)
                     fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                     plt.close(fig)
                     ax = None
