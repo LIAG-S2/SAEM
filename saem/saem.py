@@ -166,12 +166,13 @@ class CSEMData():
         """Simulate data by assuming 1D layered model."""
         cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
         self.createConfig()
+        rho = np.atleast_1d(rho)
         thk = np.atleast_1d(thk)
         if len(thk) > 0:
             assert len(rho) == len(thk) + 1, "rho/thk lengths do not match"
             depth = np.hstack((0., np.cumsum(thk)))
-        else:
-            rho = [rho, rho]
+        else:  # append an artificial layer to enforce RHS
+            rho = np.hstack((rho, rho[0]))
             depth = np.hstack((0., 1000.))
 
         DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
@@ -188,7 +189,7 @@ class CSEMData():
             DATAY[:, ix] = respC[1, :]
             DATAZ[:, ix] = respC[2, :]
 
-        self.RESP = [DATAX, DATAY, DATAZ]
+        self.RESP = np.stack([DATAX, DATAY, DATAZ])
         if kwargs.pop("show", False):
             if len(np.unique(self.line)) == 1:
                 self.showLineData(what="response", **kwargs)
