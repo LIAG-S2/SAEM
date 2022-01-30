@@ -166,14 +166,21 @@ class CSEMData():
         """Simulate data by assuming 1D layered model."""
         cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
         self.createConfig()
-        depth = np.hstack((0., np.cumsum(thk)))
+        thk = np.atleast_1d(thk)
+        if len(thk) > 0:
+            assert len(rho) == len(thk) + 1, "rho/thk lengths do not match"
+            depth = np.hstack((0., np.cumsum(thk)))
+        else:
+            rho = [rho, rho]
+            depth = np.hstack((0., 1000.))
+
         DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         DATAY = np.zeros_like(DATAX)
         DATAZ = np.zeros_like(DATAX)
         for ix in range(self.nRx):
             self.setPos(ix)
             fop1d = fopSAEM(depth, self.cfg, self.f, cmp)
-            resp = fop1d.response(np.atleast_1d(rho))
+            resp = fop1d.response(rho)
 
             respR, respI = np.reshape(resp, (2, -1))
             respC = np.reshape(respR+respI*1j, (3, -1))
