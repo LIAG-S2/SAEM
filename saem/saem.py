@@ -57,7 +57,7 @@ class CSEMData():
         self.alt = self.rz - self.txAlt
         self.depth = None
         self.prim = None
-        self.DATA = None
+        self.DATA = np.zeros((3, self.nF, self.nRx))
         self.RESP = None
         self.ERR = None
         self.origin = [0, 0, 0]
@@ -68,6 +68,7 @@ class CSEMData():
             self.loadData(datafile)
 
         self.basename = kwargs.pop("basename", self.basename)
+        self.chooseData()
         self.createConfig()
 
     def __repr__(self):
@@ -606,6 +607,9 @@ class CSEMData():
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
                                    sharex=True, sharey=True,
                                    figsize=kwargs.pop("figsize", (10, 6)))
+        else:
+            fig = ax.flat[0].figure
+
         ncmp = 0
         allcmp = ['x', 'y', 'z']
         for i in range(3):
@@ -682,6 +686,12 @@ class CSEMData():
 
         if "what" in kwargs:
             self.chooseData("data")
+
+        name = kwargs.pop("name", self.basename)
+        if "what" in kwargs:
+            name += " " + kwargs["what"]
+
+        fig.suptitle(name)
 
         return ax
 
@@ -843,7 +853,7 @@ class CSEMData():
 
         basename = kwargs.pop("name", self.basename)
         if "what" in kwargs:
-            basename += kwargs["what"]
+            basename += " " + kwargs["what"]
 
         fig.suptitle(basename+"  f="+str(self.f[nf])+"Hz")
 
