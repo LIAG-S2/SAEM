@@ -90,7 +90,7 @@ class CSEMData():
         """Number of frequencies."""
         return len(self.f)
 
-    def loadData(self, filename):
+    def loadData(self, filename, detectLines=False):
         """Load any data format."""
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
@@ -98,8 +98,12 @@ class CSEMData():
             self.loadMatFile(filename)
 
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        self.detectLines()
-        self.radius = np.median(np.diff(self.rx))
+        self.line = np.ones(self.nRx)
+        if detectLines:
+            self.detectLines()
+
+        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+        self.radius = np.median(dxy)
 
     def loadNpzFile(self, filename):
         """Load data from numpy zipped file (inversion ready)."""
@@ -157,24 +161,31 @@ class CSEMData():
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
 
-    def simulate(self, rho, thk, **kwargs):
+    def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model."""
         cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
         self.createConfig()
         depth = np.hstack((0., np.cumsum(thk)))
-        self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
-        self.DATAY = np.zeros_like(self.DATAX)
-        self.DATAZ = np.zeros_like(self.DATAX)
+        DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
+        DATAY = np.zeros_like(DATAX)
+        DATAZ = np.zeros_like(DATAX)
         for ix in range(self.nRx):
             self.setPos(ix)
             fop1d = fopSAEM(depth, self.cfg, self.f, cmp)
-            resp = fop1d.response(rho)
+            resp = fop1d.response(np.atleast_1d(rho))
 
             respR, respI = np.reshape(resp, (2, -1))
             respC = np.reshape(respR+respI*1j, (3, -1))
-            self.DATAX[:, ix] = respC[0, :]
-            self.DATAY[:, ix] = respC[1, :]
-            self.DATAZ[:, ix] = respC[2, :]
+            DATAX[:, ix] = respC[0, :]
+            DATAY[:, ix] = respC[1, :]
+            DATAZ[:, ix] = respC[2, :]
+
+        self.RESP = [DATAX, DATAY, DATAZ]
+        if kwargs.pop("show", False):
+            if len(np.unique(self.line)) == 1:
+                self.showLineData(what="response", **kwargs)
+            else:
+                self.showData(what="response")
 
     def rotateBack(self):
         """Rotate coordinate system back to previously stored origin/angle."""
@@ -342,10 +353,14 @@ class CSEMData():
         if show:
             self.showPos()
 
-    def showPos(self, ax=None, line=None, background=None):
+    def showPos(self, ax=None, line=None, background=None, org=False):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
+
+        rxy = np.column_stack((self.rx, self.ry))
+        if org:
+            pass
 
         ax.plot(self.rx, self.ry, "b.", markersize=2)
         ax.plot(self.tx, self.ty, "r-", markersize=4)

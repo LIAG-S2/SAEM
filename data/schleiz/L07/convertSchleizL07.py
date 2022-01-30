@@ -16,7 +16,7 @@ self = CSEMData(mare.basename + "_B_Tx{:d}.npz".format(i))
 for f in [7, 15, 22, 48, 67]:
     self.filter(f=f)
 
-# self.showLineData()
+self.showLineData()
 self.showLineData(amphi=False, log=True, alim=[3, 3])
 # %%
 i = 2
@@ -24,5 +24,6 @@ self = CSEMData(mare.basename + "_B_Tx{:d}.npz".format(i))
 for f in [10]:  # 7, 15, 22, 48, 67]:
     self.filter(f=f)
 
-# self.showLineData()
-self.showLineData(amphi=False, log=True, alim=[3, 3], figsize=(10, 5))
+self.showLineData()
+# self.showLineData(amphi=False, log=True, alim=[3, 3], figsize=(10, 5))
+self.simulate(100, show=True)
