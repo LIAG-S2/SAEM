@@ -25,13 +25,14 @@ raise SystemExit
 for i in range(len(TX)):
     self = CSEMData(marefile.replace(".emdata", "_B_Tx{:d}.npz".format(i+1)))
     self.radius = 100
+    self.line[:] = 1
     self.cmp = [0, 0, 1]
     # self.filter(6.)
     # self.filter(18.)
     # self.filter(30.)
     # self.filter(47.)
-    self.generateDataPDF(amphi=False, log=True, alim=[-3, 3], figsize=(7,9))
-    self.line[:] = 1
+    self.showData()
+    self.generateDataPDF(amphi=False, log=True, alim=[3, 3], figsize=(7,9))
 # %%
 sdfsdfs
 # %%
