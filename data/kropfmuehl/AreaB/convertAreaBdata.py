@@ -31,8 +31,8 @@ for i in range(len(TX)):
     # self.filter(18.)
     # self.filter(30.)
     # self.filter(47.)
-    self.showData()
-    self.generateDataPDF(amphi=False, log=True, alim=[3, 3], figsize=(7,9))
+    # self.showData()
+    self.generateDataPDF()#amphi=False, log=True, alim=[3, 3], figsize=(7,9))
 # %%
 sdfsdfs
 # %%
