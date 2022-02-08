@@ -351,7 +351,6 @@ class Mare2dEMData():
                 tt = self.txpos[txi-1]
                 txl = np.sum(np.sqrt(np.sum(np.diff(tt, axis=0)**2, axis=1)))
                 TX.append(tt)
-                txl = 1
             else:
                 txl = self.txpos[txi-1, 3]
                 TX.append(np.column_stack((

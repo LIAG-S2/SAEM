@@ -45,7 +45,7 @@ class CSEMData():
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
-        self.cmp = kwargs.pop("cmp", [1, 0, 1])  # active components
+        self.cmp = kwargs.pop("cmp", [0, 0, 1])  # active components
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
         self.rx = kwargs.pop("rx", np.array([100.0]))
@@ -53,7 +53,7 @@ class CSEMData():
         self.f = kwargs.pop("f", [])
         self.rz = kwargs.pop("rz",
                              np.ones_like(self.rx) * kwargs.pop("alt", 0.0))
-        self.line = np.ones_like(self.rx, dtype=int)
+        self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
         self.alt = self.rz - self.txAlt
         self.depth = None
         self.prim = None
@@ -99,7 +99,7 @@ class CSEMData():
             self.loadMatFile(filename)
 
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        self.line = np.ones(self.nRx)
+        
         if detectLines:
             self.detectLines()
 
@@ -115,6 +115,9 @@ class CSEMData():
         rxs = data["rx"]
         self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+
+        if 'line' in ALL:
+            self.line = ALL["line"]
         self.origin = ALL["origin"]
         self.angle = float(ALL["rotation"])
         self.basename = filename.replace(".npz", "")
@@ -967,7 +970,7 @@ class CSEMData():
                 return
             else:
                 ind = np.nonzero(self.line == line)[0]
-
+                
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
@@ -1011,10 +1014,12 @@ class CSEMData():
                     errorR=errorR*fak, errorI=errorI*fak,
                     tx_ids=[0], rx=rxpos, cmp=Cmp)
         DATA.append(data)
+
         np.savez(fname+".npz",
                  tx=[np.column_stack((self.tx, self.ty-meany, self.tx*0))],
                  freqs=self.f,
                  DATA=DATA,
+                 line=self.line,
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
 
