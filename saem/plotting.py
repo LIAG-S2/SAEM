@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
-from matplotlib.colors import LogNorm, Normalize
+from matplotlib.colors import SymLogNorm, Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pygimli.viewer.mpl import underlayMap, underlayBKGMap
 # import seaborn as sns
@@ -43,8 +43,8 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     return ax
 
 
-def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
-                cMin=None, cMax=None, radius=10, numpoints=0, colorBar=True):
+def plotSymbols(x, y, w, ax=None, **kwargs):
+                
     """Plot circles or rectangles for each point in a map.
 
     Parameters
@@ -68,15 +68,20 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
     numpoints : int
         number of points (0 means circle)
     """
+
+    cmap = kwargs.pop("cmap", "seismic") 
+    amphi = kwargs.pop("amphi", False)
+    log = kwargs.pop("log", True)
+    alim = kwargs.pop("alim", [1e-3, 1e1])
+    plim = kwargs.pop("plim", [-180., 180.])
+    numpoints = kwargs.pop("numpoints", 0)
+    radius = kwargs.pop("radius", 10.)
+    label = kwargs.pop("label", False)
+
     assert len(x) == len(y) == len(w), "Vector lengths have to match!"
     if ax is None:
         fig, ax = plt.subplots()
         ax.plot(x, y, ".", ms=0, zorder=-10)
-
-    if cMin is None:
-        cMin = min(w)
-    if cMax is None:
-        cMax = max(w)
 
     patches = []
     for xi, yi in zip(x, y):
@@ -88,23 +93,26 @@ def plotSymbols(x, y, w, ax=None, cMap="Spectral", logScale=False, label=None,
         patches.append(rect)
 
     norm = None
-    if logScale and cMin > 0:
-        norm = LogNorm(vmin=cMin, vmax=cMax)
+    if log:
+        norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
     else:
-        norm = Normalize(vmin=cMin, vmax=cMax)
+        norm = Normalize(vmin=alim[0], vmax=alim[1])
 
-    pc = collections.PatchCollection(patches, cmap=cMap, linewidths=0)
+    pc = collections.PatchCollection(patches, cmap=cmap, linewidths=0)
     pc.set_norm(norm)
     pc.set_array(w)
     ax.add_collection(pc)
-    pc.set_clim([cMin, cMax])
+    if log:
+        pc.set_clim([-alim[1], alim[1]])
+    else:
+        pc.set_clim([alim[0], alim[1]])
     cb = None
-    if colorBar:
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        cb = plt.colorbar(pc, cax=cax)
-        if label:
-            cb.set_label(label)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cb = plt.colorbar(pc, cax=cax)
+
+    if label:
+        cb.set_label(label)
 
     return ax, cb
 
@@ -115,3 +123,15 @@ def underlayBackground(ax, background="BKG", utm=32):
         underlayBKGMap(ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
     else:
         underlayMap(ax, utm, vendor=background)
+
+
+def makeSymlogTicks(cb, alim):
+
+    i1 = int(np.log10(alim[0]))
+    i2 = int(np.log10(alim[1]))
+    ni = i2-i1+1
+    lvec = np.linspace(i1, i2, ni)
+    lvec = np.append([-10**ele for ele in lvec], 0.)
+    ticks = np.append(lvec, [10**ele for ele in np.linspace(i2, i1, ni)])
+    cb.set_ticks(ticks)
+    cb.set_ticklabels(['{:.0e}'.format(tick) for tick in ticks])
