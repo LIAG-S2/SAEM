@@ -569,10 +569,10 @@ class CSEMData():
         elif what.lower() == "rmisfit":
             # for i, DD in enumerate([self.DATAX, self.DATAY, self.DATAZ]):
             for i in range(3):
-                rr = 1 - self.RESP[i].real / self.DATA[i].real
-                ii = 1 - self.RESP[i].imag / self.DATA[i].imag
-                rr[np.abs(rr) < llthres] = 0
-                ii[np.abs(ii) < llthres] = 0
+                rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
+                ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
+                # rr[np.abs(rr) < llthres] = 0
+                # ii[np.abs(ii) < llthres] = 0
                 # DD = rr + ii *1j
                 if i == 0:
                     self.DATAX = rr + ii * 1j
@@ -583,8 +583,8 @@ class CSEMData():
         elif what.lower() == "error":
             self.DATAX, self.DATAY, self.DATAZ = self.ERR
         elif what.lower() == "relerror":
-            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-6)
-            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-6)
+            rr = self.ERR.real / (np.abs(self.DATA.real) + llthres)
+            ii = self.ERR.imag / (np.abs(self.DATA.imag) + llthres)
             self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
         elif what.lower() == "wmisfit":
             mis = self.DATA - self.RESP
@@ -651,6 +651,100 @@ class CSEMData():
             underlayBackground(ax, background, self.utm)
 
         return ax, cb
+
+    def showLineFreq(self, line=None, nf=0, ax=None, **kwargs):
+        """Show data of a line as pcolor.
+
+        Parameters
+        ----------
+        line : int
+            line number to show. If not given all nonzero lines are used.
+        cmp : [bool, bool, bool]
+            components to plot. If not specified, use self.cmp
+        amphi : bool [True]
+            use (log10) amplitude and phase or real and imaginary part
+        alim : [float, float]
+            limits for the amplitude
+        plim : [float, float]
+            limits for the phase
+        log : bool|float
+            use logarithmic scale
+        """
+
+        what, llthres, cmap, cmp, amphi, log, alim, plim = \
+            self.update_plt_kwargs(**kwargs)
+        self.chooseData(what, llthres)
+        if what == 'data':
+            errbar = self.ERR
+        else:
+            errbar=np.zeros_like(self.ERR)
+        
+        nn = np.arange(len(self.rx))
+        if line is not None:
+            nn = np.nonzero(self.line == line)[0]
+
+        errbar=errbar[:, nf, nn]
+        if ax is None:
+            fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
+                                   sharex=True, sharey=True,
+                                   figsize=kwargs.pop("figsize", (10, 6)))
+        else:
+            fig = ax.flat[0].figure
+
+        ncmp = 0
+        allcmp = ['x', 'y', 'z']
+        for i in range(3):
+            if cmp[i] > 0:
+                data = getattr(self, "DATA"+allcmp[i].upper())[nf, nn]
+                if amphi:  # amplitud and phase
+                    pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
+                                              cmap=cmap)
+                    if alim is not None:
+                        pc1.set_clim(alim)
+                    pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
+                                              cMap=cmap)
+                    pc2.set_clim(plim)
+                else:  # real and imaginary part
+                    pc1 = ax[0, ncmp].errorbar(np.arange(len(data)), np.real(data),
+                                               yerr=[errbar[i].real, errbar[i].real])
+                    pc2 = ax[1, ncmp].errorbar(np.arange(len(data)), np.imag(data),
+                                               yerr=[errbar[i].imag, errbar[i].imag])
+                    if log:
+                        ax[0, ncmp].set_yscale('symlog', linthresh=llthres)
+                        ax[0, ncmp].set_ylim([-alim[1], alim[1]])
+                        ax[1, ncmp].set_yscale('symlog', linthresh=llthres)
+                        ax[1, ncmp].set_ylim([-alim[1], alim[1]])
+                    else:
+                        pass
+
+                ax[0, ncmp].set_title("B"+allcmp[i])
+                ncmp += 1
+
+        # xt = np.arange(0, len(nn), 10)
+        xt = np.round(np.linspace(0, len(nn)-1, 7))
+        xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+        for aa in ax[-1, :]:
+            if xtl[0] > xtl[-1]:
+                aa.set_xlim([xt[1], xt[0]])
+            aa.set_xticks(xt)
+            aa.set_xticklabels(xtl)
+            aa.set_xlabel("x (m)")
+
+        for a in ax.flat:
+            a.set_aspect('auto')
+
+        if "what" in kwargs:
+            self.chooseData("data", llthres)
+
+        plt.legend(["data", "response"])
+
+        name = kwargs.pop("name", self.basename)
+        if "what" in kwargs:
+            name += " " + kwargs["what"]
+
+        fig.suptitle(name)
+
+        return fig, ax
     
     def showLineData(self, line=None, ax=None, **kwargs):
         """Show data of a line as pcolor.
@@ -751,7 +845,10 @@ class CSEMData():
         # xt = np.arange(0, len(nn), 10)
         xt = np.round(np.linspace(0, len(nn)-1, 7))
         xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+        
         for aa in ax[-1, :]:
+            if xtl[0] > xtl[-1]:
+                aa.set_xlim([xt[1], xt[0]])
             aa.set_xticks(xt)
             aa.set_xticklabels(xtl)
             aa.set_xlabel("x (m)")
@@ -768,7 +865,7 @@ class CSEMData():
 
         fig.suptitle(name)
 
-        return ax
+        return fig, ax
 
     def showData(self, nf=0, ax=None, figsize=(12, 6), 
                  scale=0, background=None, **kwargs):
@@ -875,7 +972,7 @@ class CSEMData():
         self.prim = [self.pfx, self.pfy, self.pfz]
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
-                        linewise=False, **kwargs):
+                        mode='patchwise', **kwargs):
         """Generate a multi-page pdf file containing all data."""
 
 
@@ -883,28 +980,54 @@ class CSEMData():
             self.update_plt_kwargs(**kwargs)
         self.chooseData(what, llthres)
 
-        if linewise:
-            pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
-        else:
+        if mode == 'patchwise':
             pdffile = pdffile or self.basename + "-" + what + ".pdf"
-        
+        elif mode == 'linewise':
+            pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
+        elif mode == 'linefreqwise':
+            pdffile = pdffile or self.basename + "-linefreqs-" + what + ".pdf"
+        else:
+            print('Error, wrong *mode* chosen. Aborting ...')
+            raise SystemExit
+
         with PdfPages(pdffile) as pdf:
-            if linewise:
+            if mode == 'linefreqwise':
                 fig, ax = plt.subplots(figsize=figsize)
                 self.showField(self.line, ax=ax)
                 ax.figure.savefig(pdf, format="pdf")
-                fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
-                                       figsize=figsize, squeeze=False,
-                                       sharex=True, sharey=True)
 
                 ul = np.unique(self.line)
+                plt.close(fig)
+                ax = None
                 for li in ul[ul > 0]:
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
-                        self.showLineData(li, plim=plim,
-                                          ax=ax, alim=alim, **kwargs)
+                        for fi in range(len(self.f)):
+                            fig, ax = self.showLineFreq(li, fi, ax=ax,
+                                                        **kwargs)
+                            fig, ax = self.showLineFreq(li, fi, ax=ax,
+                                                        what='response')
+                            fig.suptitle('line = {:.0f}'.format(li))
+                            fig.savefig(pdf, format='pdf')  
+                            plt.close(fig)
+                            ax = None
+            
+            elif mode == 'linewise':
+                fig, ax = plt.subplots(figsize=figsize)
+                self.showField(self.line, ax=ax)
+                ax.figure.savefig(pdf, format="pdf")
+
+                ul = np.unique(self.line)
+                plt.close(fig)
+                ax = None
+                for li in ul[ul > 0]:
+                    nn = np.nonzero(self.line == li)[0]
+                    if np.isfinite(li) and len(nn) > 3:
+                        fig, ax = self.showLineData(li, ax=ax, **kwargs)
                         fig.suptitle('line = {:.0f}'.format(li))
-                        fig.savefig(pdf, format='pdf')  # bbox_inches="tight")
+                        fig.savefig(pdf, format='pdf') 
+                        plt.close(fig)
+                        ax = None
             else:
                 fig, ax = plt.subplots(ncols=2, figsize=figsize, sharey=True)
                 self.showField(np.arange(len(self.rx)), ax=ax[0],
@@ -912,15 +1035,15 @@ class CSEMData():
                 ax[0].set_title("Sounding number")
                 self.showField(self.line, ax=ax[1], cMap="Spectral_r")
                 ax[1].set_title("Line number")
-                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+                fig.savefig(pdf, format='pdf')  
+                plt.close(fig)
                 ax = None
                 for i in range(len(self.f)):
                     fig, ax = self.showData(nf=i, ax=ax, figsize=figsize,
                                             **kwargs)
-                    fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+                    fig.savefig(pdf, format='pdf')  
                     plt.close(fig)
                     ax = None
-                    # for a in ax.flat: a.cla()
 
     def generateModelPDF(self, pdffile=None, **kwargs):
         """Generate a PDF of all models."""
@@ -1132,12 +1255,14 @@ class CSEMData():
         log = kwargs.pop("log", True)
         if log:
             cmap = kwargs.pop("cmap", "PuOr") 
+            alim = kwargs.pop("alim", [1e-3, 1e1])
         else:
             cmap = kwargs.pop("cmap", "seismic") 
+            alim = kwargs.pop("alim", [-10., 10.])
         cmp = kwargs.pop("cmp", self.cmp)
         amphi = kwargs.pop("amphi", False)
 
-        alim = kwargs.pop("alim", [1e-3, 1e1])
+        
         plim = kwargs.pop("plim", [-180., 180.])
         llthres = kwargs.pop("llthres", alim[0])
         
