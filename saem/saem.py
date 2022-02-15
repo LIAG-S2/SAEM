@@ -330,6 +330,13 @@ class CSEMData():
                 setattr(self, tok, getattr(self, tok)[nInd])
 
             self.DATA = self.DATA[:, :, nInd]
+            if np.any(self.ERR):
+                self.ERR = self.ERR[:, :, nInd]
+            if np.any(self.RESP):
+                self.RESP = self.RESP[:, :, nInd]
+            if np.any(self.prim):
+                for i in range(3):
+                    self.prim[i] = self.prim[i][:, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
             if self.prim is not None:
@@ -709,11 +716,11 @@ class CSEMData():
                     if what == 'data':
                         pc1 = ax[0, ncmp].errorbar(np.arange(len(data)), np.real(data),
                                                    yerr=[errbar[i].real, errbar[i].real],
-                                                   marker='+', lw=0.,
+                                                   marker='o', lw=0.,
                                                    elinewidth=0.5, markersize=3.)
                         pc2 = ax[1, ncmp].errorbar(np.arange(len(data)), np.imag(data),
                                                    yerr=[errbar[i].imag, errbar[i].imag],
-                                                   marker='+', lw=0.,
+                                                   marker='o', lw=0.,
                                                    elinewidth=0.5, markersize=3.)
                     else:
                         pc1 = ax[0, ncmp].plot(np.arange(len(data)),
@@ -1019,7 +1026,7 @@ class CSEMData():
                             fig, ax = self.showLineFreq(li, fi, ax=ax,
                                                         what='response')
                             fig.suptitle('line = {:.0f}, '
-                                         'freq = {:.0f}'.format(li, freq))
+                                         'freq = {:.0f} Hz'.format(li, freq))
                             fig.savefig(pdf, format='pdf')  
                             plt.close(fig)
                             ax = None
@@ -1072,9 +1079,11 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 
-    def saveData(self, fname=None, line=None, **kwargs):
+    def saveData(self, fname=None, line=None, aErr=None, rErr=0.05, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.pop("cmp", self.cmp)
+        if aErr is None:
+            aErr = self.llthres
         if line is None:  # take all
             ind = np.nonzero(self.line > 0)[0]
         else:
@@ -1121,8 +1130,8 @@ class CSEMData():
                 Cmp.append('B'+allcmp[iC].lower())
                 kC += 1
         # error estimation
-        absError = kwargs.pop("absError", 0.0015)
-        relError = kwargs.pop("relError", 0.04)
+        absError = kwargs.pop("absError", aErr)
+        relError = kwargs.pop("relError", rErr)
         errorR = np.abs(dataR) * relError + absError
         errorI = np.abs(dataI) * relError + absError
         fak = 1  # 1e-9
@@ -1283,6 +1292,21 @@ class CSEMData():
                   "usually not reasonbale. Continuing ..." )
         
         return what, llthres, cmap, cmp, amphi, log, alim, plim
+
+    def reduceNoisy(self, aErr=0.0001, rErr=1.):
+
+        print(len(self.DATA[np.abs(self.DATA.real) < aErr]))
+        self.DATA[np.abs(self.DATA.real) < aErr] = np.nan
+        print(len(self.DATA[np.abs(self.DATA.imag) < aErr]))
+        self.DATA[np.abs(self.DATA.imag) < aErr] = np.nan
+
+        rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+        ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+
+        print(len(self.DATA[np.abs(rr) > rErr]))
+        self.DATA[np.abs(rr) > rErr] = np.nan
+        print(len(self.DATA[np.abs(ii) > rErr]))
+        self.DATA[np.abs(ii) > rErr] = np.nan
 
 
 if __name__ == "__main__":
