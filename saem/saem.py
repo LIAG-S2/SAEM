@@ -583,8 +583,8 @@ class CSEMData():
         elif what.lower() == "error":
             self.DATAX, self.DATAY, self.DATAZ = self.ERR
         elif what.lower() == "relerror":
-            rr = self.ERR.real / (np.abs(self.DATA.real) + llthres)
-            ii = self.ERR.imag / (np.abs(self.DATA.imag) + llthres)
+            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
             self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
         elif what.lower() == "wmisfit":
             mis = self.DATA - self.RESP
@@ -626,8 +626,9 @@ class CSEMData():
 
         kwargs.setdefault("radius", self.radius)
         kwargs.setdefault("log", False)
-        kwargs.setdefault("cmap", "Blues")     
-        kwargs.setdefault("alim", [0, len(np.unique(field))])
+        kwargs.setdefault("cmap", "jet")     
+        kwargs.setdefault("alim", [np.min(np.unique(field)),
+                                   np.max(np.unique(field))])
         
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
@@ -705,10 +706,20 @@ class CSEMData():
                                               cMap=cmap)
                     pc2.set_clim(plim)
                 else:  # real and imaginary part
-                    pc1 = ax[0, ncmp].errorbar(np.arange(len(data)), np.real(data),
-                                               yerr=[errbar[i].real, errbar[i].real])
-                    pc2 = ax[1, ncmp].errorbar(np.arange(len(data)), np.imag(data),
-                                               yerr=[errbar[i].imag, errbar[i].imag])
+                    if what == 'data':
+                        pc1 = ax[0, ncmp].errorbar(np.arange(len(data)), np.real(data),
+                                                   yerr=[errbar[i].real, errbar[i].real],
+                                                   marker='+', lw=0.,
+                                                   elinewidth=0.5, markersize=3.)
+                        pc2 = ax[1, ncmp].errorbar(np.arange(len(data)), np.imag(data),
+                                                   yerr=[errbar[i].imag, errbar[i].imag],
+                                                   marker='+', lw=0.,
+                                                   elinewidth=0.5, markersize=3.)
+                    else:
+                        pc1 = ax[0, ncmp].plot(np.arange(len(data)),
+                                               np.real(data), lw=0.5)
+                        pc2 = ax[1, ncmp].plot(np.arange(len(data)),
+                                               np.imag(data), lw=0.5)
                     if log:
                         ax[0, ncmp].set_yscale('symlog', linthresh=llthres)
                         ax[0, ncmp].set_ylim([-alim[1], alim[1]])
@@ -1002,12 +1013,13 @@ class CSEMData():
                 for li in ul[ul > 0]:
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
-                        for fi in range(len(self.f)):
+                        for fi, freq in enumerate(self.f):
                             fig, ax = self.showLineFreq(li, fi, ax=ax,
                                                         **kwargs)
                             fig, ax = self.showLineFreq(li, fi, ax=ax,
                                                         what='response')
-                            fig.suptitle('line = {:.0f}'.format(li))
+                            fig.suptitle('line = {:.0f}, '
+                                         'freq = {:.0f}'.format(li, freq))
                             fig.savefig(pdf, format='pdf')  
                             plt.close(fig)
                             ax = None
@@ -1254,7 +1266,7 @@ class CSEMData():
         what = kwargs.pop("what", "data")
         log = kwargs.pop("log", True)
         if log:
-            cmap = kwargs.pop("cmap", "PuOr") 
+            cmap = kwargs.pop("cmap", "PuOr_r")
             alim = kwargs.pop("alim", [1e-3, 1e1])
         else:
             cmap = kwargs.pop("cmap", "seismic") 
