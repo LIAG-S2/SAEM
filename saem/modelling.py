@@ -3,12 +3,18 @@ from empymod import bipole
 import pygimli as pg
 
 
-def fwd(res, dep, inp, freqs):
+def fwd(res, dep, inp, freqs, verbose=False):
     """Call empymods function bipole with the above arguments."""
     assert len(res) == len(dep), str(len(res)) + "/" + str(len(dep))
-    OUT = bipole(res=np.concatenate(([2e14], res)),
-                 depth=dep, freqtime=freqs, **inp)
+    kw = dict(res=np.concatenate(([2e14], res)),
+              depth=dep, freqtime=freqs, **inp)
+    if verbose:
+        kw["verb"] = 4
+        print(kw)
 
+    OUT = bipole(**kw)
+    # OUT = bipole(res=np.concatenate(([2e14], res)),
+    #              depth=dep, freqtime=freqs, **inp)
     my = 4e-7 * np.pi
     OUT *= my * 1e9
 

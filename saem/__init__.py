@@ -3,10 +3,12 @@
 
 
 from .saem import CSEMData
+from .csemsurvey import CSEMSurvey
 from .plotting import showSounding
 
 
 __all__ = [
     'CSEMData',
+    'CSEMSurvey',
     'showSounding',
 ]

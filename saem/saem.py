@@ -102,7 +102,7 @@ class CSEMData():
             self.loadMatFile(filename)
 
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        
+
         if detectLines:
             self.detectLines()
 
@@ -351,8 +351,10 @@ class CSEMData():
     def createConfig(self):
         """Create EMPYMOD input argument configuration."""
         self.cfg = {'src':
-                    [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
-                    'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
+                    # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
+                    # 'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
+                    [self.tx[0], self.tx[1], self.ty[0], self.ty[1], -0.1, -0.1],
+                    'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
@@ -367,7 +369,7 @@ class CSEMData():
 
             nrx = np.argmin(dr)
 
-        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], -self.alt[nrx]
+        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
         self.dataX = self.DATAX[:, nrx]
         self.dataY = self.DATAY[:, nrx]
         self.dataZ = self.DATAZ[:, nrx]
@@ -375,7 +377,8 @@ class CSEMData():
         if show:
             self.showPos()
 
-    def showPos(self, ax=None, line=None, background=None, org=False):
+    def showPos(self, ax=None, line=None, background=None, org=False,
+                color=None):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -387,11 +390,12 @@ class CSEMData():
         ax.plot(self.rx, self.ry, "b.", markersize=2)
         ax.plot(self.tx, self.ty, "r-", markersize=4)
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "bo", markersize=5)
+            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "o", markersize=5,
+                    color=color or "blue")
 
         if line is not None:
             ax.plot(self.rx[self.line == line],
-                    self.ry[self.line == line], "-", color="orange")
+                    self.ry[self.line == line], "-", color=color or "orange")
 
         ax.set_aspect(1.0)
         ax.grid(True)
@@ -561,10 +565,10 @@ class CSEMData():
                 rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
         """
-        
+
         if llthres is None:
             llthres = self.llthres
-        
+
         if what.lower() == "data":
             self.DATAX, self.DATAY, self.DATAZ = self.DATA
         elif what.lower() == "response":
@@ -633,10 +637,10 @@ class CSEMData():
 
         kwargs.setdefault("radius", self.radius)
         kwargs.setdefault("log", False)
-        kwargs.setdefault("cmap", "jet")     
+        kwargs.setdefault("cmap", "jet")
         kwargs.setdefault("alim", [np.min(np.unique(field)),
                                    np.max(np.unique(field))])
-        
+
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
@@ -681,17 +685,20 @@ class CSEMData():
 
         what, llthres, cmap, cmp, amphi, log, alim, plim = \
             self.update_plt_kwargs(**kwargs)
+
+        label = kwargs.pop("label", what)
+        lw = kwargs.pop("lw", 0.5)
         self.chooseData(what, llthres)
         if what == 'data':
             errbar = self.ERR
         else:
-            errbar=np.zeros_like(self.ERR)
-        
+            errbar = np.zeros_like(self.DATA)
+
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
 
-        errbar=errbar[:, nf, nn]
+        errbar = errbar[:, nf, nn]
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
                                    sharex=True, sharey=True,
@@ -704,6 +711,11 @@ class CSEMData():
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[nf, nn]
+                x = np.arange(len(data))
+                if "x" in kwargs:
+                    if kwargs["x"] == "x":
+                        x = self.rx
+
                 if amphi:  # amplitud and phase
                     pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
                                               cmap=cmap)
@@ -714,19 +726,21 @@ class CSEMData():
                     pc2.set_clim(plim)
                 else:  # real and imaginary part
                     if what == 'data':
-                        pc1 = ax[0, ncmp].errorbar(np.arange(len(data)), np.real(data),
-                                                   yerr=[errbar[i].real, errbar[i].real],
-                                                   marker='o', lw=0.,
-                                                   elinewidth=0.5, markersize=3.)
-                        pc2 = ax[1, ncmp].errorbar(np.arange(len(data)), np.imag(data),
-                                                   yerr=[errbar[i].imag, errbar[i].imag],
-                                                   marker='o', lw=0.,
-                                                   elinewidth=0.5, markersize=3.)
+                        pc1 = ax[0, ncmp].errorbar(
+                            x, np.real(data),
+                            yerr=[errbar[i].real, errbar[i].real],
+                            marker='+', lw=0., barsabove=True,
+                            elinewidth=0.5, markersize=3, label=label)
+                        pc2 = ax[1, ncmp].errorbar(
+                            x, np.imag(data),
+                            yerr=[errbar[i].imag, errbar[i].imag],
+                            marker='o', lw=0., barsabove=True,
+                            elinewidth=0.5, markersize=3, label=label)
                     else:
-                        pc1 = ax[0, ncmp].plot(np.arange(len(data)),
-                                               np.real(data), lw=0.5)
-                        pc2 = ax[1, ncmp].plot(np.arange(len(data)),
-                                               np.imag(data), lw=0.5)
+                        pc1 = ax[0, ncmp].plot(x, np.real(data), lw=lw,
+                                               label=label)
+                        pc2 = ax[1, ncmp].plot(x, np.imag(data), lw=lw,
+                                               label=label)
                     if log:
                         ax[0, ncmp].set_yscale('symlog', linthresh=llthres)
                         ax[0, ncmp].set_ylim([-alim[1], alim[1]])
@@ -739,22 +753,26 @@ class CSEMData():
                 ncmp += 1
 
         # xt = np.arange(0, len(nn), 10)
-        xt = np.round(np.linspace(0, len(nn)-1, 7))
-        xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
-        for aa in ax[-1, :]:
-            if xtl[0] > xtl[-1]:
-                aa.set_xlim([xt[1], xt[0]])
-            aa.set_xticks(xt)
-            aa.set_xticklabels(xtl)
-            aa.set_xlabel("x (m)")
+        if "x" not in kwargs:
+            xt = np.round(np.linspace(0, len(nn)-1, 7))
+            xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+            for aa in ax[-1, :]:
+                if xtl[0] > xtl[-1]:
+                    aa.set_xlim([xt[1], xt[0]])
+
+                aa.set_xticks(xt)
+                aa.set_xticklabels(xtl)
+                aa.set_xlabel("x (m)")
 
         for a in ax.flat:
             a.set_aspect('auto')
+            a.grid(True)
 
         if "what" in kwargs:
             self.chooseData("data", llthres)
 
-        plt.legend(["data", "response"])
+        # plt.legend(["data", "response"])
+        ax.flat[0].legend()
 
         name = kwargs.pop("name", self.basename)
         if "what" in kwargs:
@@ -762,8 +780,8 @@ class CSEMData():
 
         fig.suptitle(name)
 
-        return fig, ax
-    
+        return ax
+
     def showLineData(self, line=None, ax=None, **kwargs):
         """Show data of a line as pcolor.
 
@@ -786,7 +804,7 @@ class CSEMData():
         what, llthres, cmap, cmp, amphi, log, alim, plim = \
             self.update_plt_kwargs(**kwargs)
         self.chooseData(what, llthres)
-        
+
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -815,15 +833,13 @@ class CSEMData():
                     if log:
                         pc1 = ax[0, ncmp].matshow(
                             np.real(data),
-                            norm=SymLogNorm(linthresh=alim[0],
-                                            vmin=-alim[1],
-                                            vmax=alim[1]),
+                            norm=SymLogNorm(alim[0], base=10,
+                                            vmin=-alim[1], vmax=alim[1]),
                             cmap=cmap)
                         pc2 = ax[1, ncmp].matshow(
                             np.imag(data),
-                            norm=SymLogNorm(linthresh=alim[0],
-                                            vmin=-alim[1],
-                                            vmax=alim[1]),
+                            norm=SymLogNorm(alim[0], base=10,
+                                            vmin=-alim[1], vmax=alim[1]),
                             cmap=cmap)
                     else:
                         pc1 = ax[0, ncmp].matshow(np.real(data), cmap=cmap)
@@ -863,7 +879,7 @@ class CSEMData():
         # xt = np.arange(0, len(nn), 10)
         xt = np.round(np.linspace(0, len(nn)-1, 7))
         xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
-        
+
         for aa in ax[-1, :]:
             if xtl[0] > xtl[-1]:
                 aa.set_xlim([xt[1], xt[0]])
@@ -885,7 +901,7 @@ class CSEMData():
 
         return fig, ax
 
-    def showData(self, nf=0, ax=None, figsize=(12, 6), 
+    def showData(self, nf=0, ax=None, figsize=(12, 6),
                  scale=0, background=None, **kwargs):
         """Show all three components as amp/phi or real/imag plots.
 
@@ -909,7 +925,7 @@ class CSEMData():
             background = "BKG"
 
         kw = dict(cmap=cmap, alim=alim, plim=plim, amphi=amphi, log=log,
-                  radius=self.radius, numpoints=0)            
+                  radius=self.radius, numpoints=0)
         if scale:
             amphi = False
             if self.prim is None:
@@ -1027,10 +1043,10 @@ class CSEMData():
                                                         what='response')
                             fig.suptitle('line = {:.0f}, '
                                          'freq = {:.0f} Hz'.format(li, freq))
-                            fig.savefig(pdf, format='pdf')  
+                            fig.savefig(pdf, format='pdf')
                             plt.close(fig)
                             ax = None
-            
+
             elif mode == 'linewise':
                 fig, ax = plt.subplots(figsize=figsize)
                 self.showField(self.line, ax=ax)
@@ -1044,7 +1060,7 @@ class CSEMData():
                     if np.isfinite(li) and len(nn) > 3:
                         fig, ax = self.showLineData(li, ax=ax, **kwargs)
                         fig.suptitle('line = {:.0f}'.format(li))
-                        fig.savefig(pdf, format='pdf') 
+                        fig.savefig(pdf, format='pdf')
                         plt.close(fig)
                         ax = None
             else:
@@ -1054,13 +1070,13 @@ class CSEMData():
                 ax[0].set_title("Sounding number")
                 self.showField(self.line, ax=ax[1], cMap="Spectral_r")
                 ax[1].set_title("Line number")
-                fig.savefig(pdf, format='pdf')  
+                fig.savefig(pdf, format='pdf')
                 plt.close(fig)
                 ax = None
                 for i in range(len(self.f)):
                     fig, ax = self.showData(nf=i, ax=ax, figsize=figsize,
                                             **kwargs)
-                    fig.savefig(pdf, format='pdf')  
+                    fig.savefig(pdf, format='pdf')
                     plt.close(fig)
                     ax = None
 
@@ -1095,7 +1111,7 @@ class CSEMData():
                 return
             else:
                 ind = np.nonzero(self.line == line)[0]
-                
+
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
@@ -1278,19 +1294,19 @@ class CSEMData():
             cmap = kwargs.pop("cmap", "PuOr_r")
             alim = kwargs.pop("alim", [1e-3, 1e1])
         else:
-            cmap = kwargs.pop("cmap", "seismic") 
+            cmap = kwargs.pop("cmap", "seismic")
             alim = kwargs.pop("alim", [-10., 10.])
         cmp = kwargs.pop("cmp", self.cmp)
         amphi = kwargs.pop("amphi", False)
 
-        
+
         plim = kwargs.pop("plim", [-180., 180.])
         llthres = kwargs.pop("llthres", alim[0])
-        
+
         if log and alim[0] != llthres:
             print("Warning, different values vor *llthres* and *alim[0]* are "
                   "usually not reasonbale. Continuing ..." )
-        
+
         return what, llthres, cmap, cmp, amphi, log, alim, plim
 
     def reduceNoisy(self, aErr=0.0001, rErr=1.):

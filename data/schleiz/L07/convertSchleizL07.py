@@ -19,11 +19,14 @@ for f in [7, 15, 22, 48, 67]:
     self.filter(f=f)
 
 self.showLineData(**kw)
+self.saveData("Tx1.npz")
 # %%
 i = 2
 self = CSEMData(mare.basename + "_B_Tx{:d}.npz".format(i))
 for f in [10]:  # 7, 15, 22, 48, 67]:
     self.filter(f=f)
+
+self.saveData("Tx2.npz")
 # %% self.showLineData()
 self.showLineData(**kw)
 # %%
