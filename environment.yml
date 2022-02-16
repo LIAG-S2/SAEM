@@ -1,0 +1,13 @@
+name: saem
+channels:
+    - gimli
+    - conda-forge
+    - defaults
+dependencies:
+    - python=3.8
+    - pygimli=1.2
+    - pyproj
+    - scipy
+    - meshio
+    - numba
+    - empymod
