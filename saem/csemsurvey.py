@@ -24,6 +24,8 @@ class CSEMSurvey():
 
         """
         self.patches = []
+        self.origin = [0, 0]
+        self.angle = 0
 
     def __repr__(self):
         st = "CSEMSurvey class with {:d} patches".format(len(self.patches))
@@ -54,6 +56,29 @@ class CSEMSurvey():
         fig, ax = plt.subplots()
         for i, p in enumerate(self.patches):
             p.showPos(ax=ax, color="C{:d}".format(i))
+
+
+    def showData(self, **kwargs):
+        """."""
+        for i, p in enumerate(self.patches):
+            p.showData(**kwargs)
+
+    def saveData(self, fname):
+        """."""
+        line = np.array()
+        DATA = []
+        for i, p in enumerate(self.patches):
+            DATA.append(p.getDataStruct())
+            line = np.concatenate((line, p.line+(i+1)*100))
+
+        txs = [np.column_stack((p.tx, p.ty, p.tx*0)) for p in self.patches]
+        np.savez(fname+".npz",
+                 tx=txs,
+                 freqs=self.patches[0].f,
+                 DATA=DATA,
+                 line=line,
+                 origin=self.origin,  # global coordinates with altitude
+                 rotation=self.angle)
 
 
 if __name__ == "__main__":

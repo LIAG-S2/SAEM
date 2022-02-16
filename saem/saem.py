@@ -1095,6 +1095,15 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 
+    def estimateError(self, aErr, rErr):
+        """Estimate data error to be saved in self.ERR.
+
+        Errors can be
+        A) a sum of absolute and relative error (and the processing error)
+        B) the maximum of all contributions (relative, absolute, processing)
+        """
+        pass
+
     def saveData(self, fname=None, line=None, aErr=None, rErr=0.05, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.pop("cmp", self.cmp)
