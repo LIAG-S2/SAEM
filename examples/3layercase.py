@@ -34,3 +34,5 @@ for i, f in enumerate(self.f):
 #     self.simulate(rho=rho, thk=thk)
 #     self.showLineFreq(line=1, nf=1, what="response", x="x", ax=ax,
 #                       llthres=1e-3, alim=[1e-3, 10.], label=str(rho2))
+# %%
+self.showLineData(amphi=False, alim=[1e-3, 1])
