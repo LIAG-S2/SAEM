@@ -22,13 +22,13 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
         # print(len(freqs), len(data))
 
     if amphi:
-        ax[0].loglog(np.abs(snddata), freqs, ma, **kwargs)
-        ax[1].semilogy(np.angle(snddata)*180/np.pi, freqs, ma, **kwargs)
+        ax[0].loglog(np.abs(snddata), freqs, **kwargs)
+        ax[1].semilogy(np.angle(snddata)*180/np.pi, freqs, **kwargs)
         ax[0].set_xlabel("|T| (log10 nT/A)")
         ax[1].set_xlabel(r"$\phi$ (°)")
     else:
-        ax[0].semilogy(np.real(snddata), freqs, ma, **kwargs)
-        ax[1].semilogy(np.imag(snddata), freqs, ma, **kwargs)
+        ax[0].semilogy(np.real(snddata), freqs, **kwargs)
+        ax[1].semilogy(np.imag(snddata), freqs, **kwargs)
         ax[0].set_xlabel("T-real (nT/A)")
         ax[1].set_xlabel("T-imag (nT/A)")
 
@@ -44,7 +44,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
 
 
 def plotSymbols(x, y, w, ax=None, **kwargs):
-                
+
     """Plot circles or rectangles for each point in a map.
 
     Parameters
@@ -69,7 +69,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         number of points (0 means circle)
     """
 
-    cmap = kwargs.pop("cmap", "seismic") 
+    cmap = kwargs.pop("cmap", "seismic")
     amphi = kwargs.pop("amphi", False)
     log = kwargs.pop("log", True)
     alim = kwargs.pop("alim", [1e-3, 1e1])

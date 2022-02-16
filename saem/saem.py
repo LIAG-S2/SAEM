@@ -383,8 +383,8 @@ class CSEMData():
         if ax is None:
             fig, ax = plt.subplots()
 
-        rxy = np.column_stack((self.rx, self.ry))
         if org:
+            # rxy = np.column_stack((self.rx, self.ry))
             pass
 
         ax.plot(self.rx, self.ry, "b.", markersize=2)
@@ -539,11 +539,11 @@ class CSEMData():
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
-                ax = showSounding(data, self.f, ax=ax, color="C"+str(i),
+                ax = showSounding(data, self.f, ax=ax, color="C"+str(i), ls="",
                                   marker="x", label="B"+allcmp[i], **kwargs)
                 if response is not None:
-                    ax[0].plot(respRe[ncmp], self.f, "-", color="C"+str(i))
-                    ax[1].plot(respIm[ncmp], self.f, "-", color="C"+str(i))
+                    ax[0].plot(respRe[ncmp], self.f, ls="-", color="C"+str(i))
+                    ax[1].plot(respIm[ncmp], self.f, ls="-", color="C"+str(i))
                     ncmp += 1
 
         for a in ax:
@@ -803,8 +803,8 @@ class CSEMData():
 
         what, llthres, cmap, cmp, amphi, log, alim, plim = \
             self.update_plt_kwargs(**kwargs)
-        self.chooseData(what, llthres)
 
+        self.chooseData(what, llthres)
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -821,13 +821,13 @@ class CSEMData():
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
-                if amphi:  # amplitud and phase
+                if amphi:  # amplitude and phase
                     pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
-                                              cmap=cmap)
+                                              cmap="Spectral_r")
                     if alim is not None:
                         pc1.set_clim(alim)
                     pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
-                                              cMap=cmap)
+                                              cmap="hsv")
                     pc2.set_clim(plim)
                 else:  # real and imaginary part
                     if log:
@@ -1298,7 +1298,6 @@ class CSEMData():
             alim = kwargs.pop("alim", [-10., 10.])
         cmp = kwargs.pop("cmp", self.cmp)
         amphi = kwargs.pop("amphi", False)
-
 
         plim = kwargs.pop("plim", [-180., 180.])
         llthres = kwargs.pop("llthres", alim[0])
