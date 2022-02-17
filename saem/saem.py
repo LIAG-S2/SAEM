@@ -13,7 +13,7 @@ import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
-from matplotlib.colors import SymLogNorm
+from matplotlib.colors import LogNorm, SymLogNorm
 
 from .plotting import plotSymbols, showSounding
 from .plotting import underlayBackground, makeSymlogTicks
@@ -822,7 +822,10 @@ class CSEMData():
             if cmp[i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
                 if amphi:  # amplitude and phase
-                    pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
+                    # pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
+                    #                           cmap="Spectral_r")
+                    norm = LogNorm(vmin=alim[0], vmax=alim[1])
+                    pc1 = ax[0, ncmp].matshow(np.abs(data), norm=norm,
                                               cmap="Spectral_r")
                     if alim is not None:
                         pc1.set_clim(alim)

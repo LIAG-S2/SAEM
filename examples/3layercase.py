@@ -12,27 +12,25 @@ self.cmp = [1, 0, 1]
 print(self)
 # self.showPos()
 # %%
-rho2 = 5
+rho2 = 1000
 rho = [1000, rho2, 1000]
 thk = [100, 100]
 self.simulate(rho=rho, thk=thk)
 self.basename = "1000 {:d} 1000".format(rho2)
 # self.ERR = self.RESP * 0.01
 # %%
-self.showLineData(what="response")
+self.showLineData(what="response", amphi=True)
 # %%
+kw = dict(line=1, what="response", x="x", llthres=1e-3, alim=[1e-3, 10.], lw=2)
 ax=None
 for i, f in enumerate(self.f):
-    ax = self.showLineFreq(line=1, nf=i, what="response", x="x",
-                           llthres=1e-3, alim=[1e-3, 10.], ax=ax,
-                           label="f = {:d} Hz".format(f), lw=2)
+    ax = self.showLineFreq(nf=i, ax=ax, label="f = {:d} Hz".format(f), **kw)
 # %%
-
-
-# for rho2 in [100, 10]:
-#     rho = [1000, rho2, 1000]
-#     self.simulate(rho=rho, thk=thk)
-#     self.showLineFreq(line=1, nf=1, what="response", x="x", ax=ax,
-#                       llthres=1e-3, alim=[1e-3, 10.], label=str(rho2))
+ax = self.showLineFreq(nf=1, label=str(rho2), **kw)
+for rho2 in [100, 10]:
+    rho = [1000, rho2, 1000]
+    self.simulate(rho=rho, thk=thk)
+    self.showLineFreq(nf=1, label=str(rho2), **kw)
 # %%
-self.showLineData(amphi=False, alim=[1e-3, 1])
+# self.simulate(rho=10000)
+# self.showLineData(what="response", amphi=True, alim=[1e-3, 1])
