@@ -701,7 +701,7 @@ class CSEMData():
         errbar = errbar[:, nf, nn]
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
-                                   sharex=True, sharey=True,
+                                   sharex=True, sharey=not amphi,
                                    figsize=kwargs.pop("figsize", (10, 6)))
         else:
             fig = ax.flat[0].figure
@@ -716,30 +716,29 @@ class CSEMData():
                     if kwargs["x"] == "x":
                         x = self.rx
 
-                if amphi:  # amplitud and phase
-                    pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
-                                              cmap=cmap)
-                    if alim is not None:
-                        pc1.set_clim(alim)
-                    pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
-                                              cMap=cmap)
-                    pc2.set_clim(plim)
+                if amphi:  # amplitude and phase
+                    ax[0, ncmp].plot(x, np.abs(data), label=label)
+                    ax[1, ncmp].plot(x, np.angle(data, deg=True), label=label)
+                    if log:
+                        ax[0, ncmp].set_yscale('log')
+                        ax[0, ncmp].set_ylim(alim)
+                        ax[1, ncmp].set_ylim(plim)
                 else:  # real and imaginary part
                     if what == 'data':
-                        pc1 = ax[0, ncmp].errorbar(
+                        ax[0, ncmp].errorbar(
                             x, np.real(data),
                             yerr=[errbar[i].real, errbar[i].real],
                             marker='+', lw=0., barsabove=True,
                             elinewidth=0.5, markersize=3, label=label)
-                        pc2 = ax[1, ncmp].errorbar(
+                        ax[1, ncmp].errorbar(
                             x, np.imag(data),
                             yerr=[errbar[i].imag, errbar[i].imag],
                             marker='o', lw=0., barsabove=True,
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        pc1 = ax[0, ncmp].plot(x, np.real(data), lw=lw,
+                        ax[0, ncmp].plot(x, np.real(data), lw=lw,
                                                label=label)
-                        pc2 = ax[1, ncmp].plot(x, np.imag(data), lw=lw,
+                        ax[1, ncmp].plot(x, np.imag(data), lw=lw,
                                                label=label)
                     if log:
                         ax[0, ncmp].set_yscale('symlog', linthresh=llthres)
@@ -751,6 +750,12 @@ class CSEMData():
 
                 ax[0, ncmp].set_title("B"+allcmp[i])
                 ncmp += 1
+        if amphi:
+            ax[0, 0].set_ylabel("Amplitude (nT/A)")
+            ax[1, 0].set_ylabel("Phase (°)")
+        else:
+            ax[0, 0].set_ylabel("Real T (nT/A)")
+            ax[1, 0].set_ylabel("Imag T (nT/A)")
 
         # xt = np.arange(0, len(nn), 10)
         if "x" not in kwargs:

@@ -21,16 +21,23 @@ self.basename = "1000 {:d} 1000".format(rho2)
 # %%
 self.showLineData(what="response", amphi=True)
 # %%
-kw = dict(line=1, what="response", x="x", llthres=1e-3, alim=[1e-3, 10.], lw=2)
+# kw = dict(line=1, what="response", x="x", llthres=1e-3, alim=[1e-3, 10.], lw=2)
+kw = dict(line=1, what="response", x="x", alim=[1e-3, 10.], lw=2)
 ax=None
 for i, f in enumerate(self.f):
     ax = self.showLineFreq(nf=i, ax=ax, label="f = {:d} Hz".format(f), **kw)
-# %%
-ax = self.showLineFreq(nf=1, label=str(rho2), **kw)
-for rho2 in [100, 10]:
+# %% per frequency with different resistivities
+axAP = [self.showLineFreq(nf=i, label="rho={:d}".format(rho2), **kw, amphi=1)
+       for i in range(3)]
+axRI = [self.showLineFreq(nf=i, label="rho={:d}".format(rho2), **kw)
+       for i in range(3)]
+for rho2 in [50, 10]:
     rho = [1000, rho2, 1000]
     self.simulate(rho=rho, thk=thk)
-    self.showLineFreq(nf=1, label=str(rho2), **kw)
+    for i in range(3):
+        self.basename = "1000 {:d} 1000, f={:d}Hz".format(rho2, self.f[i])
+        self.showLineFreq(nf=0, label="rho={:d}".format(rho2), ax=axRI[i], **kw)
+        self.showLineFreq(nf=0, label="rho={:d}".format(rho2), ax=axAP[i],
+                          amphi=True, **kw)
 # %%
-# self.simulate(rho=10000)
-# self.showLineData(what="response", amphi=True, alim=[1e-3, 1])
+# self.showLineFreq(nf=0, what="response", amphi=True)
