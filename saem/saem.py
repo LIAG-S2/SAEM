@@ -387,15 +387,14 @@ class CSEMData():
             # rxy = np.column_stack((self.rx, self.ry))
             pass
 
-        ax.plot(self.rx, self.ry, "b.", markersize=2)
-        ax.plot(self.tx, self.ty, "r-", markersize=4)
+        ax.plot(self.rx, self.ry, ".", markersize=2, color=color or "blue")
+        ax.plot(self.tx, self.ty, "-", markersize=4, color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "o", markersize=5,
-                    color=color or "blue")
+            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "ko", markersize=5)
 
         if line is not None:
             ax.plot(self.rx[self.line == line],
-                    self.ry[self.line == line], "-", color=color or "orange")
+                    self.ry[self.line == line], "-")
 
         ax.set_aspect(1.0)
         ax.grid(True)
@@ -1103,32 +1102,71 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 
-    def estimateError(self, aErr, rErr):
+    def estimateError(self, ignoreErr=True, useMax=False, **kwargs):
         """Estimate data error to be saved in self.ERR.
 
         Errors can be
         A) a sum of absolute and relative error (and the processing error)
         B) the maximum of all contributions (relative, absolute, processing)
         """
-        pass
+        absError = kwargs.pop("absError", self.llthres)
+        relError = kwargs.pop("relError", 0.05)
+        aErr = np.zeros_like(self.DATA, dtype=complex) * absError
+        rErr = relError * self.DATA.real + relError * self.DATA.imag * 1j
+        if ignoreErr:
+            self.ERR = np.zeros_like(self.DATA)
 
-    def saveData(self, fname=None, line=None, aErr=None, rErr=0.05, **kwargs):
+        # decide upon adding or maximizing errors
+        if useMax:
+            self.ERR = np.maximum((self.ERR, aErr, rErr))
+        else:
+            self.ERR = self.ERR + aErr + rErr
+
+    def getData(self, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.pop("cmp", self.cmp)
-        if aErr is None:
-            aErr = self.llthres
-        if line is None:  # take all
+        if np.shape(self.ERR) != np.shape(self.DATA):
+            self.estimateError(**kwargs)
+
+        if line is None:  # take all existing (nonzero) lines
             ind = np.nonzero(self.line > 0)[0]
         else:
-            if line == "all":
-                line = np.arange(1, max(self.line)+1)
-            if hasattr(line, "__iter__"):
-                for i in line:
-                    self.saveData(line=i)
-                return
-            else:
-                ind = np.nonzero(self.line == line)[0]
+            ind = np.nonzero(self.line == line)[0]
 
+        allcmp = ['X', 'Y', 'Z']
+        meany = 0  # np.median(self.ry[ind]) # needed anymore?
+        ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
+        rxpos = np.round(np.column_stack((self.rx[ind], ypos,
+                                          self.rz[ind]-self.txAlt))*10)/10
+        nF = len(self.f)
+        nT = 1
+        nR = len(ind)  # rxpos.shape[0]
+        nC = sum(cmp)
+        dataR = np.zeros([nT, nC, nF, nR])
+        dataI = np.zeros_like(dataR)
+        errorR = np.zeros_like(dataR)
+        errorI = np.zeros_like(dataR)
+        kC = 0
+        Cmp = []
+        for iC in range(3):
+            if cmp[iC]:
+                dataR[0, kC, :, :] = self.DATA[iC][:, ind].real
+                dataI[0, kC, :, :] = self.DATA[iC][:, ind].imag
+                errorR[0, kC, :, :] = self.ERR[iC][:, ind].real
+                errorI[0, kC, :, :] = self.ERR[iC][:, ind].imag
+                Cmp.append('B'+allcmp[iC].lower())
+                kC += 1
+
+        # error estimation
+        data = dict(dataR=dataR, dataI=dataI,
+                    errorR=errorR, errorI=errorI,
+                    rx=rxpos, cmp=Cmp)
+
+        return data
+
+    def saveData(self, fname=None, line=None, **kwargs):
+        """Save data in numpy format for 2D/3D inversion."""
+        cmp = kwargs.pop("cmp", self.cmp)
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
@@ -1142,37 +1180,19 @@ class CSEMData():
             if fname.startswith("+"):
                 fname = self.basename + "-" + fname
 
-        meany = 0  # np.median(self.ry[ind])
-        ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
-        rxpos = np.round(np.column_stack((self.rx[ind], ypos,
-                                          self.rz[ind]-self.txAlt))*10)/10
-        nF = len(self.f)
-        nT = 1
-        nR = rxpos.shape[0]
-        nC = sum(cmp)
-        DATA = []
-        dataR = np.zeros([nT, nC, nF, nR])
-        dataI = np.zeros_like(dataR)
-        kC = 0
-        Cmp = []
-        for iC in range(3):
-            if cmp[iC]:
-                dd = getattr(self, 'DATA'+allcmp[iC])[:, ind]
-                dataR[0, kC, :, :] = dd.real
-                dataI[0, kC, :, :] = dd.imag
-                Cmp.append('B'+allcmp[iC].lower())
-                kC += 1
-        # error estimation
-        absError = kwargs.pop("absError", aErr)
-        relError = kwargs.pop("relError", rErr)
-        errorR = np.abs(dataR) * relError + absError
-        errorI = np.abs(dataI) * relError + absError
-        fak = 1  # 1e-9
-        data = dict(dataR=dataR*fak, dataI=dataI*fak,
-                    errorR=errorR*fak, errorI=errorI*fak,
-                    tx_ids=[0], rx=rxpos, cmp=Cmp)
-        DATA.append(data)
+        if line == "all":
+            line = np.arange(1, max(self.line)+1)
 
+        if hasattr(line, "__iter__"):
+            for i in line:
+                self.saveData(line=i)
+
+            return
+
+        data = self.getData(line=line, **kwargs)
+        data["tx_ids"]=[0]
+        DATA = [data]
+        meany = 0  # np.median(self.ry[ind]) # needed anymore?
         np.savez(fname+".npz",
                  tx=[np.column_stack((self.tx, self.ty-meany, self.tx*0))],
                  freqs=self.f,

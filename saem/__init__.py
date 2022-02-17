@@ -3,6 +3,7 @@
 
 
 from .saem import CSEMData
+from .maredata import Mare2dEMData
 from .csemsurvey import CSEMSurvey
 from .plotting import showSounding
 
