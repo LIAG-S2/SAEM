@@ -117,6 +117,23 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     return ax, cb
 
 
+def update_plt_kwargs(kwargs):
+    """Set default values for different plotting tools."""
+    kwargs.setdefault("what", "data")
+    kwargs.setdefault("log", True)
+    if kwargs["log"]:
+        kwargs.setdefault("cmap", "PuOr_r")
+        kwargs.setdefault("alim", [1e-3, 1e1])
+    else:
+        kwargs.setdefault("cmap", "seismic")
+        kwargs.setdefault("alim", [-10., 10.])
+
+    kwargs.setdefault("amphi", False)
+    kwargs.setdefault("plim", [-180., 180.])
+
+    return kwargs
+
+
 def underlayBackground(ax, background="BKG", utm=32):
     """Underlay background from any map."""
     if background == "BKG":

@@ -67,7 +67,7 @@ class CSEMSurvey():
             p.showData(**kwargs)
 
     def getData(self, line=None, **kwargs):
-        """."""
+        """Gather data from individual patches."""
         DATA = []
         lines = np.array([])
         for i, p in enumerate(self.patches):

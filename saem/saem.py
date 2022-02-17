@@ -304,7 +304,8 @@ class CSEMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
-    def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None):
+    def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
+               txMinDist=0, txMaxDist=9e99):
         """Filter data according to frequency range and indices."""
         if fInd is None:
             bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
@@ -324,6 +325,10 @@ class CSEMData():
         if np.any(self.prim):
             for i in range(3):
                 self.prim[i] = self.prim[i][fInd, :]
+
+        if nInd is None:
+            dTx = np.abs(self.rx-np.mean(self.tx))
+            nInd = np.nonzero(dTx >= minTxDist & dTx <= maxTxDist)[0]
 
         if nInd is not None:
             for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
@@ -685,6 +690,7 @@ class CSEMData():
         what, llthres, cmap, cmp, amphi, log, alim, plim = \
             self.update_plt_kwargs(**kwargs)
 
+        kwargs.setdefault("x", "d")
         label = kwargs.pop("label", what)
         lw = kwargs.pop("lw", 0.5)
         self.chooseData(what, llthres)
@@ -714,6 +720,13 @@ class CSEMData():
                 if "x" in kwargs:
                     if kwargs["x"] == "x":
                         x = self.rx
+                    elif kwargs["x"] == "y":
+                        x = self.ry
+                    if kwargs["x"] == "d":
+                        x = np.sqrt((self.rx-self.rx[0])**2+
+                                    (self.ry-self.ry[0])**2)
+                        x -= np.sqrt((np.mean(self.tx)-self.rx[0])**2+
+                                     (np.mean(self.ty)-self.ry[0])**2)
 
                 if amphi:  # amplitude and phase
                     ax[0, ncmp].plot(x, np.abs(data), label=label)
@@ -908,7 +921,7 @@ class CSEMData():
 
         return fig, ax
 
-    def showData(self, nf=0, ax=None, figsize=(12, 6),
+    def showDataPatch(self, nf=0, ax=None, figsize=(12, 6),
                  scale=0, background=None, **kwargs):
         """Show all three components as amp/phi or real/imag plots.
 
@@ -996,6 +1009,11 @@ class CSEMData():
             self.chooseData("data", llthres)
 
         return fig, ax
+
+    def showData(self, *args, **kwargs):
+        # decide upon which plot to use
+        # kwargs pop
+        return self.showDataPatch(*args, **kwargs)
 
     def computePrimaryFields(self):
         """Compute primary fields."""
@@ -1121,6 +1139,14 @@ class CSEMData():
             self.ERR = np.maximum((self.ERR, aErr, rErr))
         else:
             self.ERR = self.ERR + aErr + rErr
+
+    def deactivateNoisyData(self, aErr=0.0001, rErr=1.):
+        """Set data below a certain threshold to nan (inactive)."""
+        rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+        ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+
+        self.DATA[np.abs(rr) > rErr] = np.nan + j * np.nan
+        self.DATA[np.abs(ii) > rErr] = np.nan + j * np.nan
 
     def getData(self, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
@@ -1344,21 +1370,6 @@ class CSEMData():
                   "usually not reasonbale. Continuing ..." )
 
         return what, llthres, cmap, cmp, amphi, log, alim, plim
-
-    def reduceNoisy(self, aErr=0.0001, rErr=1.):
-
-        print(len(self.DATA[np.abs(self.DATA.real) < aErr]))
-        self.DATA[np.abs(self.DATA.real) < aErr] = np.nan
-        print(len(self.DATA[np.abs(self.DATA.imag) < aErr]))
-        self.DATA[np.abs(self.DATA.imag) < aErr] = np.nan
-
-        rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-        ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
-
-        print(len(self.DATA[np.abs(rr) > rErr]))
-        self.DATA[np.abs(rr) > rErr] = np.nan
-        print(len(self.DATA[np.abs(ii) > rErr]))
-        self.DATA[np.abs(ii) > rErr] = np.nan
 
 
 if __name__ == "__main__":
