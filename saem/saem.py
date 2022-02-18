@@ -103,6 +103,7 @@ class CSEMData():
 
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
 
+        self.line = np.ones_like(self.rx, dtype=int)
         if detectLines:
             self.detectLines()
 
@@ -167,6 +168,8 @@ class CSEMData():
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
+
+
 
     def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model."""
@@ -305,7 +308,7 @@ class CSEMData():
         self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
-               txMinDist=0, txMaxDist=9e99):
+               minTxDist=0, maxTxDist=9e99):
         """Filter data according to frequency range and indices."""
         if fInd is None:
             bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
@@ -561,10 +564,13 @@ class CSEMData():
         Parameters
         ----------
         what : str
-            property or matrix to choose / show
+            property name or matrix to choose / show
                 data - measured data
-                error - data error (NOT READY)
+                prim - primary fields
+                secdata - measured secondary data divided by primary fields
                 response - forward response (NOT READY)
+                error - absolute data error
+                relerror - relative data error
                 misfit - absolute misfit between data and response
                 rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
@@ -575,8 +581,18 @@ class CSEMData():
 
         if what.lower() == "data":
             self.DATAX, self.DATAY, self.DATAZ = self.DATA
+        elif what.lower() == "prim":
+            self.DATAX, self.DATAY, self.DATAZ = self.prim
+        elif what.lower() == "secdata":
+            self.DATAX, self.DATAY, self.DATAZ = self.DATA / self.prim - 1.0
         elif what.lower() == "response":
             self.DATAX, self.DATAY, self.DATAZ = self.RESP
+        elif what.lower() == "error":
+            self.DATAX, self.DATAY, self.DATAZ = self.ERR
+        elif what.lower() == "relerror":
+            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+            self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
         elif what.lower() == "misfit":
             self.DATAX, self.DATAY, self.DATAZ = self.DATA - self.RESP
             # [self.DATAX, self.DATAY, self.DATAZ] = [
@@ -595,17 +611,11 @@ class CSEMData():
                     self.DATAY = rr + ii * 1j
                 elif i == 2:
                     self.DATAZ = rr + ii * 1j
-        elif what.lower() == "error":
-            self.DATAX, self.DATAY, self.DATAZ = self.ERR
-        elif what.lower() == "relerror":
-            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
-            self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
         elif what.lower() == "wmisfit":
             mis = self.DATA - self.RESP
             wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
             self.DATAX, self.DATAY, self.DATAZ = wmis
-        else:  # try using the argument?
+        else:  # try using the argument
             self.DATAX, self.DATAY, self.DATAZ = what
 
     def showField(self, field, **kwargs):
@@ -1019,16 +1029,18 @@ class CSEMData():
         """Compute primary fields."""
         cfg = dict(self.cfg)
         fak = 4e-7 * np.pi * 1e9  # H->B and T in nT
-        cfg["rec"] = [self.rx, self.ry, -self.alt, 0, 0]  # x
-        self.pfx = bipole(res=[2e14], depth=[], xdirect=True,
-                          freqtime=self.f, **cfg).real * fak
+        cfg["rec"] = [self.rx, self.ry, self.alt, 0, 0]  # x
+        cfg["freqtime"] = self.f
+        cfg["xdirect"] = True
+        cfg["res"] = [2e14]
+        cfg["depth"] = []
+        print(cfg)
+        pfx = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [90, 0]  # y
-        self.pfy = bipole(res=[2e14], depth=[], xdirect=True,
-                          freqtime=self.f, **cfg).real * fak
+        pfy = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [0, 90]  # z
-        self.pfz = bipole(res=[2e14], depth=[], xdirect=True,
-                          freqtime=self.f, **cfg).real * fak
-        self.prim = [self.pfx, self.pfy, self.pfz]
+        pfz = bipole(**cfg).real * fak
+        self.prim = np.stack([pfx, pfy, pfz])
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', **kwargs):
@@ -1130,7 +1142,9 @@ class CSEMData():
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
         aErr = np.zeros_like(self.DATA, dtype=complex) * absError
-        rErr = relError * self.DATA.real + relError * self.DATA.imag * 1j
+        rErr = np.abs(self.DATA.real) * relError + \
+            np.abs(self.DATA.imag) * relError * 1j
+
         if ignoreErr:
             self.ERR = np.zeros_like(self.DATA)
 
@@ -1145,8 +1159,8 @@ class CSEMData():
         rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
         ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
 
-        self.DATA[np.abs(rr) > rErr] = np.nan + j * np.nan
-        self.DATA[np.abs(ii) > rErr] = np.nan + j * np.nan
+        self.DATA[np.abs(rr) > rErr] = np.nan + 1j * np.nan
+        self.DATA[np.abs(ii) > rErr] = np.nan + 1j * np.nan
 
     def getData(self, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
