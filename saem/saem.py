@@ -169,7 +169,21 @@ class CSEMData():
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
 
-
+    def addData(self, part2):
+        """Add data from another CSEM class."""
+        assert np.allclose(self.f, part2.f), "Frequencies not matching!"
+        for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
+            setattr(self, tok, np.hstack((getattr(self, tok),
+                                         getattr(part2, tok))))
+        # %%
+        for tok in ['DATA', 'ERR', 'RESP', 'prim']:
+            one = getattr(self, tok)
+            two = getattr(part2, tok)
+            if np.any(one) and np.any(two):
+                setattr(self, tok, np.concatenate((one, two), axis=-1))
+            else:
+                setattr(self, tok, None)
+        # %%
 
     def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model."""
@@ -690,10 +704,8 @@ class CSEMData():
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
         if isinstance(field, str):
-            print(field)
             kwargs.setdefault("label", field)
             field = getattr(self, field)
-            print(type(field))
 
         kwargs.setdefault("alim", [np.min(np.unique(field)),
                                    np.max(np.unique(field))])
@@ -740,16 +752,14 @@ class CSEMData():
         label = kwargs.pop("label", what)
         lw = kwargs.pop("lw", 0.5)
         self.chooseData(what, llthres)
-        if what == 'data':
-            errbar = self.ERR
-        else:
-            errbar = np.zeros_like(self.DATA)
-
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
 
-        errbar = errbar[:, nf, nn]
+        errbar = None
+        if what == 'data' and np.any(self.ERR):
+            errbar = self.ERR[:, nf, nn]
+
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
                                    sharex=True, sharey=not amphi,
@@ -782,7 +792,7 @@ class CSEMData():
                         ax[0, ncmp].set_ylim(alim)
                         ax[1, ncmp].set_ylim(plim)
                 else:  # real and imaginary part
-                    if what == 'data':
+                    if what == 'data' and errbar is not None:
                         ax[0, ncmp].errorbar(
                             x, np.real(data),
                             yerr=[errbar[i].real, errbar[i].real],
@@ -1057,9 +1067,20 @@ class CSEMData():
         return fig, ax
 
     def showData(self, *args, **kwargs):
-        # decide upon which plot to use
-        # kwargs pop
-        return self.showDataPatch(*args, **kwargs)
+        """Generic show function.
+
+        Upon keyword arguments given, directs to
+        * showDataPatch [default]
+        * showLineData (if line=given)
+        * showLineFreq (if line and nf given)
+        """
+        if "line" in kwargs:
+            if "nf" in kwargs:
+                return self.showLineFreq(*args, **kwargs)
+            else:
+                return self.showLineData(*args, **kwargs)
+        else:
+            return self.showDataPatch(*args, **kwargs)
 
     def computePrimaryFields(self):
         """Compute primary fields."""
