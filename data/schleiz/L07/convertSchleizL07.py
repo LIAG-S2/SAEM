@@ -1,11 +1,17 @@
-# import numpy as np
-# import matplotlib.pyplot as plt
-from saem.maredata import Mare2dEMData
-from saem import CSEMData
+import numpy as np
+from saem import CSEMData, CSEMSurvey, Mare2dEMData
 
-mare = Mare2dEMData("L07_Tx1_Tx2_ByBz_47deg_masked.emdata", flipxy=True)
-# print(self)
-# self.chooseF(every=3)
+marefile = "L07_Tx1_Tx2_ByBz_47deg_masked.emdata"
+# %%
+self = CSEMSurvey(marefile, flipxy=True)
+print(self)
+self.filter(maxTxDist=4000)
+self.showPositions()[0].savefig("pos.pdf")
+self.showData(line=1)
+self.saveData()
+# %%
+sdfsf
+mare = Mare2dEMData(marefile, flipxy=True)
 print(mare)
 mare.saveData()
 for i in range(2):

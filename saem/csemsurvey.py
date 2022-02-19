@@ -1,3 +1,5 @@
+import os.path
+from glob import glob
 import numpy as np
 import matplotlib.pyplot as plt
 import pygimli as pg
@@ -40,29 +42,34 @@ class CSEMSurvey():
 
         return st
 
-    def importMareData(self, mare, txs=None):
+    def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file format."""
         if isinstance(mare, str):
-            return self.importMareData(Mare2dEMData(mare), txs=txs)
+            mare = Mare2dEMData(mare, flipxy=flipxy)
 
         ntx = len(mare.txPositions())
         for i in range(ntx):
             part = mare.getPart(tx=i+1, typ="B", clean=True)
             txl = mare.txpos[i, 3]
-            txpos = np.column_stack((
-                [mare.txpos[i, 1], mare.txpos[i, 1]],
-                mare.txpos[i, 0] + np.array([-1/2, 1/2])*txl))
+            txpos = [[mare.txpos[i, 0], mare.txpos[i, 0]],
+                     mare.txpos[i, 1] + np.array([-1/2, 1/2])*txl]
             fak = 1e9
-            matX = part.getDataMatrix(field="Bx") * txl * fak
-            matY = part.getDataMatrix(field="By") * txl * fak
-            matZ = -part.getDataMatrix(field="Bz") * txl * fak
+            mats = [part.getDataMatrix(field="Bx") * txl * fak,
+                    part.getDataMatrix(field="By") * txl * fak,
+                    -part.getDataMatrix(field="Bz") * txl * fak]
             rx, ry, rz = part.rxpos.T
-            cs = CSEMData(f=mare.f, rx=rx, ry=ry, rz=rz,
+            cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
                           txPos=txpos)
-            cs.DATA = np.stack((matX, matY, matZ))
+            cs.cmp = [1, 1, 1]
+            for i, mat in enumerate(mats):
+                if mat.shape[0] == 0:
+                    cs.cmp[i] = 0
+                    mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
+            cs.DATA = np.stack(mats)
             cs.chooseData()
             self.addPatch(cs)
-        if txs:
+        if "txs" in kwargs:
+            txs = kwargs["txs"]
             for i, p in enumerate(self.patches):
                 p.tx, p.ty = txs[i].T[:2]
 
@@ -105,6 +112,16 @@ class CSEMSurvey():
 
         return DATA, lines
 
+    def filter(self, *args, **kwargs):
+        """Filter."""
+        for p in self.patches:
+            p.filter(*args, **kwargs)
+
+    def estimateError(self, *args, **kwargs):
+        """estimate error model."""
+        for p in self.patches:
+            p.estimateError(*args, **kwargs)
+
     def saveData(self, fname=None, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.pop("cmp", self.patches[0].cmp)
@@ -121,7 +138,7 @@ class CSEMSurvey():
             if fname.startswith("+"):
                 fname = self.basename + "-" + fname
 
-        txs = [np.column_stack((p.tx, p.ty, p.tx*0)) for p in self.patches]
+        txs = [np.column_stack((p.tx, p.ty, p.ty*0)) for p in self.patches]
         DATA, lines = self.getData(line=line, **kwargs)
         np.savez(fname+".npz",
                  tx=txs,
@@ -130,6 +147,84 @@ class CSEMSurvey():
                  line=lines,
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
+
+    def loadResults(self, dirname=None, datafile=None, invmesh="Prisms",
+                    jacobian=None):
+        """Load inversion results from directory."""
+        datafile = datafile or self.basename
+        if dirname is None:
+            dirname = datafile + "_" + invmesh + "/"
+        if dirname[-1] != "/":
+            dirname += "/"
+
+        if os.path.exists(dirname + "inv_model.npy"):
+            self.model = np.load(dirname + "inv_model.npy")
+        else:
+            self.model = np.load(sorted(glob(dirname+"sig_iter_*.npy"))[0])
+
+        self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
+        respfiles = sorted(glob(dirname+"response_iter*.npy"))
+        if len(respfiles) == 0:
+            respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+        if len(respfiles) == 0:
+            pg.error("Could not find response file")
+
+        response = np.load(respfiles[-1])
+        # here there's something to do
+        respR, respI = np.split(response, 2)
+        respC = respR + respI*1j
+        ff = np.array([], dtype=bool)
+        for i in range(3):
+            if self.cmp[i]:
+                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
+                ff = np.hstack((ff, np.isfinite(tmp)))
+
+        RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
+                       dtype=np.complex) * np.nan
+        RESP[ff] = respC
+        RESP = np.reshape(RESP, [sum(self.cmp), self.nF, self.nRx])
+        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
+        self.RESP[np.nonzero(self.cmp)[0]] = RESP
+        self.J = None
+        if os.path.exists(dirname+"invmesh.vtk"):
+            self.mesh = pg.load(dirname+"invmesh.vtk")
+        else:
+            self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
+        print(self.mesh)
+        jacobian = jacobian or datafile+"_jacobian.bmat"
+        jname = dirname + jacobian
+        if os.path.exists(jname):
+            self.J = pg.load(jname)
+            print("Loaded jacobian: "+jname, self.J.rows(), self.J.cols())
+        elif os.path.exists(dirname+"jacobian.bmat"):
+            self.J = pg.load(dirname+"jacobian.bmat")
+            print("Loaded jacobian: ", self.J.rows(), self.J.cols())
+
+    def showResult(self, **kwargs):
+        """Show inversion result."""
+        kwargs.setdefault("logScale", True)
+        kwargs.setdefault("cMap", "Spectral")
+        kwargs.setdefault("xlabel", "x (m)")
+        kwargs.setdefault("ylabel", "z (m)")
+        kwargs.setdefault("label", r"$\rho$ ($\Omega$m)")
+        return pg.show(self.mesh, 1./self.model, **kwargs)
+
+    def exportRxTxVTK(self, marker=1):
+        """Export Receiver and Transmitter positions as VTK file."""
+        rxmesh = pg.Mesh(3)
+        for i in range(self.nRx):
+            rxmesh.createNode([self.rx[i], self.ry[i], self.rz[i]], marker)
+
+        rxmesh.exportVTK(self.basename+"-rxpos.vtk")
+        txmesh = pg.Mesh(3)
+        for xx, yy in zip(self.tx, self.ty):
+            txmesh.createNode(xx, yy, self.txAlt)
+
+        for i in range(txmesh.nodeCount()-1):
+            txmesh.createEdge(txmesh.node(i), txmesh.node(i+1), marker)
+
+        txmesh.exportVTK(self.basename+"-txpos.vtk")
+
 
 
 if __name__ == "__main__":
