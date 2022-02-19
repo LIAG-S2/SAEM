@@ -15,13 +15,13 @@ part2 = CSEMData(datafile="newdata_f*.mat", txPos=txpos, txalt=ground)
 part2.showField("alt")
 self.addData(part2)
 self.showField("alt")
-# %% rotate to Tx so that tx distances can be used for filtering
+# %% display single frequency data
 nf = 5  # frequency index for checking
 self.showData(nf=nf)
-# %%
-self.simulate(rho=25) # make 0D simulation to check
+# %% make 0D simulation to check signs and behaviour
+self.simulate(rho=25)
 self.showData(nf=nf, what="response")
-dsfsdfsfsdf
-# %%
+# %% rotate to Tx so that tx distances can be used for filtering
 self.rotate()  # according to transmitter
+self.filter(minTxDist=100, maxTxDist=700)
 self.showData(nf=nf)
