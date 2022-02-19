@@ -4,15 +4,23 @@ from saem import CSEMData
 
 # %%
 marefile = "L06_07_08_09_Tx1_Tx2_BxByBz_47deg_masked.emdata"
-mare = Mare2dEMData(marefile, flipxy=True)
-mare.DATA["Tx"] = 3 - mare.DATA["Tx"]
-
-if 1:
+if 0:
+    mare = Mare2dEMData(marefile, flipxy=True)
+    mare.DATA["Tx"] = 3 - mare.DATA["Tx"]
+    if 1:
+        tx1 = np.loadtxt("tx1.pos")
+        tx2 = np.loadtxt("tx2.pos")
+        mare.txpos = [tx1[:, [1, 0, 2]], tx2[:, [1, 0, 2]]]
+        mare.showPositions()
+else:
+    mare = Mare2dEMData(marefile)
+    mare.DATA["Tx"] = 3 - mare.DATA["Tx"]
     tx1 = np.loadtxt("tx1.pos")
     tx2 = np.loadtxt("tx2.pos")
-    mare.txpos = [tx1[:, [1, 0, 2]], tx2[:, [1, 0, 2]]]
-    mare.showPositions()
+    mare.txpos = [tx1, tx2]
 
+mare.showPositions()
+dsfsfsf
 # %%
 mare.saveData(tx=1, topo=1)
 mare.saveData(tx=2, topo=1)

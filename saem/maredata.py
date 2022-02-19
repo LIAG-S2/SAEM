@@ -338,13 +338,14 @@ class Mare2dEMData():
         """Correct data by multiplying with the transmitter lengths."""
         pass
 
-    def saveData(self, tx=None, absError=1.5e-3, relError=0.04, topo=1):
+    def saveData(self, tx=None, absError=1.5e-3, relError=0.04, fname=None,
+                 topo=1):
         """Save data for inversion with custEM."""
         tx = tx or np.arange(len(self.txpos)) + 1
         DATA = []
         TX = []
         fak = 1e9
-        fname = self.basename + "_B_Tx"
+        fname = fname or self.basename + "_B_Tx"
         for it, txi in enumerate(np.atleast_1d(tx)):
             # assert matX.shape == matZ.shape, "Bx and Bz not matching"
             if isinstance(self.txpos, list):

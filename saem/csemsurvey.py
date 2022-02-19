@@ -8,7 +8,7 @@ from saem import CSEMData
 class CSEMSurvey():
     """Class for (multi-patch/transmitter) CSEM data."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, arg=None, **kwargs):
         """Initialize class with either data filename or patch instances.
 
 
@@ -27,7 +27,11 @@ class CSEMSurvey():
         self.origin = [0, 0]
         self.angle = 0
         self.basename = "new"
-        # self.cmp = [1, 1, 1]
+        self.cmp = [1, 1, 1]
+        if arg is not None:
+            if isinstance(arg, str):
+                if arg.endswith(".emdata"):  # obviously a Mare2d File
+                    self.importMareData(arg, **kwargs)
 
     def __repr__(self):
         st = "CSEMSurvey class with {:d} patches".format(len(self.patches))
@@ -36,10 +40,31 @@ class CSEMSurvey():
 
         return st
 
-    def importMareData(self, marefile):
+    def importMareData(self, mare, txs=None):
         """Import Mare2dEM file format."""
-        mare = Mare2dEMData(marefile)
-        # for i in mare.
+        if isinstance(mare, str):
+            return self.importMareData(Mare2dEMData(mare), txs=txs)
+
+        ntx = len(mare.txPositions())
+        for i in range(ntx):
+            part = mare.getPart(tx=i+1, typ="B", clean=True)
+            txl = mare.txpos[i, 3]
+            txpos = np.column_stack((
+                [mare.txpos[i, 1], mare.txpos[i, 1]],
+                mare.txpos[i, 0] + np.array([-1/2, 1/2])*txl))
+            fak = 1e9
+            matX = part.getDataMatrix(field="Bx") * txl * fak
+            matY = part.getDataMatrix(field="By") * txl * fak
+            matZ = -part.getDataMatrix(field="Bz") * txl * fak
+            rx, ry, rz = part.rxpos.T
+            cs = CSEMData(f=mare.f, rx=rx, ry=ry, rz=rz,
+                          txPos=txpos)
+            cs.DATA = np.stack((matX, matY, matZ))
+            cs.chooseData()
+            self.addPatch(cs)
+        if txs:
+            for i, p in enumerate(self.patches):
+                p.tx, p.ty = txs[i].T[:2]
 
     def addPatch(self, patch):
         """Add a new patch to the file.
@@ -57,9 +82,11 @@ class CSEMSurvey():
     def showPositions(self):
         """Show all positions."""
         fig, ax = plt.subplots()
+        ma = ["x", "+"]
         for i, p in enumerate(self.patches):
-            p.showPos(ax=ax, color="C{:d}".format(i))
+            p.showPos(ax=ax, color="C{:d}".format(i), marker=ma[i % 2])
 
+        return fig, ax
 
     def showData(self, **kwargs):
         """."""

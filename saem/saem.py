@@ -70,6 +70,8 @@ class CSEMData():
         if datafile is not None:
             self.loadData(datafile)
 
+        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+        self.radius = np.median(dxy) * 0.5
         self.basename = kwargs.pop("basename", self.basename)
         self.chooseData("data")
         self.createConfig()
@@ -104,9 +106,6 @@ class CSEMData():
         self.line = np.ones_like(self.rx, dtype=int)
         if detectLines:
             self.detectLines()
-
-        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        self.radius = np.median(dxy) * 0.5
 
     def loadNpzFile(self, filename):
         """Load data from numpy zipped file (inversion ready)."""
@@ -443,7 +442,7 @@ class CSEMData():
             self.showPos()
 
     def showPos(self, ax=None, line=None, background=None, org=False,
-                color=None):
+                color=None, marker=None):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -452,7 +451,8 @@ class CSEMData():
             # rxy = np.column_stack((self.rx, self.ry))
             pass
 
-        ax.plot(self.rx, self.ry, ".", markersize=2, color=color or "blue")
+        ma = marker or "."
+        ax.plot(self.rx, self.ry, ma, markersize=2, color=color or "blue")
         ax.plot(self.tx, self.ty, "-", markersize=4, color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
             ax.plot(self.rx[self.nrx], self.ry[self.nrx], "ko", markersize=5)
@@ -615,7 +615,7 @@ class CSEMData():
 
         return ax
 
-    def chooseData(self, what, llthres=None):
+    def chooseData(self, what="data", llthres=None):
         """Choose data to show by showData or showLineData.
 
         Parameters
@@ -632,10 +632,7 @@ class CSEMData():
                 rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
         """
-
-        if llthres is None:
-            llthres = self.llthres
-
+        llthres = llthres or self.llthres
         if what.lower() == "data":
             self.DATAX, self.DATAY, self.DATAZ = self.DATA
         elif what.lower() == "prim":

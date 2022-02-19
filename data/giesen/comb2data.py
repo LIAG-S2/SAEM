@@ -34,3 +34,4 @@ self.filter(f=1000.)
 self.filter(f=32.)
 # %%
 self.generateDataPDF()
+self.saveData()
