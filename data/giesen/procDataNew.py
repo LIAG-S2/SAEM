@@ -7,8 +7,9 @@ from saem import CSEMData
 txpos = np.array([[559497.46, 5784467.953],
                   [559026.532, 5784301.022]]).T
 self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-# self.DATAX *= -1  # why? 
-self.showField(self.line)
+self.cmp = [1, 1, 1]
+self.showField(self.alt)
+# self.generateDataPDF()
 # %%
 self.line[414:421] = 0
 self.filter(fmin=100, fmax=20000)
