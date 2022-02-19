@@ -378,7 +378,9 @@ class CSEMData():
         if nInd is None:
             if minTxDist is not None or maxTxDist is not None:
                 dTx = self.txDistance()
-                nInd = np.nonzero((dTx >= minTxDist)*(dTx <= maxTxDist))[0]
+                minTxDist = minTxDist or 0
+                maxTxDist = maxTxDist or 9e9
+                nInd = np.nonzero((dTx >= minTxDist) * (dTx <= maxTxDist))[0]
             else:
                 nInd = np.arange(len(self.rx))
 

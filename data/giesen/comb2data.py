@@ -15,6 +15,7 @@ part2 = CSEMData(datafile="newdata_f*.mat", txPos=txpos, txalt=ground)
 part2.showField("alt")
 self.addData(part2)
 self.showField("alt")
+self.basename = "giesen_comb"
 # %% display single frequency data
 nf = 5  # frequency index for checking
 self.showData(nf=nf)
@@ -22,6 +23,14 @@ self.showData(nf=nf)
 self.simulate(rho=25)
 self.showData(nf=nf, what="response")
 # %% rotate to Tx so that tx distances can be used for filtering
-self.rotate()  # according to transmitter
 self.filter(minTxDist=100, maxTxDist=700)
 self.showData(nf=nf)
+# %%
+self.filter(fmax=20000.)
+self.filter(f=12000.)
+self.filter(f=6000.)
+self.filter(f=4000.)
+self.filter(f=1000.)
+self.filter(f=32.)
+# %%
+self.generateDataPDF()
