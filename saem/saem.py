@@ -47,7 +47,7 @@ class CSEMData():
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
-        self.cmp = kwargs.pop("cmp", [0, 0, 1])  # active components
+        self.cmp = kwargs.pop("cmp", [1, 1, 1])  # active components
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.tx, self.ty = kwargs.pop("txPos", (None, None))
         self.rx = kwargs.pop("rx", np.array([100.0]))
@@ -108,7 +108,7 @@ class CSEMData():
             self.detectLines()
 
         dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        self.radius = np.median(dxy)
+        self.radius = np.median(dxy) * 0.5
 
     def loadNpzFile(self, filename):
         """Load data from numpy zipped file (inversion ready)."""
@@ -308,8 +308,29 @@ class CSEMData():
         self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
-               minTxDist=0, maxTxDist=9e99):
-        """Filter data according to frequency range and indices."""
+               minTxDist=0, maxTxDist=9e99, every=None):
+        """Filter data according to frequency and and receiver properties.
+
+        Parameters
+        ----------
+        f : float, optional
+            frequency (next available) to remove from data
+        fmin : float [0]
+            minimum frequency to keep
+        fmax : float [9e99]
+            minimum frequency to keep
+        fInd : iterable, optional
+            index array of frequencies to use
+        nInd : iterable, optional
+            index array for receivers to use, alternatively
+        minTxDist : float
+            minimum distance to transmitter
+        maxTxDist : TYPE, optional
+            maximum distance to transmitter
+        every : int
+            use only every n-th receiver
+        """
+        # part 1: frequency axis
         if fInd is None:
             bind = (self.f > fmin) & (self.f < fmax)  # &(self.f!=f)
             if f > 0:
@@ -329,14 +350,19 @@ class CSEMData():
             for i in range(3):
                 self.prim[i] = self.prim[i][fInd, :]
 
+        # part 2: receiver axis
         if nInd is None:
             dTx = np.abs(self.rx-np.mean(self.tx))
-            nInd = np.nonzero(dTx >= minTxDist & dTx <= maxTxDist)[0]
+            nInd = np.nonzero((dTx >= minTxDist)*(dTx <= maxTxDist))[0]
+            if isinstance(every, int):
+                nInd = nInd[::every]
 
         if nInd is not None:
             for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
                 setattr(self, tok, getattr(self, tok)[nInd])
 
+            dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+            self.radius = np.median(dxy) * 0.5
             self.DATA = self.DATA[:, :, nInd]
             if np.any(self.ERR):
                 self.ERR = self.ERR[:, :, nInd]
@@ -351,10 +377,11 @@ class CSEMData():
                 for i in range(3):
                     self.prim[i] = self.prim[i][:, nInd]
 
-        self.chooseData("data")
+        self.chooseData("data")  # make sure DATAX/Y/Z have correct size
 
-    def mask(self):
-        pass
+    def mask(self, **kwargs):
+        """Masking out data according to several properties."""
+        pass  # not yet implemented
 
     def createConfig(self):
         """Create EMPYMOD input argument configuration."""
@@ -582,9 +609,16 @@ class CSEMData():
         if what.lower() == "data":
             self.DATAX, self.DATAY, self.DATAZ = self.DATA
         elif what.lower() == "prim":
+            if self.prim is None:
+                self.computePrimaryFields()
+
             self.DATAX, self.DATAY, self.DATAZ = self.prim
         elif what.lower() == "secdata":
-            self.DATAX, self.DATAY, self.DATAZ = self.DATA / self.prim - 1.0
+            if self.prim is None:
+                self.computePrimaryFields()
+
+            primabs = np.sqrt(np.sum(self.prim**2, axis=0))
+            self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs
         elif what.lower() == "response":
             self.DATAX, self.DATAY, self.DATAZ = self.RESP
         elif what.lower() == "error":
@@ -652,15 +686,17 @@ class CSEMData():
         kwargs.setdefault("radius", self.radius)
         kwargs.setdefault("log", False)
         kwargs.setdefault("cmap", "jet")
-        kwargs.setdefault("alim", [np.min(np.unique(field)),
-                                   np.max(np.unique(field))])
-
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
         if isinstance(field, str):
+            print(field)
             kwargs.setdefault("label", field)
             field = getattr(self, field)
+            print(type(field))
+
+        kwargs.setdefault("alim", [np.min(np.unique(field)),
+                                   np.max(np.unique(field))])
 
         ax, cb = plotSymbols(self.rx, self.ry, field, ax=ax, **kwargs)
 
