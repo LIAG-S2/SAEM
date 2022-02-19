@@ -44,7 +44,6 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
 
 
 def plotSymbols(x, y, w, ax=None, **kwargs):
-
     """Plot circles or rectangles for each point in a map.
 
     Parameters
@@ -57,7 +56,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         colormap
     colorBar : bool [True]
         draw colowbar
-    cMin/cMax : float
+    clim : [float, float]
         min/max values for colorbar
     logScale : bool [False]
         use logarithmic color scaling
@@ -68,12 +67,8 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     numpoints : int
         number of points (0 means circle)
     """
-
-    cmap = kwargs.pop("cmap", "seismic")
-    amphi = kwargs.pop("amphi", False)
-    log = kwargs.pop("log", True)
-    alim = kwargs.pop("alim", [1e-3, 1e1])
-    plim = kwargs.pop("plim", [-180., 180.])
+    # kwargs_setdefaults(kwargs)
+    cmap = kwargs.pop("cmap", "Spectral_r")
     numpoints = kwargs.pop("numpoints", 0)
     radius = kwargs.pop("radius", 10.)
     label = kwargs.pop("label", False)
@@ -93,8 +88,11 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         patches.append(rect)
 
     norm = None
+    alim = kwargs.pop("alim", [min(w), max(w)])
+    log = kwargs.pop("log", False)
     if log:
-        norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
+        norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1],
+                          base=10)
     else:
         norm = Normalize(vmin=alim[0], vmax=alim[1])
 
@@ -106,6 +104,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         pc.set_clim([-alim[1], alim[1]])
     else:
         pc.set_clim([alim[0], alim[1]])
+
     cb = None
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -117,7 +116,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     return ax, cb
 
 
-def update_plt_kwargs(kwargs):
+def kwargs_setdefaults(kwargs={}):
     """Set default values for different plotting tools."""
     kwargs.setdefault("what", "data")
     kwargs.setdefault("log", True)
@@ -129,6 +128,7 @@ def update_plt_kwargs(kwargs):
         kwargs.setdefault("alim", [-10., 10.])
 
     kwargs.setdefault("amphi", False)
+    kwargs.setdefault("llthres", 1e-3)
     kwargs.setdefault("plim", [-180., 180.])
 
     return kwargs

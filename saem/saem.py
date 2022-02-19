@@ -15,7 +15,7 @@ from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
 from matplotlib.colors import LogNorm, SymLogNorm
 
-from .plotting import plotSymbols, showSounding
+from .plotting import plotSymbols, showSounding, kwargs_setdefaults
 from .plotting import underlayBackground, makeSymlogTicks
 from .modelling import fopSAEM, bipole
 
@@ -101,8 +101,6 @@ class CSEMData():
         elif filename.endswith(".mat"):
             self.loadMatFile(filename)
 
-        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-
         self.line = np.ones_like(self.rx, dtype=int)
         if detectLines:
             self.detectLines()
@@ -125,6 +123,8 @@ class CSEMData():
         self.origin = ALL["origin"]
         self.angle = float(ALL["rotation"])
         self.basename = filename.replace(".npz", "")
+        # self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
+        # self.ERR = np.zeros((3, self.nF, self.nRx), dtype=complex)
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
         self.DATAZ = np.zeros_like(self.DATAX)
@@ -140,6 +140,7 @@ class CSEMData():
                     data["errorI"][0, ic, :, :] * 1j)
 
         self.cmp = [np.any(getattr(self, "DATA"+cc)) for cc in ["X", "Y", "Z"]]
+        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
         self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
 
     def loadMatFile(self, filename):
@@ -166,6 +167,7 @@ class CSEMData():
         self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
         self.DATAY *= -1  # unless changed in the processing scripts
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
+        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
 
@@ -175,7 +177,6 @@ class CSEMData():
         for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
             setattr(self, tok, np.hstack((getattr(self, tok),
                                          getattr(part2, tok))))
-        # %%
         for tok in ['DATA', 'ERR', 'RESP', 'prim']:
             one = getattr(self, tok)
             two = getattr(part2, tok)
@@ -183,7 +184,6 @@ class CSEMData():
                 setattr(self, tok, np.concatenate((one, two), axis=-1))
             else:
                 setattr(self, tok, None)
-        # %%
 
     def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model."""
@@ -228,6 +228,7 @@ class CSEMData():
         self.rx += self.origin[0]
         self.ry += self.origin[1]
         self.origin = [0, 0, 0]
+        self.angle = 0
         self.A = np.array([[1, 0], [0, 1]])
         for i in range(len(self.f)):
             # self.A.T.dot
@@ -321,8 +322,17 @@ class CSEMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
+    def txDistance(self):
+        """Distance to transmitter."""
+        ang = np.median(np.arctan2(np.diff(self.ty), np.diff(self.tx)))
+        ang += np.pi / 2
+        A = np.array([[np.cos(ang), np.sin(ang)], [-np.sin(ang), np.cos(ang)]])
+        rx, ry = A.dot(np.array([self.rx-np.mean(self.tx),
+                                 self.ry-np.mean(self.ty)]))
+        return np.abs(rx)
+
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
-               minTxDist=0, maxTxDist=9e99, every=None):
+               minTxDist=None, maxTxDist=None, every=None):
         """Filter data according to frequency and and receiver properties.
 
         Parameters
@@ -366,8 +376,12 @@ class CSEMData():
 
         # part 2: receiver axis
         if nInd is None:
-            dTx = np.abs(self.rx-np.mean(self.tx))
-            nInd = np.nonzero((dTx >= minTxDist)*(dTx <= maxTxDist))[0]
+            if minTxDist is not None or maxTxDist is not None:
+                dTx = self.txDistance()
+                nInd = np.nonzero((dTx >= minTxDist)*(dTx <= maxTxDist))[0]
+            else:
+                nInd = np.arange(len(self.rx))
+
             if isinstance(every, int):
                 nInd = nInd[::every]
 
@@ -986,11 +1000,12 @@ class CSEMData():
         nf : int | float
             frequency index (int) or value (float) to plot
         """
-
-
-        what, llthres, cmap, cmp, amphi, log, alim, plim = \
-            self.update_plt_kwargs(**kwargs)
-        self.chooseData(what, llthres)
+        # what, llthres, cmap, cmp, amphi, log, alim, plim = \
+        #     self.update_plt_kwargs(**kwargs)
+        cmp = kwargs.pop("cmp", self.cmp)
+        kw = kwargs_setdefaults(kwargs)
+        alim = kw.pop("alim")
+        self.chooseData(kw["what"], kw["llthres"])
 
         if isinstance(nf, float):
             nf = np.argmin(np.abs(self.f - nf))
@@ -1000,13 +1015,8 @@ class CSEMData():
         if background is not None and kwargs.pop("overlay", False):  # bwc
             background = "BKG"
 
-        kw = dict(cmap=cmap, alim=alim, plim=plim, amphi=amphi, log=log,
-                  radius=self.radius, numpoints=0)
-        if scale:
-            amphi = False
-            if self.prim is None:
-                self.computePrimaryFields()
-
+        kw.setdefault("numpoints", 0)
+        kw.setdefault("radius", self.radius)
         allcmp = np.take(["x", "y", "z"], np.nonzero(cmp)[0])
         # modify allcmp to show only subset
         if ax is None:
@@ -1024,26 +1034,31 @@ class CSEMData():
             data = getattr(self, "DATA"+cc.upper()).copy()
             if scale:
                 data /= self.prim[j]
-            if amphi:
-                plotSymbols(self.rx, self.ry, np.log10(np.abs(data[nf])),
-                            ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kw)
+            if kw["amphi"]:
+                kwargs.pop("cmap", None)
+                kwargs.pop("log", None)
+                kwargs.pop("alim", None)
+                plotSymbols(self.rx, self.ry, np.abs(data[nf]),
+                            ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kw,
+                            cmap="Spectral_r", log=True, alim=alim)
                 plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
-                            ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kw)
+                            ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kw,
+                            cmap="hsv", log=False, alim=kwargs["plim"])
                 ax[0, j].set_title("log10 T"+cc+" [pT/A]")
                 ax[1, j].set_title(r"$\phi$"+cc+" [°]")
             else:
                 _, cb1 = plotSymbols(self.rx, self.ry, np.real(data[nf]),
-                                     ax=ax[0, j], **kw)
+                                     ax=ax[0, j], alim=alim, **kw)
                 _, cb2 = plotSymbols(self.rx, self.ry, np.imag(data[nf]),
-                                     ax=ax[1, j], **kw)
+                                     ax=ax[1, j], alim=alim, **kw)
 
                 ax[0, j].set_title("real T"+cc+" [nT/A]")
                 ax[1, j].set_title("imag T"+cc+" [nT/A]")
 
                 for cb in [cb1, cb2]:
-                    if j == sum(cmp)-1 and log:
+                    if j == sum(cmp)-1 and kw["log"]:
                         makeSymlogTicks(cb, alim)
-                    elif j == sum(cmp)-1 and not log:
+                    elif j == sum(cmp)-1 and not kw["log"]:
                         pass
                     else:
                         cb.set_ticks([])
@@ -1062,7 +1077,7 @@ class CSEMData():
         fig.suptitle(basename+"  f="+str(self.f[nf])+"Hz")
 
         if "what" in kwargs:
-            self.chooseData("data", llthres)
+            self.chooseData("data", kw["llthres"])
 
         return fig, ax
 
@@ -1102,8 +1117,6 @@ class CSEMData():
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', **kwargs):
         """Generate a multi-page pdf file containing all data."""
-
-
         what, llthres, cmap, cmp, amphi, log, alim, plim = \
             self.update_plt_kwargs(**kwargs)
         self.chooseData(what, llthres)
@@ -1168,7 +1181,7 @@ class CSEMData():
                 plt.close(fig)
                 ax = None
                 for i in range(len(self.f)):
-                    fig, ax = self.showData(nf=i, ax=ax, figsize=figsize,
+                    fig, ax = self.showDataPatch(nf=i, ax=ax, figsize=figsize,
                                             **kwargs)
                     fig.savefig(pdf, format='pdf')
                     plt.close(fig)
