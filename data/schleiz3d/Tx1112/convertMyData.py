@@ -21,7 +21,7 @@ if 1:  # way 1: initialize by reading Mare data and process patches inplace
                 patch.ty = txs[i][:, 1]
                 self.addPatch(patch)
         else:  # the nice way
-            self.importMareData(mare, [tx2, tx1])
+            self.importMareData(mare, [tx12, tx11])
 else:  # way 2: initialize empty survey and add patches
     self = CSEMSurvey()
     if 1:  # way 2a: read in data, filter and add instances
@@ -37,12 +37,16 @@ else:  # way 2: initialize empty survey and add patches
         # could possibly also work with self.addPatch("data*.mat")
 
 print(self)
+self.filter(minTxDist=150)
 fig, ax = self.showPositions()
 fig.savefig("pos.pdf")
+dfssdfsdf
 # %%
 self.patches[0].generateDataPDF("Tx12data.pdf")
 self.patches[1].generateDataPDF("Tx11data.pdf")
 # p.filter()...
 # %%
 self.showData(nf=8)
+self.estimateError(relError=0.05, absError=1.5e-3)
+self.showData(nf=8, what="error")
 self.saveData(cmp=[1, 0, 1])
