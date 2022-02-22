@@ -116,24 +116,6 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     return ax, cb
 
 
-def kwargs_setdefaults(kwargs={}):
-    """Set default values for different plotting tools."""
-    kwargs.setdefault("what", "data")
-    kwargs.setdefault("log", True)
-    if kwargs["log"]:
-        kwargs.setdefault("cmap", "PuOr_r")
-        kwargs.setdefault("alim", [1e-3, 1e1])
-    else:
-        kwargs.setdefault("cmap", "seismic")
-        kwargs.setdefault("alim", [-10., 10.])
-
-    kwargs.setdefault("amphi", False)
-    kwargs.setdefault("llthres", 1e-3)
-    kwargs.setdefault("plim", [-180., 180.])
-
-    return kwargs
-
-
 def underlayBackground(ax, background="BKG", utm=32):
     """Underlay background from any map."""
     if background == "BKG":
@@ -152,3 +134,26 @@ def makeSymlogTicks(cb, alim):
     ticks = np.append(lvec, [10**ele for ele in np.linspace(i2, i1, ni)])
     cb.set_ticks(ticks)
     cb.set_ticklabels(['{:.0e}'.format(tick) for tick in ticks])
+
+
+def updatePlotKwargs(cmp, **kwargs):
+    """Set default values for different plotting tools."""
+    cmp = kwargs.setdefault("cmp", cmp)
+    what = kwargs.setdefault("what", "data")
+    log = kwargs.setdefault("log", True)
+    if log:
+        cmap = kwargs.setdefault("cmap", "PuOr_r")
+        alim = kwargs.setdefault("alim", [1e-3, 1e1])
+    else:
+        cmap = kwargs.setdefault("cmap", "seismic")
+        alim = kwargs.setdefault("alim", [-10., 10.])
+    amphi = kwargs.setdefault("amphi", False)
+
+    plim = kwargs.setdefault("plim", [-180., 180.])
+    llthres = kwargs.setdefault("llthres", alim[0])
+
+    if log and alim[0] != llthres:
+        print("Warning, different values vor *llthres* and *alim[0]* are "
+              "usually not reasonbale. Continuing ..." )
+
+    return kwargs
