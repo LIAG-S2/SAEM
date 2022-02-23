@@ -97,12 +97,15 @@ class CSEMData():
 
     def loadData(self, filename, detectLines=False):
         """Load any data format."""
+
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
             self.loadMatFile(filename)
 
-        self.line = np.ones_like(self.rx, dtype=int)
+        if len(self.line) != len(self.rx):
+            self.line = np.ones_like(self.rx, dtype=int)
+
         if detectLines:
             self.detectLines()
 
@@ -120,6 +123,7 @@ class CSEMData():
             self.line = ALL["line"]
         self.origin = ALL["origin"]
         self.angle = float(ALL["rotation"])
+        self.line = ALL["line"]
         self.basename = filename.replace(".npz", "")
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
@@ -812,17 +816,19 @@ class CSEMData():
         for i in range(3):
             if kw["cmp"][i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[nf, nn]
-                x = np.arange(len(data))
-                if "x" in kwargs:
-                    if kwargs["x"] == "x":
-                        x = self.rx
-                    elif kwargs["x"] == "y":
-                        x = self.ry
-                    if kwargs["x"] == "d":
-                        x = np.sqrt((self.rx-self.rx[0])**2+
-                                    (self.ry-self.ry[0])**2)
-                        x -= np.sqrt((np.mean(self.tx)-self.rx[0])**2+
-                                     (np.mean(self.ty)-self.ry[0])**2)
+
+                if kwargs["x"] == "x":
+                    x = self.rx[nn]
+                elif kwargs["x"] == "y":
+                    x = self.ry[nn]
+                elif kwargs["x"] == "d":
+                    # need to eval line direction first, otherwise bugged
+                    # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
+                    #             (self.ry[nn]-self.ry[0])**2)
+                    x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
+                                (np.mean(self.ty)-self.ry[nn])**2)
+
+                print(len(x), len(data))
 
                 if kw["amphi"]:  # amplitude and phase
                     ax[0, ncmp].plot(x, np.abs(data), label=label)
@@ -1228,9 +1234,12 @@ class CSEMData():
         A) a sum of absolute and relative error (and the processing error)
         B) the maximum of all contributions (relative, absolute, processing)
         """
+
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
-        aErr = np.zeros_like(self.DATA, dtype=complex) * absError
+        aErr = np.zeros_like(self.DATA, dtype=complex)
+        aErr.real = absError
+        aErr.imag = absError
         rErr = np.abs(self.DATA.real) * relError + \
             np.abs(self.DATA.imag) * relError * 1j
 
@@ -1387,7 +1396,10 @@ class CSEMData():
         RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
                        dtype=np.complex) * np.nan
         print(sum(self.cmp), self.nF, self.nRx, RESP.shape, respC.shape)
-        RESP[ff] = respC
+        try:
+            RESP[ff] = respC
+        except ValueError:
+            RESP[:] = respC
         RESP = np.reshape(RESP, [sum(self.cmp), self.nF, self.nRx])
         self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
