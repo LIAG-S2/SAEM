@@ -323,6 +323,31 @@ class CSEMData():
         if show:
             self.showField(self.line)
 
+    def detectLinesAlongAxis(self, axis='x', show=False):
+        """Alernative - Split data in lines for line-wise processing."""
+
+        if axis == 'x':
+            r = self.rx
+        elif axis == 'y':
+            r = self.ry
+        else:
+            print('Choose either *x* or *y* axis. Aborting this method ...')
+            return
+
+        self.line = np.zeros_like(self.rx, dtype=int)
+        li = 1
+        last_sign = np.sign(r[1] - r[0])
+        for ri in range(1, len(self.rx)):
+            sign = np.sign(r[ri] - r[ri-1])
+            self.line[ri-1] = li
+            if sign != last_sign:
+                li += 1
+                last_sign *= -1
+        self.line[-1] = li
+
+        if show:
+            self.showField(self.line)
+
     def removeNoneLineData(self):
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
@@ -1276,7 +1301,7 @@ class CSEMData():
 
     def saveData(self, fname=None, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
-        cmp = kwargs.pop("cmp", self.cmp)
+        cmp = kwargs.setdefault("cmp", self.cmp)
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
