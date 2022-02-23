@@ -1245,6 +1245,7 @@ class CSEMData():
 
         if ignoreErr:
             self.ERR = np.zeros_like(self.DATA)
+            
 
         # decide upon adding or maximizing errors
         if useMax:
