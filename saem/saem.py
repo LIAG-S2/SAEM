@@ -123,7 +123,6 @@ class CSEMData():
             self.line = ALL["line"]
         self.origin = ALL["origin"]
         self.angle = float(ALL["rotation"])
-        self.line = ALL["line"]
         self.basename = filename.replace(".npz", "")
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
@@ -131,7 +130,7 @@ class CSEMData():
         try:
             self.cmp = ALL["cmp"]
         except Exception as e:
-            print('CMP detect change warning, using old way')
+            print('CMP detect change exception, using old way')
             self.cmp = [np.any(getattr(self, "DATA"+cc)) for cc in ["X", "Y", "Z"]]
 
         self.ERRX = np.ones_like(self.DATAX)
@@ -712,6 +711,11 @@ class CSEMData():
         else:  # try using the argument
             self.DATAX, self.DATAY, self.DATAZ = what
 
+    def getWmisfit(self):
+
+        mis = self.DATA - self.RESP
+        self.WMIS = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+
     def showField(self, field, **kwargs):
         """Show any receiver-related field as color-coded rectangles/circles.
 
@@ -792,7 +796,6 @@ class CSEMData():
         """
 
         kw = updatePlotKwargs(self.cmp, **kwargs)
-        kwargs.setdefault("x", "d")
         label = kwargs.pop("label", kw["what"])
         lw = kwargs.pop("lw", 0.5)
         self.chooseData(kw["what"], kw["llthres"])
@@ -805,44 +808,44 @@ class CSEMData():
             errbar = self.ERR[:, nf, nn]
 
         if ax is None:
-            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2, squeeze=False,
-                                   sharex=True, sharey=not kw["amphi"],
+            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
+                                   squeeze=False, sharex=True,
+                                   sharey=not kw["amphi"],
                                    figsize=kwargs.pop("figsize", (10, 6)))
         else:
             fig = ax.flat[0].figure
 
         ncmp = 0
         allcmp = ['x', 'y', 'z']
+
+        kwargs.setdefault("x", "x")
+        if kwargs["x"] == "x":
+            x = self.rx[nn]
+        elif kwargs["x"] == "y":
+            x = self.ry[nn]
+        elif kwargs["x"] == "d":
+            # need to eval line direction first, otherwise bugged
+            # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
+            #             (self.ry[nn]-self.ry[0])**2)
+            x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
+                        (np.mean(self.ty)-self.ry[nn])**2)
+
         for i in range(3):
             if kw["cmp"][i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[nf, nn]
-
-                if kwargs["x"] == "x":
-                    x = self.rx[nn]
-                elif kwargs["x"] == "y":
-                    x = self.ry[nn]
-                elif kwargs["x"] == "d":
-                    # need to eval line direction first, otherwise bugged
-                    # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
-                    #             (self.ry[nn]-self.ry[0])**2)
-                    x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
-                                (np.mean(self.ty)-self.ry[nn])**2)
-
-                print(len(x), len(data))
-
                 if kw["amphi"]:  # amplitude and phase
                     ax[0, ncmp].plot(x, np.abs(data), label=label)
                     ax[1, ncmp].plot(x, np.angle(data, deg=True), label=label)
-                    if log:
+                    if kw["log"]:
                         ax[0, ncmp].set_yscale('log')
-                        ax[0, ncmp].set_ylim(alim)
-                        ax[1, ncmp].set_ylim(plim)
+                        ax[0, ncmp].set_ylim(kw["alim"])
+                        ax[1, ncmp].set_ylim(kw["plim"])
                 else:  # real and imaginary part
                     if kw["what"] == 'data' and errbar is not None:
                         ax[0, ncmp].errorbar(
                             x, np.real(data),
                             yerr=[errbar[i].real, errbar[i].real],
-                            marker='+', lw=0., barsabove=True,
+                            marker='o', lw=0., barsabove=True,
                             elinewidth=0.5, markersize=3, label=label)
                         ax[1, ncmp].errorbar(
                             x, np.imag(data),
@@ -871,17 +874,25 @@ class CSEMData():
             ax[0, 0].set_ylabel("Real T (nT/A)")
             ax[1, 0].set_ylabel("Imag T (nT/A)")
 
-        # xt = np.arange(0, len(nn), 10)
-        if "x" not in kwargs:
-            xt = np.round(np.linspace(0, len(nn)-1, 7))
-            xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
-            for aa in ax[-1, :]:
-                if xtl[0] > xtl[-1]:
-                    aa.set_xlim([xt[1], xt[0]])
+        # if "x" not in kwargs:
+        #     xt = np.round(np.linspace(0, len(nn)-1, 7))
+        #     xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+        #     for aa in ax[-1, :]:
+        #         if xtl[0] > xtl[-1]:
+        #             aa.set_xlim([xt[1], xt[0]])
 
-                aa.set_xticks(xt)
-                aa.set_xticklabels(xtl)
-                aa.set_xlabel("x (m)")
+        #         aa.set_xticks(xt)
+        #         aa.set_xticklabels(xtl)
+        #         aa.set_xlabel("x (m)")
+
+        for a in ax[-1, :]:
+            if kwargs["x"] == "x":
+                a.set_xlim([np.min(self.rx), np.max(self.rx)])
+            elif kwargs["x"] == "y":
+                a.set_xlim([np.min(self.ry), np.max(self.ry)])
+            elif kwargs["x"] == "d":
+                print('need to adjust xlim for *x* = *d* option')
+            a.set_xlabel("x (m)")
 
         for a in ax.flat:
             a.set_aspect('auto')
@@ -927,25 +938,27 @@ class CSEMData():
             nn = np.nonzero(self.line == line)[0]
 
         if ax is None:
-            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2, squeeze=False,
-                                   sharex=True, sharey=True,
+            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
+                                   squeeze=False, sharex=True, sharey=True,
                                    figsize=kwargs.pop("figsize", (10, 6)))
         else:
             fig = ax.flat[0].figure
 
         ncmp = 0
         allcmp = ['x', 'y', 'z']
+
         for i in range(3):
             if kw["cmp"][i] > 0:
                 data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
+                print(data.shape)
                 if kw["amphi"]:  # amplitude and phase
                     # pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
                     #                           cmap="Spectral_r")
                     norm = LogNorm(vmin=kw["alim"][0], vmax=kw["alim"][1])
                     pc1 = ax[0, ncmp].matshow(np.abs(data), norm=norm,
                                               cmap="Spectral_r")
-                    if alim is not None:
-                        pc1.set_clim(alim)
+                    if kw["alim"] is not None:
+                        pc1.set_clim(kw["alim"])
                     pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
                                               cmap="hsv")
                     pc2.set_clim(kw["plim"])
@@ -953,24 +966,24 @@ class CSEMData():
                     if kw["log"]:
                         pc1 = ax[0, ncmp].matshow(
                             np.real(data),
-                            norm=SymLogNorm(kw["alim"][0], base=10,
+                            norm=SymLogNorm(linthresh=kw["alim"][0],
                                             vmin=-kw["alim"][1],
                                             vmax=kw["alim"][1]),
                             cmap=kw["cmap"])
                         pc2 = ax[1, ncmp].matshow(
                             np.imag(data),
-                            norm=SymLogNorm(kw["alim"][0], base=10,
+                            norm=SymLogNorm(linthresh=kw["alim"][0],
                                             vmin=-kw["alim"][1],
                                             vmax=kw["alim"][1]),
                             cmap=kw["cmap"])
                     else:
                         pc1 = ax[0, ncmp].matshow(np.real(data),
                                                   cmap=kw["cmap"])
-                        if alim is not None:
+                        if kw["alim"] is not None:
                             pc1.set_clim([kw["alim"][0], kw["alim"][1]])
                         pc2 = ax[1, ncmp].matshow(np.imag(data),
                                                   cmap=kw["cmap"])
-                        if alim is not None:
+                        if kw["alim"] is not None:
                             pc2.set_clim([kw["alim"][0], kw["alim"][1]])
 
                 for j, pc in enumerate([pc1, pc2]):
@@ -978,9 +991,9 @@ class CSEMData():
                     cax = divider.append_axes("right", size="5%", pad=0.15)
                     cb = plt.colorbar(pc, cax=cax, orientation="vertical")
                     if not kw["amphi"]:
-                        if i == sum(kw["cmp"]) and kw["log"]:
+                        if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
                             makeSymlogTicks(cb, kw["alim"])
-                        elif i == sum(kw["cmp"]) and not kw["log"]:
+                        elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
                             pass
                         else:
                             cb.set_ticks([])
@@ -992,7 +1005,6 @@ class CSEMData():
                 ncmp += 1
 
         ax[0, 0].set_ylim([-0.5, len(self.f)-0.5])
-        # ax[0, 0].set_ylim(ax[0, 0].get_ylim()[::-1])
         yt = np.arange(0, len(self.f), 2)
         ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
         for aa in ax[:, 0]:
@@ -1000,7 +1012,6 @@ class CSEMData():
             aa.set_yticklabels(ytl)
             aa.set_ylabel("f (Hz)")
 
-        # xt = np.arange(0, len(nn), 10)
         xt = np.round(np.linspace(0, len(nn)-1, 7))
         xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
 
@@ -1087,9 +1098,9 @@ class CSEMData():
                 ax[1, j].set_title("imag T"+cc+" [nT/A]")
 
                 for cb in [cb1, cb2]:
-                    if j == sum(kw["cmp"])-1 and kw["log"]:
+                    if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
                         makeSymlogTicks(cb, kw["alim"])
-                    elif j == sum(kw["cmp"])-1 and not kw["log"]:
+                    elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
                         pass
                     else:
                         cb.set_ticks([])
@@ -1109,6 +1120,104 @@ class CSEMData():
 
         if "what" in kwargs:
             self.chooseData("data", kw["llthres"])
+
+        return fig, ax
+
+    def showLineData2(self, line=None, ax=None, **kwargs):
+        """Show alternative line plot.
+        """
+
+        kw = updatePlotKwargs(self.cmp, **kwargs)
+        self.chooseData(kw["what"], kw["llthres"])
+        kw.setdefault("radius", "rect")
+        nn = np.arange(len(self.rx))
+        if line is not None:
+            nn = np.nonzero(self.line == line)[0]
+
+        if ax is None:
+            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
+                                   squeeze=False, sharex=True, sharey=True,
+                                   figsize=kwargs.pop("figsize", (10, 6)))
+        else:
+            fig = ax.flat[0].figure
+
+        ncmp = 0
+        allcmp = ['x', 'y', 'z']
+        nf = np.arange(len(self.f))
+
+        kwargs.setdefault("x", "x")
+        if kwargs["x"] == "x":
+            x = np.tile(self.rx[nn], len(self.f))
+        elif kwargs["x"] == "y":
+            x = np.tile(self.ry[nn], len(self.f))
+        elif kwargs["x"] == "d":
+            print('need to implement *d* option')
+            # need to eval line direction first, otherwise bugged
+            # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
+            #             (self.ry[nn]-self.ry[0])**2)
+            # x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
+            #             (np.mean(self.ty)-self.ry[nn])**2)
+        y = np.repeat(np.arange(len(self.f)), len(nn))
+
+        for i in range(3):
+            if kw["cmp"][i] > 0:
+                data = getattr(self, "DATA"+allcmp[i].upper())[:, nn].ravel()
+                if kw["amphi"]:
+                    print('need to implement amphi')
+                    # kwargs.pop("cmap", None)
+                    # kwargs.pop("log", None)
+                    # kwargs.pop("alim", None)
+                    # plotSymbols(self.rx, self.ry, np.abs(data[nf]),
+                    #             ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kw,
+                    #             cmap="Spectral_r", log=True, alim=kw["alim"])
+                    # plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
+                    #             ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kw,
+                    #             cmap="hsv", log=False, alim=kw["plim"])
+                    # ax[0, j].set_title("log10 T"+cc+" [pT/A]")
+                    # ax[1, j].set_title(r"$\phi$"+cc+" [°]")
+                else:
+                    _, cb1 = plotSymbols(x, y, np.real(data),
+                                         ax=ax[0, ncmp], **kw)
+                    _, cb2 = plotSymbols(x, y, np.imag(data),
+                                         ax=ax[1, ncmp], **kw)
+
+                    for cb in [cb1, cb2]:
+                        if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
+                            makeSymlogTicks(cb, kw["alim"])
+                        elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
+                            pass
+                        else:
+                            cb.set_ticks([])
+                ax[0, ncmp].set_title("B"+allcmp[i])
+                ncmp += 1
+
+        ax[0, 0].set_ylim([0., len(self.f)])
+        for a in ax[-1, :]:
+            if kwargs["x"] == "x":
+                a.set_xlim([np.min(self.rx), np.max(self.rx)])
+            elif kwargs["x"] == "y":
+                a.set_xlim([np.min(self.ry), np.max(self.ry)])
+            elif kwargs["x"] == "d":
+                print('need to adjust xlim for *x* = *d* option')
+            a.set_xlabel("x (m)")
+        yt = np.arange(0, len(self.f), 2)
+        ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
+        for aa in ax[:, 0]:
+            aa.set_yticks(yt)
+            aa.set_yticklabels(ytl)
+            aa.set_ylabel("f (Hz)")
+
+        for a in ax.flat:
+            a.set_aspect('auto')
+
+        if "what" in kwargs:
+            self.chooseData("data", kw["llthres"])
+
+        name = kwargs.pop("name", self.basename)
+        if "what" in kwargs:
+            name += " " + kwargs["what"]
+
+        fig.suptitle(name)
 
         return fig, ax
 
@@ -1148,13 +1257,15 @@ class CSEMData():
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', **kwargs):
         """Generate a multi-page pdf file containing all data."""
-        what = kwargs.pop('what', 'data')
+        what = kwargs.setdefault('what', 'data')
         llthres = kwargs.pop('llthres', self.llthres)
         self.chooseData(what, llthres)
 
         if mode == 'patchwise':
             pdffile = pdffile or self.basename + "-" + what + ".pdf"
         elif mode == 'linewise':
+            pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
+        elif mode == 'linewise2':
             pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
         elif mode == 'linefreqwise':
             pdffile = pdffile or self.basename + "-linefreqs-" + what + ".pdf"
@@ -1174,10 +1285,12 @@ class CSEMData():
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
                         for fi, freq in enumerate(self.f):
+                            kwargs["what"] = "data"
                             fig, ax = self.showLineFreq(li, fi,
                                                         **kwargs)
+                            kwargs["what"] = "response"
                             fig, ax = self.showLineFreq(li, fi, ax=ax,
-                                                        what='response')
+                                                        **kwargs)
                             fig.suptitle('line = {:.0f}, '
                                          'freq = {:.0f} Hz'.format(li, freq))
                             fig.savefig(pdf, format='pdf')
@@ -1194,6 +1307,20 @@ class CSEMData():
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
                         fig, ax = self.showLineData(li, **kwargs)
+                        fig.suptitle('line = {:.0f}'.format(li))
+                        fig.savefig(pdf, format='pdf')
+                        plt.close(fig)
+            elif mode == 'linewise2':
+                fig, ax = plt.subplots(figsize=figsize)
+                self.showField(self.line, ax=ax)
+                ax.figure.savefig(pdf, format="pdf")
+
+                ul = np.unique(self.line)
+                plt.close(fig)
+                for li in ul[ul > 0]:
+                    nn = np.nonzero(self.line == li)[0]
+                    if np.isfinite(li) and len(nn) > 3:
+                        fig, ax = self.showLineData2(li, **kwargs)
                         fig.suptitle('line = {:.0f}'.format(li))
                         fig.savefig(pdf, format='pdf')
                         plt.close(fig)
@@ -1395,7 +1522,6 @@ class CSEMData():
                 ff = np.hstack((ff, np.isfinite(tmp)))
         RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
                        dtype=np.complex) * np.nan
-        print(sum(self.cmp), self.nF, self.nRx, RESP.shape, respC.shape)
         try:
             RESP[ff] = respC
         except ValueError:

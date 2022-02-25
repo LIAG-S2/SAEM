@@ -26,8 +26,8 @@ class CSEMSurvey():
 
         """
         self.patches = []
-        self.origin = [0, 0]
-        self.angle = 0
+        self.origin = [0, 0, 0]
+        self.angle = 0.
         self.basename = "new"
         self.cmp = [1, 1, 1]
         if arg is not None:
@@ -44,11 +44,12 @@ class CSEMSurvey():
 
     def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file format."""
+
         if isinstance(mare, str):
             mare = Mare2dEMData(mare, flipxy=flipxy)
+        tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
 
-        ntx = len(mare.txPositions())
-        for i in range(ntx):
+        for i in tI:
             part = mare.getPart(tx=i+1, typ="B", clean=True)
             txl = mare.txpos[i, 3]
             txpos = [[mare.txpos[i, 0], mare.txpos[i, 0]],
@@ -71,7 +72,7 @@ class CSEMSurvey():
         if "txs" in kwargs:
             txs = kwargs["txs"]
             for i, p in enumerate(self.patches):
-                p.tx, p.ty = txs[i].T[:2]
+                p.tx, p.ty = txs[tI[i]].T[:2]
 
     def addPatch(self, patch):
         """Add a new patch to the file.
@@ -124,7 +125,7 @@ class CSEMSurvey():
 
     def saveData(self, fname=None, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
-        cmp = kwargs.pop("cmp", self.patches[0].cmp)
+        cmp = kwargs.setdefault("cmp", self.patches[0].cmp)
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
@@ -145,6 +146,7 @@ class CSEMSurvey():
                  freqs=self.patches[0].f,
                  DATA=DATA,
                  line=lines,
+                 cmp=cmp,
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
 

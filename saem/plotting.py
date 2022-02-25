@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
+from matplotlib.patches import Rectangle
 from matplotlib.colors import SymLogNorm, Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pygimli.viewer.mpl import underlayMap, underlayBKGMap
@@ -79,9 +80,13 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         ax.plot(x, y, ".", ms=0, zorder=-10)
 
     patches = []
+    width = np.min(np.abs(np.diff(x[:len(np.unique(y))])))
+
     for xi, yi in zip(x, y):
-        if numpoints == 0:
+        if numpoints == 0 and type(radius) is not str:
             rect = Circle((xi, yi), radius, ec=None)
+        elif radius == 'rect':
+            rect = Rectangle((xi-width*0.49, yi), width*0.98, 1.,ec=None)
         else:
             rect = RegularPolygon((xi, yi), numpoints, radius=radius, ec=None)
 
@@ -91,8 +96,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     alim = kwargs.pop("alim", [min(w), max(w)])
     log = kwargs.pop("log", False)
     if log:
-        norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1],
-                          base=10)
+        norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
     else:
         norm = Normalize(vmin=alim[0], vmax=alim[1])
 
