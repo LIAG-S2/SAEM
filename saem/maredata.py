@@ -140,6 +140,9 @@ class Mare2dEMData():
     def txPositions(self, globalCoordinates=False):
         """Return transmitter positions."""
         if isinstance(self.txpos, list):
+            for tx in self.txpos:
+                if globalCoordinates:
+                    tx[:, :2] = self.local2global(tx[:, :2])
             return self.txpos
         else:  # if self.txpos.shape[1] > 3:  # x,y,z,len,az,dip
             TX = []
@@ -170,12 +173,11 @@ class Mare2dEMData():
         else:
             _, ax = plt.subplots()
 
-        print(ax)
         rxpos = self.rxPositions(globalCoordinates)
         kwargs.setdefault("markersize", 1)
         ax.plot(rxpos[:, 0], rxpos[:, 1], "b.", **kwargs)
         for tx in TX:
-            ax.plot(tx[:, 0], tx[:, 1], "r-")
+            ax.plot(tx[:, 0], tx[:, 1], "c-")
 
         ax.set_aspect(1.0)
         ax.grid(True)
