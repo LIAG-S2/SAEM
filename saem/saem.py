@@ -129,7 +129,7 @@ class CSEMData():
         self.DATAZ = np.zeros_like(self.DATAX)
         try:
             self.cmp = ALL["cmp"]
-        except Exception as e:
+        except Exception:
             print('CMP detect change exception, using old way')
             self.cmp = [np.any(getattr(self, "DATA"+cc)) for cc in ["X", "Y", "Z"]]
 
@@ -1143,7 +1143,6 @@ class CSEMData():
 
         ncmp = 0
         allcmp = ['x', 'y', 'z']
-        nf = np.arange(len(self.f))
 
         kwargs.setdefault("x", "x")
         if kwargs["x"] == "x":

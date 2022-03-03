@@ -228,16 +228,20 @@ class CSEMSurvey():
         txmesh.exportVTK(self.basename+"-txpos.vtk")
 
 
-
 if __name__ == "__main__":
     # %% way 1 - load ready patches
     self = CSEMSurvey()
     self.addPatch("Tx1.npz")
     self.addPatch("Tx2.npz")
+    # %% way 2 - patch instances
+    # patch1 = CSEMData("flight*.mat")
+    # self.addPatch(patch1)
+    # %% way 3 - directly from Mare file or npz
+    # self = CSEMSurvey("blabla.mare")
+    # self = CSEMSurvey("blabla.npz")
+    # %%
     print(self)
     self.showPositions()
     p = self.patches[0]
-    # %% way 2 - patch instances
-    # not so interesting
-    # %% way 3 - directly from Mare file
+    # p.filter() etc.
     self.saveData()
