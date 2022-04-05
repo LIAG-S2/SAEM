@@ -21,7 +21,7 @@ from .modelling import fopSAEM, bipole
 
 
 class CSEMData():
-    """Class for CSEM frequency sounding."""
+    """Class for CSEM frequency-domain data patch (single Tx)."""
 
     def __init__(self, datafile=None, **kwargs):
         """Initialize CSEM data class

@@ -47,8 +47,8 @@ class CSEMSurvey():
 
         if isinstance(mare, str):
             mare = Mare2dEMData(mare, flipxy=flipxy)
-        tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
 
+        tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
         for i in tI:
             part = mare.getPart(tx=i+1, typ="B", clean=True)
             txl = mare.txpos[i, 3]
@@ -66,9 +66,11 @@ class CSEMSurvey():
                 if mat.shape[0] == 0:
                     cs.cmp[i] = 0
                     mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
+
             cs.DATA = np.stack(mats)
             cs.chooseData()
             self.addPatch(cs)
+
         if "txs" in kwargs:
             txs = kwargs["txs"]
             for i, p in enumerate(self.patches):
