@@ -47,6 +47,7 @@ class CSEMSurvey():
 
         if isinstance(mare, str):
             mare = Mare2dEMData(mare, flipxy=flipxy)
+            self.basename = mare.replace(".emdata", "")
 
         tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
         for i in tI:
@@ -62,6 +63,7 @@ class CSEMSurvey():
             cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
                           txPos=txpos)
             cs.cmp = [1, 1, 1]
+            cs.basename = "patch{:d}".format(i+1)
             for i, mat in enumerate(mats):
                 if mat.shape[0] == 0:
                     cs.cmp[i] = 0
@@ -76,7 +78,7 @@ class CSEMSurvey():
             for i, p in enumerate(self.patches):
                 p.tx, p.ty = txs[tI[i]].T[:2]
 
-    def addPatch(self, patch):
+    def addPatch(self, patch, name=None):
         """Add a new patch to the file.
 
         Parameters
@@ -86,6 +88,20 @@ class CSEMSurvey():
         """
         if isinstance(patch, str):
             patch = CSEMData(patch)
+            if name is not None:
+                patch.basename = name
+
+        if len(self.patches) == 0:
+            self.angle = patch.angle
+            self.origin = patch.origin
+        else:
+            assert self.angle == patch.angle, "angle not matching"
+            assert self.origin == patch.origin, "origin not matching"
+            assert len(self.f) == len(patch.f), "frequency number not matching"
+            f1 = np.round(self.f, 1)
+            f2 = np.round(patch.f, 1)
+            assert np.allclose(f1, f2), \
+                "frequencies not matching" + f1.__str__()+" vs. "+f2.__str__()
 
         self.patches.append(patch)
 
