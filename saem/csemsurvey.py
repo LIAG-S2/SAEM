@@ -108,11 +108,12 @@ class CSEMSurvey():
         else:
             assert self.angle == patch.angle, "angle not matching"
             assert self.origin == patch.origin, "origin not matching"
-            assert len(self.f) == len(patch.f), "frequency number not matching"
-            f1 = np.round(self.f, 1)
-            f2 = np.round(patch.f, 1)
-            assert np.allclose(f1, f2), \
-                "frequencies not matching" + f1.__str__()+" vs. "+f2.__str__()
+            if hasattr(self, 'f'):
+                assert len(self.f) == len(patch.f), "frequency number unequal"
+                f1 = np.round(self.f, 1)
+                f2 = np.round(patch.f, 1)
+                assert np.allclose(f1, f2), \
+                    "frequencies not equal" + f1.__str__()+" vs. "+f2.__str__()
 
         self.patches.append(patch)
 

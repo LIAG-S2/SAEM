@@ -361,7 +361,36 @@ class CSEMData():
         if show:
             self.showField(self.line)
 
-    def detectLinesAlongAxis(self, axis='x', show=False):
+    def detectLinesByDistance(self, axis='x', sort=True, show=False,
+                              minDist=200.):
+        """Alernative - Split data in lines for line-wise processing."""
+
+        dummy = np.zeros_like(self.rx, dtype=int)
+        self.line = np.zeros_like(self.rx, dtype=int)
+        li = 0
+        for ri in range(1, len(self.rx)):
+            dummy[ri-1] = li
+            dist = np.sqrt((self.rx[ri]-self.rx[ri-1])**2 +\
+                           (self.ry[ri]-self.ry[ri-1])**2)
+            if dist > minDist:
+                li += 1
+        dummy[-1] = li
+        
+        if sort:
+            means = []
+            for li in np.unique(dummy):
+                if axis == 'x':
+                    means.append(np.mean(self.ry[dummy==li], axis=0))
+                elif axis == 'y':
+                    means.append(np.mean(self.rx[dummy==li], axis=0))
+            lsorted = np.argsort(means)
+            for li, lold in enumerate(lsorted):
+                self.line[dummy==lold] = li + 1
+
+        if show:
+            self.showField(self.line)
+
+    def detectLinesAlongAxis(self, axis='x', sort=True, show=False):
         """Alernative - Split data in lines for line-wise processing."""
 
         if axis == 'x':
@@ -382,6 +411,18 @@ class CSEMData():
                 li += 1
                 last_sign *= -1
         self.line[-1] = li
+        
+        # means = []
+        # for li in np.unique(self.line):
+        #     if axis == 'x':
+        #         means.append(np.mean(self.ry[self.line==li], axis=0))
+        #     elif axis == 'y':
+        #         means.append(np.mean(self.rx[self.line==li], axis=0))
+        # lsorted = np.argsort(means)
+        # print(np.array(means)[lsorted])
+        # for li, lold in enumerate(lsorted):
+        #     self.line[self.line==lold] = li
+        # print(self.line)
 
         if show:
             self.showField(self.line)
@@ -1267,7 +1308,7 @@ class CSEMData():
             if "nf" in kwargs:
                 return self.showLineFreq(*args, **kwargs)
             else:
-                return self.showLineData(*args, **kwargs)
+                return self.showLineData2(*args, **kwargs)
         else:
             return self.showPatchData(*args, **kwargs)
 
