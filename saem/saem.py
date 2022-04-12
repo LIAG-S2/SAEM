@@ -401,28 +401,28 @@ class CSEMData():
             print('Choose either *x* or *y* axis. Aborting this method ...')
             return
 
+        dummy = np.zeros_like(self.rx, dtype=int)
         self.line = np.zeros_like(self.rx, dtype=int)
-        li = 1
+        li = 0
         last_sign = np.sign(r[1] - r[0])
         for ri in range(1, len(self.rx)):
             sign = np.sign(r[ri] - r[ri-1])
-            self.line[ri-1] = li
+            dummy[ri-1] = li
             if sign != last_sign:
                 li += 1
                 last_sign *= -1
-        self.line[-1] = li
+        dummy[-1] = li
         
-        # means = []
-        # for li in np.unique(self.line):
-        #     if axis == 'x':
-        #         means.append(np.mean(self.ry[self.line==li], axis=0))
-        #     elif axis == 'y':
-        #         means.append(np.mean(self.rx[self.line==li], axis=0))
-        # lsorted = np.argsort(means)
-        # print(np.array(means)[lsorted])
-        # for li, lold in enumerate(lsorted):
-        #     self.line[self.line==lold] = li
-        # print(self.line)
+        if sort:
+            means = []
+            for li in np.unique(dummy):
+                if axis == 'x':
+                    means.append(np.mean(self.ry[dummy==li], axis=0))
+                elif axis == 'y':
+                    means.append(np.mean(self.rx[dummy==li], axis=0))
+            lsorted = np.argsort(means)
+            for li, lold in enumerate(lsorted):
+                self.line[dummy==lold] = li + 1
 
         if show:
             self.showField(self.line)
@@ -929,9 +929,9 @@ class CSEMData():
                             marker='o', lw=0., barsabove=True,
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        ax[0, ncmp].plot(x, np.real(data), lw=lw,
+                        ax[0, ncmp].plot(x, np.real(data), '+-', lw=lw, 
                                                label=label)
-                        ax[1, ncmp].plot(x, np.imag(data), lw=lw,
+                        ax[1, ncmp].plot(x, np.imag(data), '+-', lw=lw,
                                                label=label)
                     if kw["log"]:
                         ax[0, ncmp].set_yscale('symlog', linthresh=kw["llthres"])
