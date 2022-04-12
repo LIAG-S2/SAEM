@@ -34,6 +34,8 @@ class CSEMSurvey():
             if isinstance(arg, str):
                 if arg.endswith(".emdata"):  # obviously a Mare2d File
                     self.importMareData(arg, **kwargs)
+                elif arg.endswith(".npz"):
+                    self.loadNPZ(arg, **kwargs)
 
     def __repr__(self):
         st = "CSEMSurvey class with {:d} patches".format(len(self.patches))
@@ -41,6 +43,15 @@ class CSEMSurvey():
             st = "\n".join([st, p.__repr__()])
 
         return st
+
+    def loadNPZ(self, filename, **kwargs):
+        """Load numpy-compressed (NPZ) file."""
+        ALL = np.load(filename, allow_pickle=True)
+        self.f = ALL["freqs"]
+        for i in range(len(ALL["DATA"])):
+            patch = CSEMData()
+            patch.extractData(ALL, i)
+            self.addPatch(patch)
 
     def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file format."""
