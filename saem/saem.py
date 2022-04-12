@@ -1538,29 +1538,42 @@ class CSEMData():
             self.J = pg.load(dirname+"jacobian.bmat")
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
-    def loadResponse(self, dirname, response=None):
-        """Load model response file."""
-        respfiles = sorted(glob(dirname+"response_iter*.npy"))
-        if len(respfiles) == 0:
-            respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
-        if len(respfiles) == 0:
-            pg.error("Could not find response file")
-
-        response = np.load(respfiles[-1])
-        respR, respI = np.split(response, 2)
-        respC = respR + respI*1j
+    def getIndices(self):
+        """."""
         ff = np.array([], dtype=bool)
         for i in range(3):
             if self.cmp[i]:
                 tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
                 ff = np.hstack((ff, np.isfinite(tmp)))
-        RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
-                       dtype=np.complex) * np.nan
+
+        return ff
+
+    def nData(self):
+        """Number of data (for splitting the response)."""
+        return sum(self.getIndices())
+
+    def loadResponse(self, dirname=None, response=None):
+        """Load model response file."""
+        if response is None:
+            respfiles = sorted(glob(dirname+"response_iter*.npy"))
+            if len(respfiles) == 0:
+                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+            if len(respfiles) == 0:
+                pg.error("Could not find response file")
+
+            responseVec = np.load(respfiles[-1])
+            respR, respI = np.split(responseVec, 2)
+            response = respR + respI*1j
+
+
+        sizes = [sum(self.cmp), self.nF, self.nRx]
+        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
         try:
-            RESP[ff] = respC
+            RESP[self.getIndices()] = response
         except ValueError:
-            RESP[:] = respC
-        RESP = np.reshape(RESP, [sum(self.cmp), self.nF, self.nRx])
+            RESP[:] = response
+
+        RESP = np.reshape(RESP, sizes)
         self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
 

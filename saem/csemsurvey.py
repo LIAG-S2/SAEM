@@ -179,6 +179,23 @@ class CSEMSurvey():
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
 
+    def loadResponse(self, dirname=None, response=None):
+        """Load model response file."""
+        if response is None:
+            respfiles = sorted(glob(dirname+"response_iter*.npy"))
+            if len(respfiles) == 0:
+                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+            if len(respfiles) == 0:
+                pg.error("Could not find response file")
+
+            responseVec = np.load(respfiles[-1])
+            respR, respI = np.split(responseVec, 2)
+            response = respR + respI*1j
+
+        ind = np.hstack((0, np.cumsum([p.nData() for p in self.patches])))
+        for i, p in enumerate(self.patches):
+            p.loadResponse(response=response[ind[i]:ind[i+1]])
+
     def loadResults(self, dirname=None, datafile=None, invmesh="Prisms",
                     jacobian=None):
         """Load inversion results from directory."""
@@ -192,36 +209,15 @@ class CSEMSurvey():
             self.model = np.load(dirname + "inv_model.npy")
         else:
             self.model = np.load(sorted(glob(dirname+"sig_iter_*.npy"))[0])
-        ##### OK up to here
+
         self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
-        respfiles = sorted(glob(dirname+"response_iter*.npy"))
-        if len(respfiles) == 0:
-            respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
-        if len(respfiles) == 0:
-            pg.error("Could not find response file")
-
-        response = np.load(respfiles[-1])
-        # here there's something to do
-        respR, respI = np.split(response, 2)
-        respC = respR + respI*1j
-        ff = np.array([], dtype=bool)
-        for i in range(3):
-            if self.cmp[i]:
-                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
-                ff = np.hstack((ff, np.isfinite(tmp)))
-
-        RESP = np.ones(np.prod([sum(self.cmp), self.nF, self.nRx]),
-                       dtype=np.complex) * np.nan
-        RESP[ff] = respC
-        RESP = np.reshape(RESP, [sum(self.cmp), self.nF, self.nRx])
-        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
-        self.RESP[np.nonzero(self.cmp)[0]] = RESP
+        self.loadResponse(dirname)
         self.J = None
         if os.path.exists(dirname+"invmesh.vtk"):
             self.mesh = pg.load(dirname+"invmesh.vtk")
         else:
             self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
-        print(self.mesh)
+
         jacobian = jacobian or datafile+"_jacobian.bmat"
         jname = dirname + jacobian
         if os.path.exists(jname):
