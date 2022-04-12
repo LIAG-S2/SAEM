@@ -6,10 +6,27 @@ import matplotlib.pyplot as plt
 from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
 from matplotlib.patches import Rectangle
-from matplotlib.colors import SymLogNorm, Normalize
+from matplotlib.colors import SymLogNorm, Normalize, LinearSegmentedColormap
+from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pygimli.viewer.mpl import underlayMap, underlayBKGMap
 # import seaborn as sns
+
+
+def dMap(cmap="Spectral"):
+    """Double (mirrored) spectral colormap."""
+    # colors = np.vstack((cm, Spectral(np.linspace(0., 1, 128)),
+    #                     cm.Spectral_r(np.linspace(0., 1, 128))))
+    cm1 = getattr(cm, cmap)
+    if cmap.endswith("_r"):
+        cmap = cmap[:-2]
+    else:
+        cmap = cmap + "_r"
+
+    cm2 = getattr(cm, cmap)
+    ls = np.linspace(0., 1, 128)
+    colors = np.vstack((cm1(ls), cm2(ls)))
+    return LinearSegmentedColormap.from_list("mycolors", colors)
 
 
 def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,

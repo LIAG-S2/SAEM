@@ -16,7 +16,7 @@ from pygimli.core.math import symlog
 from matplotlib.colors import LogNorm, SymLogNorm
 
 from .plotting import plotSymbols, showSounding, updatePlotKwargs
-from .plotting import underlayBackground, makeSymlogTicks
+from .plotting import underlayBackground, makeSymlogTicks, dMap
 from .modelling import fopSAEM, bipole
 
 
@@ -73,7 +73,8 @@ class CSEMData():
         self.radius = np.median(dxy) * 0.5
         self.basename = kwargs.pop("basename", self.basename)
         self.chooseData("data")
-        self.createConfig()
+        if self.tx is not None:
+            self.createConfig()
 
     def __repr__(self):
         """String representation of the class."""
@@ -101,7 +102,10 @@ class CSEMData():
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
-            self.loadMatFile(filename)
+            try:
+                self.loadMatFile(filename)
+            except:
+                self.loadMatFile2(filename)
 
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
@@ -109,21 +113,26 @@ class CSEMData():
         if detectLines:
             self.detectLines()
 
-    def loadNpzFile(self, filename):
+    def loadNpzFile(self, filename, nr=0):
         """Load data from numpy zipped file (inversion ready)."""
         ALL = np.load(filename, allow_pickle=True)
+        self.basename = filename.replace(".npz", "")
+        self.extractData(ALL, nr=nr)
+        self.origin = ALL["origin"]
+        self.angle = float(ALL["rotation"])
+
+    def extractData(self, ALL, nr=0):
+        """Extract data from NPZ structure."""
         freqs = ALL["freqs"]
-        txgeo = ALL["tx"][0][:, :2].T
-        data = ALL["DATA"][0]
+        txgeo = ALL["tx"][nr][:, :2].T
+        data = ALL["DATA"][nr]
         rxs = data["rx"]
         self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
 
-        if 'line' in ALL:
-            self.line = ALL["line"]
-        self.origin = ALL["origin"]
-        self.angle = float(ALL["rotation"])
-        self.basename = filename.replace(".npz", "")
+        if 'line' in data:
+            self.line = data["line"]
+
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
         self.DATAZ = np.zeros_like(self.DATAX)
@@ -172,12 +181,38 @@ class CSEMData():
         self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
-
-        self.ERRX = self.DATAX * 0.05
-        self.ERRY = self.DATAY * 0.05
-        self.ERRZ = self.DATAZ * 0.05
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
+        # self.ERRX = self.DATAX * 0.05
+        # self.ERRY = self.DATAY * 0.05
+        # self.ERRZ = self.DATAZ * 0.05
+        # self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
+
+    def loadMatFile2(self, filename):
+        """Load data from mat file (Olaf BGR processing)."""
+        self.basename = filename.replace("*", "").replace(".mat", "")
+        filenames = sorted(glob(filename))
+        assert len(filenames) > 0
+        filename = filenames[0]
+        MAT = loadmat(filename)["ztfs"][0][0]
+        if len(filenames) > 1:
+            print("read "+filename)
+        for filename in filenames[1:]:
+            print("reading "+filename)
+            MAT1 = loadmat(filename)["ztfs"][0][0]
+            for i in range(len(MAT)):
+                if i == 12:
+                    assert len(MAT[i]) == len(MAT1[i]), "nF not matching"
+                    assert np.allclose(MAT[i], MAT1[i]), "freqs not matching"
+                else:
+                    MAT[i] = np.concatenate((MAT[i], MAT1[i]), axis=-1)
+
+        self.f = np.round(100.0 / np.squeeze(MAT[12])) / 100.
+        self.ry, self.rx = MAT[19]
+        self.rz = MAT[18][0]
+        DY, DX, DZ = np.squeeze(MAT[13])
+        self.DATA = np.stack((-DX, -DY, DZ))
+        self.ERR = np.squeeze(MAT[14])
+        self.alt = self.rz - self.txAlt
 
     def addData(self, part2):
         """Add data from another CSEM class."""
@@ -930,7 +965,6 @@ class CSEMData():
         log : bool|float
             use logarithmic scale
         """
-
         kw = updatePlotKwargs(self.cmp, **kwargs)
         self.chooseData(kw["what"], kw["llthres"])
         nn = np.arange(len(self.rx))
@@ -1045,11 +1079,11 @@ class CSEMData():
         nf : int | float
             frequency index (int) or value (float) to plot
         """
-
         kw = updatePlotKwargs(self.cmp, **kwargs)
         kw.setdefault("numpoints", 0)
         kw.setdefault("radius", self.radius)
         self.chooseData(kw["what"], kw["llthres"])
+        amap = dMap("Spectral")  # mirrored
 
         if isinstance(nf, float):
             nf = np.argmin(np.abs(self.f - nf))
@@ -1077,15 +1111,16 @@ class CSEMData():
             if scale:
                 data /= self.prim[j]
             if kw["amphi"]:
-                kwargs.pop("cmap", None)
-                kwargs.pop("log", None)
-                kwargs.pop("alim", None)
+                kw.pop("cmap", None)
+                alim = kw.pop("alim", [1e-3, 1])
+                plim = kw.pop("plim", [-180, 180])
+                kw.pop("log", None)
                 plotSymbols(self.rx, self.ry, np.abs(data[nf]),
                             ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kw,
-                            cmap="Spectral_r", log=True, alim=kw["alim"])
+                            cmap=amap, log=True, alim=alim)
                 plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
                             ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kw,
-                            cmap="hsv", log=False, alim=kw["plim"])
+                            cmap="hsv", log=False, alim=plim)
                 ax[0, j].set_title("log10 T"+cc+" [pT/A]")
                 ax[1, j].set_title(r"$\phi$"+cc+" [°]")
             else:
