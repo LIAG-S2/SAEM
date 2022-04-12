@@ -57,8 +57,8 @@ class CSEMSurvey():
         """Import Mare2dEM file format."""
 
         if isinstance(mare, str):
-            mare = Mare2dEMData(mare, flipxy=flipxy)
             self.basename = mare.replace(".emdata", "")
+            mare = Mare2dEMData(mare, flipxy=flipxy)
 
         tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
         for i in tI:
@@ -192,7 +192,7 @@ class CSEMSurvey():
             self.model = np.load(dirname + "inv_model.npy")
         else:
             self.model = np.load(sorted(glob(dirname+"sig_iter_*.npy"))[0])
-
+        ##### OK up to here
         self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
         respfiles = sorted(glob(dirname+"response_iter*.npy"))
         if len(respfiles) == 0:

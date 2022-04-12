@@ -1538,8 +1538,8 @@ class CSEMData():
             self.J = pg.load(dirname+"jacobian.bmat")
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
-    def loadResponse(self, dirname):
-
+    def loadResponse(self, dirname, response=None):
+        """Load model response file."""
         respfiles = sorted(glob(dirname+"response_iter*.npy"))
         if len(respfiles) == 0:
             respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
