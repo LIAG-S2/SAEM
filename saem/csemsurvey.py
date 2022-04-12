@@ -107,7 +107,7 @@ class CSEMSurvey():
             self.origin = patch.origin
         else:
             assert self.angle == patch.angle, "angle not matching"
-            assert self.origin == patch.origin, "origin not matching"
+            assert np.allclose(self.origin, patch.origin), "origin not equal"
             if hasattr(self, 'f'):
                 assert len(self.f) == len(patch.f), "frequency number unequal"
                 f1 = np.round(self.f, 1)
