@@ -102,9 +102,8 @@ class CSEMData():
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
-            try:
-                self.loadMatFile(filename)
-            except:
+            if not self.loadMatFile(filename):
+                print("No frequency in data, try read BGR style")
                 self.loadMatFile2(filename)
 
         if len(self.line) != len(self.rx):
@@ -120,6 +119,7 @@ class CSEMData():
         self.extractData(ALL, nr=nr)
         self.origin = ALL["origin"]
         self.angle = float(ALL["rotation"])
+        return True
 
     def extractData(self, ALL, nr=0):
         """Extract data from NPZ structure."""
@@ -162,6 +162,8 @@ class CSEMData():
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
+        if "f" not in MAT:
+            return False
         if len(filenames) > 1:
             print("read "+filename)
         for filename in filenames[1:]:
@@ -182,10 +184,7 @@ class CSEMData():
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        # self.ERRX = self.DATAX * 0.05
-        # self.ERRY = self.DATAY * 0.05
-        # self.ERRZ = self.DATAZ * 0.05
-        # self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
+        return True
 
     def loadMatFile2(self, filename):
         """Load data from mat file (Olaf BGR processing)."""
@@ -213,6 +212,7 @@ class CSEMData():
         self.DATA = np.stack((-DX, -DY, DZ))
         self.ERR = np.squeeze(MAT[14])
         self.alt = self.rz - self.txAlt
+        return True
 
     def addData(self, part2):
         """Add data from another CSEM class."""
@@ -375,7 +375,7 @@ class CSEMData():
             if dist > minDist:
                 li += 1
         dummy[-1] = li
-        
+
         if sort:
             means = []
             for li in np.unique(dummy):
@@ -412,7 +412,7 @@ class CSEMData():
                 li += 1
                 last_sign *= -1
         dummy[-1] = li
-        
+
         if sort:
             means = []
             for li in np.unique(dummy):
@@ -929,7 +929,7 @@ class CSEMData():
                             marker='o', lw=0., barsabove=True,
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        ax[0, ncmp].plot(x, np.real(data), '+-', lw=lw, 
+                        ax[0, ncmp].plot(x, np.real(data), '+-', lw=lw,
                                                label=label)
                         ax[1, ncmp].plot(x, np.imag(data), '+-', lw=lw,
                                                label=label)
@@ -1435,6 +1435,12 @@ class CSEMData():
         Errors can be
         A) a sum of absolute and relative error (and the processing error)
         B) the maximum of all contributions (relative, absolute, processing)
+
+        Parameters
+        ----------
+        relError
+
+        absError
         """
 
         absError = kwargs.pop("absError", self.llthres)
