@@ -77,7 +77,7 @@ class CSEMSurvey():
             # make convention: either Real/Imag 1-6,1-6
             if max(udt) < 20:  # real imag
                 for i in range(3):
-                    errs[i] = errs.real[i]*np.abs(mats[i].real) + \
+                    errs[i] = errs[i].real*np.abs(mats[i].real) + \
                         errs[i].imag*np.abs(mats[i].imag) * 1j
             else:
                 if 31 in udt or 33 in udt or 35 in udt:  # no log
