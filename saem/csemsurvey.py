@@ -70,6 +70,25 @@ class CSEMSurvey():
             mats = [part.getDataMatrix(field="Bx") * txl * fak,
                     part.getDataMatrix(field="By") * txl * fak,
                     -part.getDataMatrix(field="Bz") * txl * fak]
+            errs = [part.getDataMatrix(field="Bx", column="StdErr"),
+                    part.getDataMatrix(field="By", column="StdErr"),
+                    part.getDataMatrix(field="Bz", column="StdErr")]
+            udt = np.unique(mare.DATA["Type"])
+            # make convention: either Real/Imag 1-6,1-6
+            if max(udt) < 20:  # real imag
+                for i in range(3):
+                    errs[i] = errs.real[i]*np.abs(mats[i].real) + \
+                        errs[i].imag*np.abs(mats[i].imag) * 1j
+            else:
+                if 31 in udt or 33 in udt or 35 in udt:  # no log
+                    for i in range(3):
+                        errs[i] = np.abs(errs[i]) * (
+                            np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
+                else:
+                    for i in range(3):
+                        errs[i] = np.log10(np.abs(errs[i])) * (
+                            np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
+
             rx, ry, rz = part.rxpos.T
             cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
                           txPos=txpos)
@@ -79,8 +98,10 @@ class CSEMSurvey():
                 if mat.shape[0] == 0:
                     cs.cmp[i] = 0
                     mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
+                    errs[i] = np.zeros_like(mats[i])
 
             cs.DATA = np.stack(mats)
+            cs.ERR = np.stack(errs)
             cs.chooseData()
             self.addPatch(cs)
 

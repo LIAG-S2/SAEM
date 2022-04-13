@@ -1456,7 +1456,7 @@ class CSEMData():
 
         # decide upon adding or maximizing errors
         if useMax:
-            self.ERR = np.maximum((self.ERR, aErr, rErr))
+            self.ERR = np.maximum(np.maximum(self.ERR, aErr), rErr)
         else:
             self.ERR = self.ERR + aErr + rErr
 

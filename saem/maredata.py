@@ -32,16 +32,16 @@ class Mare2dEMData():
         nameType = {}  # [""] * 50
         xyz = "yxz"  # changed x and y position
         for i in range(3):
-            nameType[1+i*2] = "RealE" + xyz[i]
-            nameType[2+i*2] = "ImagE" + xyz[i]
-            nameType[11+i*2] = "RealB" + xyz[i]
-            nameType[12+i*2] = "ImagB" + xyz[i]
-            nameType[21+i*2] = "AmpE" + xyz[i]
-            nameType[22+i*2] = "PhsE" + xyz[i]
-            nameType[27+i] = "log10E" + xyz[i]
-            nameType[31+2*i] = "AmpB" + xyz[i]
-            nameType[32+2*i] = "PhsB" + xyz[i]
-            nameType[37+i] = "log10B" + xyz[i]
+            nameType[1+i*2] = "RealE" + xyz[i]  # 1,3,5
+            nameType[2+i*2] = "ImagE" + xyz[i]  # 2,4,6
+            nameType[11+i*2] = "RealB" + xyz[i]  # 11,13,15
+            nameType[12+i*2] = "ImagB" + xyz[i]  # 12,14,16
+            nameType[21+i*2] = "AmpE" + xyz[i]  # 21,23,25
+            nameType[22+i*2] = "PhsE" + xyz[i]  # 22,24,26
+            nameType[27+i] = "log10E" + xyz[i]  # 27,28,29
+            nameType[31+2*i] = "AmpB" + xyz[i]  # 31,33,35
+            nameType[32+2*i] = "PhsB" + xyz[i]  # 32,34,36
+            nameType[37+i] = "log10B" + xyz[i]  # 37,38,39
 
         self.nameType = nameType
         self.typeName = {v: k for k, v in self.nameType.items()}
@@ -365,7 +365,9 @@ class Mare2dEMData():
             matX = part.getDataMatrix(field="Bx") * txl * fak
             matY = part.getDataMatrix(field="By") * txl * fak
             matZ = -part.getDataMatrix(field="Bz") * txl * fak
-            # errX = part.getDataMatrix(field="Bx", column="Stderr")
+            errX = part.getDataMatrix(field="Bx", column="StdErr")
+            errY = part.getDataMatrix(field="By", column="StdErr")
+            errZ = part.getDataMatrix(field="Bz", column="StdErr")
             mats = [matX, matY, matZ]
             allcmp = ["x", "y", "z"]
             icmp = [i for i in range(3) if len(mats[i]) > 0]
