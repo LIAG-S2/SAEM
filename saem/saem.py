@@ -130,8 +130,8 @@ class CSEMData():
         self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
 
-        if 'line' in data:
-            self.line = data["line"]
+        if 'line' in ALL:
+            self.line = ALL["line"]
 
         self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
         self.DATAY = np.zeros_like(self.DATAX)
@@ -159,6 +159,7 @@ class CSEMData():
         """Load data from mat file (WWU Muenster processing)."""
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
+        print(filenames)
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
@@ -1206,6 +1207,8 @@ class CSEMData():
         kw = updatePlotKwargs(self.cmp, **kwargs)
         self.chooseData(kw["what"], kw["llthres"])
         kw.setdefault("radius", "rect")
+        if 'x' in kw:
+            kwx = kw.pop('x')
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -1220,12 +1223,11 @@ class CSEMData():
         ncmp = 0
         allcmp = ['x', 'y', 'z']
 
-        kwargs.setdefault("x", "x")
-        if kwargs["x"] == "x":
+        if kwx == "x":
             x = np.tile(self.rx[nn], len(self.f))
-        elif kwargs["x"] == "y":
+        elif kwx == "y":
             x = np.tile(self.ry[nn], len(self.f))
-        elif kwargs["x"] == "d":
+        elif kwx == "d":
             print('need to implement *d* option')
             # need to eval line direction first, otherwise bugged
             # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
@@ -1538,7 +1540,6 @@ class CSEMData():
         if hasattr(line, "__iter__"):
             for i in line:
                 self.saveData(line=i)
-
             return
 
         data = self.getData(line=line, **kwargs)
