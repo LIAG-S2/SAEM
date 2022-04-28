@@ -526,7 +526,7 @@ class CSEMData():
         self.cfg = {'src':
                     # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
                     # 'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
-                    [self.tx[0], self.tx[1], self.ty[0], self.ty[1], -0.1, -0.1],
+                    [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
                     'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
