@@ -44,6 +44,7 @@ class CSEMData():
             flight altitude
         """
         self.basename = "noname"
+        self.isLoop = False
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
@@ -525,8 +526,8 @@ class CSEMData():
         """Create EMPYMOD input argument configuration."""
         self.cfg = {'src':
                     # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
-                    # 'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
                     [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
+                    # 'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
                     'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
