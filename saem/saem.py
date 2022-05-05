@@ -122,7 +122,7 @@ class CSEMData():
             assert np.allclose(self.ty, new.ty), "Tx(y) not matching!"
         if new.f is not None:
             assert np.allclose(self.f, new.f)
-        for attr in ["rx", "ry", "rz", "f", "line", "alt",
+        for attr in ["rx", "ry", "rz", "line", "alt",
                      'DATA', 'ERR', 'RESP', 'prim']:
             one = getattr(self, attr)
             two = getattr(new, attr)
