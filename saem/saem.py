@@ -99,7 +99,6 @@ class CSEMData():
 
     def loadData(self, filename, detectLines=False):
         """Load any data format."""
-
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
@@ -110,6 +109,24 @@ class CSEMData():
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
 
+        if detectLines:
+            self.detectLines()
+
+    def addData(self, new, detectLines=False):
+        """Add (concatenate) data."""
+        if isinstance(new, str):
+            new = CSEMData(new)
+        if new.tx:
+            assert np.allclose(self.tx, new.tx), "Tx(x) not matching!"
+        if new.ty:
+            assert np.allclose(self.ty, new.ty), "Tx(y) not matching!"
+        if new.f:
+            assert np.allclose(self.f, new.f)
+        for attr in ["rx", "ry", "rz", "f", "line"]:
+            setattr(self, attr, np.concatenate(getattr(self, attr),
+                                               getattr(new, attr)))
+
+        self.DATA = np.stack((self.DATA, new.DATA), axis=-1)
         if detectLines:
             self.detectLines()
 
