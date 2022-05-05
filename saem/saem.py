@@ -332,6 +332,14 @@ class CSEMData():
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
 
+    def setOrigin(self, origin):
+        """Set origin."""
+        self.tx -= origin[0]
+        self.ty -= origin[1]
+        self.rx -= origin[0]
+        self.ry -= origin[1]
+        self.origin = origin
+
     def rotatePositions(self, *args, **kwargs):  # backward compatibility
         self.rotate(*args, **kwargs)
 

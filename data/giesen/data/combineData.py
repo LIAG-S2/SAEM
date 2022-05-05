@@ -19,11 +19,12 @@ for i, data in enumerate([data1, data2]):
     print(data)
     data.radius = 10
     data.detectLinesAlongAxis("y")
-    data.showField("line")
     data.filter(fmin=90, fmax=6000)
     data.filter(minTxDist=100)
     data.estimateError(absError=1e-3, relError=0.05)
     data.deactivateNoisyData(aErr=0.0001, rErr=0.5)
+    data.setOrigin([559000, 5784000])
+    data.showField("line")
     data.saveData("tx{:d}BxByBz.npz".format(i+1))
 
 # %%
