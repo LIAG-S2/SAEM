@@ -116,19 +116,18 @@ class CSEMData():
         """Add (concatenate) data."""
         if isinstance(new, str):
             new = CSEMData(new)
-        if new.tx:
+        if new.tx is not None:
             assert np.allclose(self.tx, new.tx), "Tx(x) not matching!"
-        if new.ty:
+        if new.ty is not None:
             assert np.allclose(self.ty, new.ty), "Tx(y) not matching!"
-        if new.f:
+        if new.f is not None:
             assert np.allclose(self.f, new.f)
-        for attr in ["rx", "ry", "rz", "f", "line"]:
-            setattr(self, attr, np.concatenate(getattr(self, attr),
-                                               getattr(new, attr)))
-
-        self.DATA = np.stack((self.DATA, new.DATA), axis=-1)
-        if detectLines:
-            self.detectLines()
+        for attr in ["rx", "ry", "rz", "f", "line", "alt",
+                     'DATA', 'ERR', 'RESP', 'prim']:
+            one = getattr(self, attr)
+            two = getattr(new, attr)
+            if np.any(one) and np.any(two):
+                setattr(self, attr, np.concatenate((one, two), axis=-1))
 
     def loadNpzFile(self, filename, nr=0):
         """Load data from numpy zipped file (inversion ready)."""
@@ -232,20 +231,6 @@ class CSEMData():
         self.ERR = np.squeeze(MAT[14])
         self.alt = self.rz - self.txAlt
         return True
-
-    def addData(self, part2):
-        """Add data from another CSEM class."""
-        assert np.allclose(self.f, part2.f), "Frequencies not matching!"
-        for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
-            setattr(self, tok, np.hstack((getattr(self, tok),
-                                         getattr(part2, tok))))
-        for tok in ['DATA', 'ERR', 'RESP', 'prim']:
-            one = getattr(self, tok)
-            two = getattr(part2, tok)
-            if np.any(one) and np.any(two):
-                setattr(self, tok, np.concatenate((one, two), axis=-1))
-            else:
-                setattr(self, tok, None)
 
     def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model."""
