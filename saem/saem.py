@@ -535,8 +535,8 @@ class CSEMData():
     def createConfig(self):
         """Create EMPYMOD input argument configuration."""
         self.cfg = {'src':
-                    # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
-                    [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
+                    [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
+                    # [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
                     # 'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
                     'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
@@ -1218,8 +1218,7 @@ class CSEMData():
         kw = updatePlotKwargs(self.cmp, **kwargs)
         self.chooseData(kw["what"], kw["llthres"])
         kw.setdefault("radius", "rect")
-        if 'x' in kw:
-            kwx = kw.pop('x')
+        kwx = kw.pop('x', "x")
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]

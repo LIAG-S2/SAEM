@@ -1,5 +1,4 @@
 import numpy as np
-# import matplotlib.pyplot as plt
 from saem import CSEMData, CSEMSurvey
 
 
@@ -9,6 +8,7 @@ tx1 = np.array([[559497.46, 5784467.953],
 data1 = CSEMData('20211004/data*.mat', txPos=tx1)
 data1.filter(every=2)
 data1.addData('20220124/data*.mat')
+data1.generateDataPDF()
 # %% patch 2
 tx2 = np.array([[559650.46, 5784095.953],
                 [559130.532, 5783925.022],
