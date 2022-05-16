@@ -232,10 +232,55 @@ class CSEMData():
         self.alt = self.rz - self.txAlt
         return True
 
+    def createConfig(self, fullTx=False):
+        """Create EMPYMOD input argument configuration."""
+        self.cfg = {
+                    'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
+                    'strength': 1, 'mrec': True,
+                    'srcpts': 5,
+                    'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
+                    'verb': 1}
+        if self.fullTx:  # sum up over segments
+            self.cfg['src'] = [self.tx[:-1], self.tx[1:],
+                               self.ty[:-1], self.ty[1:], 0.1, 0.1]
+        else:  # only first&last point (quick)
+            self.cfg['src'] = [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
+            # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
+
+    def setPos(self, nrx=0, position=None, show=False):
+        """Set the position of the current sounding to be shown or inverted."""
+        if position:
+            dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
+            if self.verbose:
+                print("distance is ", np.sqrt(dr))
+
+            nrx = np.argmin(dr)
+
+        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
+        self.dataX = self.DATAX[:, nrx]
+        self.dataY = self.DATAY[:, nrx]
+        self.dataZ = self.DATAZ[:, nrx]
+        self.nrx = nrx
+        if show:
+            self.showPos()
+
     def simulate(self, rho, thk=[], **kwargs):
-        """Simulate data by assuming 1D layered model."""
+        """Simulate data by assuming 1D layered model.
+
+        Parameters
+        ----------
+        rho : float|iterable
+            Resistivity (vector)
+        thk : []|float|iterable
+            Thickness vector (len(thk)+1 must be len(rho))
+        fullTx : bool [False]
+            Compute full segments (slower)
+        show : bool [False]
+            Show result
+        **kwargs are passed to the show function
+        """
         cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
-        self.createConfig()
+        self.createConfig(fullTx=kwargs.pop("fullTx", False))
         rho = np.atleast_1d(rho)
         thk = np.atleast_1d(thk)
         if len(thk) > 0:
@@ -261,10 +306,7 @@ class CSEMData():
 
         self.RESP = np.stack([DATAX, DATAY, DATAZ])
         if kwargs.pop("show", False):
-            if len(np.unique(self.line)) == 1:
-                self.showLineData(what="response", **kwargs)
-            else:
-                self.showData(what="response")
+            self.showData(what="response", **kwargs)
 
     def rotateBack(self):
         """Rotate coordinate system back to previously stored origin/angle."""
@@ -339,9 +381,6 @@ class CSEMData():
         self.rx -= origin[0]
         self.ry -= origin[1]
         self.origin = origin
-
-    def rotatePositions(self, *args, **kwargs):  # backward compatibility
-        self.rotate(*args, **kwargs)
 
     def detectLines(self, show=False):
         """Split data in lines for line-wise processing."""
@@ -532,35 +571,6 @@ class CSEMData():
         """Masking out data according to several properties."""
         pass  # not yet implemented
 
-    def createConfig(self):
-        """Create EMPYMOD input argument configuration."""
-        self.cfg = {'src':
-                    [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
-                    # [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
-                    # 'rec': [self.rx[0], self.ry[0], -self.alt[0], 0, 90],
-                    'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
-                    'strength': 1, 'mrec': True,
-                    'srcpts': 5,
-                    'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
-                    'verb': 1}
-
-    def setPos(self, nrx=0, position=None, show=False):
-        """The ."""
-        if position:
-            dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
-            if self.verbose:
-                print("distance is ", np.sqrt(dr))
-
-            nrx = np.argmin(dr)
-
-        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
-        self.dataX = self.DATAX[:, nrx]
-        self.dataY = self.DATAY[:, nrx]
-        self.dataZ = self.DATAZ[:, nrx]
-        self.nrx = nrx
-        if show:
-            self.showPos()
-
     def showPos(self, ax=None, line=None, background=None, org=False,
                 color=None, marker=None):
         """Show positions."""
@@ -600,7 +610,6 @@ class CSEMData():
         self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
                                                    n=nl, log=True)))
         # depth = np.hstack((0, np.cumsum(10**np.linspace(0.8, 1.5, 15))))
-        # return depth
 
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
                        relError=0.03, absError=0.001, **kwargs):
@@ -745,7 +754,7 @@ class CSEMData():
                 data - measured data
                 prim - primary fields
                 secdata - measured secondary data divided by primary fields
-                response - forward response (NOT READY)
+                response - forward response
                 error - absolute data error
                 relerror - relative data error
                 misfit - absolute misfit between data and response
@@ -765,7 +774,7 @@ class CSEMData():
                 self.computePrimaryFields()
 
             primabs = np.sqrt(np.sum(self.prim**2, axis=0))
-            self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs
+            self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs - 1.0
         elif what.lower() == "response":
             self.DATAX, self.DATAY, self.DATAZ = self.RESP
         elif what.lower() == "error":
@@ -799,10 +808,10 @@ class CSEMData():
         else:  # try using the argument
             self.DATAX, self.DATAY, self.DATAZ = what
 
-    def getWmisfit(self):
-
-        mis = self.DATA - self.RESP
-        self.WMIS = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+    # def getWmisfit(self):
+        # """Return weighted misfit."""
+        # mis = self.DATA - self.RESP
+        # self.WMIS = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
 
     def showField(self, field, **kwargs):
         """Show any receiver-related field as color-coded rectangles/circles.
@@ -913,8 +922,6 @@ class CSEMData():
             x = self.ry[nn]
         elif kwargs["x"] == "d":
             # need to eval line direction first, otherwise bugged
-            # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
-            #             (self.ry[nn]-self.ry[0])**2)
             x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
                         (np.mean(self.ty)-self.ry[nn])**2)
 
@@ -1212,9 +1219,7 @@ class CSEMData():
         return fig, ax
 
     def showLineData2(self, line=None, ax=None, **kwargs):
-        """Show alternative line plot.
-        """
-
+        """Show alternative line plot."""
         kw = updatePlotKwargs(self.cmp, **kwargs)
         self.chooseData(kw["what"], kw["llthres"])
         kw.setdefault("radius", "rect")
@@ -1280,11 +1285,11 @@ class CSEMData():
 
         ax[0, 0].set_ylim([0., len(self.f)])
         for a in ax[-1, :]:
-            if kwargs["x"] == "x":
+            if kwx == "x":
                 a.set_xlim([np.min(self.rx), np.max(self.rx)])
-            elif kwargs["x"] == "y":
+            elif kwx == "y":
                 a.set_xlim([np.min(self.ry), np.max(self.ry)])
-            elif kwargs["x"] == "d":
+            elif kwx == "d":
                 print('need to adjust xlim for *x* = *d* option')
             a.set_xlabel("x (m)")
         yt = np.arange(0, len(self.f), 2)
@@ -1297,8 +1302,8 @@ class CSEMData():
         for a in ax.flat:
             a.set_aspect('auto')
 
-        if "what" in kwargs:
-            self.chooseData("data", kw["llthres"])
+        # if "what" in kwargs:
+            # self.chooseData("data", kw["llthres"])
 
         name = kwargs.pop("name", self.basename)
         if "what" in kwargs:
@@ -1312,9 +1317,9 @@ class CSEMData():
         """Generic show function.
 
         Upon keyword arguments given, directs to
-        * showDataPatch [default]
-        * showLineData (if line=given)
-        * showLineFreq (if line and nf given)
+        * showDataPatch [default]: x-y patch plot for every f
+        * showLineData (if line=given): x-f patch plot
+        * showLineFreq (if line and nf given): x-f line plot
         """
         if "line" in kwargs:
             if "nf" in kwargs:
@@ -1597,7 +1602,7 @@ class CSEMData():
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
     def getIndices(self):
-        """."""
+        """Return indices of finite data into full matrix."""
         ff = np.array([], dtype=bool)
         for i in range(3):
             if self.cmp[i]:

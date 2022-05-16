@@ -13,8 +13,9 @@ def fwd(res, dep, inp, freqs, verbose=False):
         print(kw)
 
     OUT = bipole(**kw)
-    # OUT = bipole(res=np.concatenate(([2e14], res)),
-    #              depth=dep, freqtime=freqs, **inp)
+    if OUT.ndim > 1:
+        OUT = np.sum(OUT, axis=1)
+
     my = 4e-7 * np.pi
     OUT *= my * 1e9
 
