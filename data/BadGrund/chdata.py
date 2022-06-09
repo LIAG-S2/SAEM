@@ -21,7 +21,8 @@ kw = dict(nf=15, amphi=False, alim=[1e-3, 1])
 self.showData(**kw)
 self.showData(what="response", **kw)
 # %%
-sdfsdfs
+# sdfsdfs
 # %%
 # self.generateDataPDF()
-self.generateDataPDF(amphi=True, alim=[1e-3, 1])
+# self.generateDataPDF(amphi=True, alim=[1e-3, 1])
+# self.generateDataPDF(amphi=False, alim=[1e-3, 1])
