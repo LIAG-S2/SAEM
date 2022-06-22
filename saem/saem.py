@@ -240,7 +240,7 @@ class CSEMData():
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
                     'verb': 1}
-        if self.fullTx:  # sum up over segments
+        if fullTx:  # sum up over segments
             self.cfg['src'] = [self.tx[:-1], self.tx[1:],
                                self.ty[:-1], self.ty[1:], 0.1, 0.1]
         else:  # only first&last point (quick)
