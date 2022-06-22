@@ -244,8 +244,10 @@ class CSEMData():
             self.cfg['src'] = [self.tx[:-1], self.tx[1:],
                                self.ty[:-1], self.ty[1:], 0.1, 0.1]
         else:  # only first&last point (quick)
-            self.cfg['src'] = [self.tx[0], self.tx[-1], self.ty[0], self.ty[-1], -0.1, -0.1],
-            # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1],
+            self.cfg['src'] = [self.tx[0], self.tx[-1],
+                               self.ty[0], self.ty[-1],
+                               -0.1, -0.1]
+            # [self.tx[0], self.tx[1], self.ty[0], self.ty[1], 0.1, 0.1]
 
     def setPos(self, nrx=0, position=None, show=False):
         """Set the position of the current sounding to be shown or inverted."""

@@ -2,9 +2,11 @@ import numpy as np
 from saem import CSEMData
 
 
+# Variant 1: only first and last point
 # txpos = np.array([[583000, 584500], [5742500, 5741300]])
+# Variant 2: complete
 txpos = np.genfromtxt("Tx2.pos").T
-np.cumsum(np.sqrt(np.sum(np.diff(txpos)**2, axis=0)))
+# print(np.cumsum(np.sqrt(np.sum(np.diff(txpos)**2, axis=0))))
 # ground = 400  #  altitude of ground
 # %% read in the old data and take every second data point (12->24m)
 self = CSEMData(datafile="data/*.mat", txPos=txpos) # , txalt=ground)
