@@ -157,7 +157,8 @@ class CSEMData():
             self.cmp = ALL["cmp"]
         except Exception:
             print('CMP detect change exception, using old way')
-            self.cmp = [np.any(getattr(self, "DATA"+cc)) for cc in ["X", "Y", "Z"]]
+            self.cmp = [np.any(getattr(self, "DATA"+cc))
+                        for cc in ["X", "Y", "Z"]]
 
         self.ERRX = np.ones_like(self.DATAX)
         self.ERRY = np.ones_like(self.DATAY)
@@ -424,8 +425,8 @@ class CSEMData():
         li = 0
         for ri in range(1, len(self.rx)):
             dummy[ri-1] = li
-            dist = np.sqrt((self.rx[ri]-self.rx[ri-1])**2 +\
-                           (self.ry[ri]-self.ry[ri-1])**2)
+            dist = np.sqrt((self.rx[ri] - self.rx[ri-1])**2 +
+                           (self.ry[ri] - self.ry[ri-1])**2)
             if dist > minDist:
                 li += 1
         dummy[-1] = li
@@ -434,12 +435,12 @@ class CSEMData():
             means = []
             for li in np.unique(dummy):
                 if axis == 'x':
-                    means.append(np.mean(self.ry[dummy==li], axis=0))
+                    means.append(np.mean(self.ry[dummy == li], axis=0))
                 elif axis == 'y':
-                    means.append(np.mean(self.rx[dummy==li], axis=0))
+                    means.append(np.mean(self.rx[dummy == li], axis=0))
             lsorted = np.argsort(means)
             for li, lold in enumerate(lsorted):
-                self.line[dummy==lold] = li + 1
+                self.line[dummy == lold] = li + 1
 
         if show:
             self.showField(self.line)
@@ -471,12 +472,12 @@ class CSEMData():
             means = []
             for li in np.unique(dummy):
                 if axis == 'x':
-                    means.append(np.mean(self.ry[dummy==li], axis=0))
+                    means.append(np.mean(self.ry[dummy == li], axis=0))
                 elif axis == 'y':
-                    means.append(np.mean(self.rx[dummy==li], axis=0))
+                    means.append(np.mean(self.rx[dummy == li], axis=0))
             lsorted = np.argsort(means)
             for li, lold in enumerate(lsorted):
-                self.line[dummy==lold] = li + 1
+                self.line[dummy == lold] = li + 1
 
         if show:
             self.showField(self.line)
@@ -925,8 +926,8 @@ class CSEMData():
             x = self.ry[nn]
         elif kwargs["x"] == "d":
             # need to eval line direction first, otherwise bugged
-            x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
-                        (np.mean(self.ty)-self.ry[nn])**2)
+            x = np.sqrt((np.mean(self.tx) - self.rx[nn])**2 +
+                        (np.mean(self.ty) - self.ry[nn])**2)
 
         for i in range(3):
             if kw["cmp"][i] > 0:
@@ -952,13 +953,15 @@ class CSEMData():
                             elinewidth=0.5, markersize=3, label=label)
                     else:
                         ax[0, ncmp].plot(x, np.real(data), '+-', lw=lw,
-                                               label=label)
+                                         label=label)
                         ax[1, ncmp].plot(x, np.imag(data), '+-', lw=lw,
-                                               label=label)
+                                         label=label)
                     if kw["log"]:
-                        ax[0, ncmp].set_yscale('symlog', linthresh=kw["llthres"])
+                        ax[0, ncmp].set_yscale('symlog',
+                                               linthresh=kw["llthres"])
                         ax[0, ncmp].set_ylim([-kw["alim"][1], kw["alim"][1]])
-                        ax[1, ncmp].set_yscale('symlog', linthresh=kw["llthres"])
+                        ax[1, ncmp].set_yscale('symlog',
+                                               linthresh=kw["llthres"])
                         ax[1, ncmp].set_ylim([-kw["alim"][1], kw["alim"][1]])
                     else:
                         pass
@@ -1430,7 +1433,7 @@ class CSEMData():
                 plt.close(fig)
                 for i in range(len(self.f)):
                     fig, ax = self.showPatchData(nf=i, figsize=figsize,
-                                            **kwargs)
+                                                 **kwargs)
                     fig.savefig(pdf, format='pdf')
                     plt.close(fig)
 
@@ -1462,7 +1465,6 @@ class CSEMData():
 
         absError
         """
-
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
         aErr = np.zeros_like(self.DATA, dtype=complex)
@@ -1482,7 +1484,6 @@ class CSEMData():
 
     def deactivateNoisyData(self, aErr=None, rErr=None):
         """Set data below a certain threshold to nan (inactive)."""
-
         if aErr is not None:
             self.DATA[np.abs(self.DATA) < aErr] = np.nan + 1j * np.nan
             self.DATA[np.abs(self.DATA) < aErr] = np.nan + 1j * np.nan
@@ -1632,7 +1633,6 @@ class CSEMData():
             responseVec = np.load(respfiles[-1])
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
-
 
         sizes = [sum(self.cmp), self.nF, self.nRx]
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
