@@ -242,7 +242,8 @@ class CSEMData():
                     'verb': 1}
         if fullTx:  # sum up over segments
             self.cfg['src'] = [self.tx[:-1], self.tx[1:],
-                               self.ty[:-1], self.ty[1:], 0.1, 0.1]
+                               self.ty[:-1], self.ty[1:],
+                               -0.1, -0.1]
         else:  # only first&last point (quick)
             self.cfg['src'] = [self.tx[0], self.tx[-1],
                                self.ty[0], self.ty[-1],
@@ -1535,7 +1536,7 @@ class CSEMData():
 
         return data
 
-    def saveData(self, fname=None, line=None, **kwargs):
+    def saveData(self, fname=None, line=None, txdir=1, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.setdefault("cmp", self.cmp)
         allcmp = ['X', 'Y', 'Z']
@@ -1560,11 +1561,13 @@ class CSEMData():
             return
 
         data = self.getData(line=line, **kwargs)
-        data["tx_ids"]=[0]
+        data["tx_ids"] = [0]
         DATA = [data]
         meany = 0  # np.median(self.ry[ind]) # needed anymore?
         np.savez(fname+".npz",
-                 tx=[np.column_stack((self.tx, self.ty-meany, self.tx*0))],
+                 tx=[np.column_stack((self.tx[::txdir],
+                                      self.ty[::txdir]-meany,
+                                      self.tx*0))],
                  freqs=self.f,
                  cmp=cmp,
                  DATA=DATA,
