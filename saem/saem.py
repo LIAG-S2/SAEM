@@ -354,8 +354,10 @@ class CSEMData():
             self.origin = origin
         if ang is None:
             if line is None:
-                ang = np.arctan2(np.diff(self.ty),
-                                 np.diff(self.tx))[0] + np.pi / 2
+                # ang = np.mean(np.arctan2(
+                #     np.diff(self.ty), np.diff(self.tx))) + np.pi / 2
+                ang = np.arctan2(self.ty[-1]-self.ty[0],
+                                 self.tx[-1]-self.tx[0]) + np.pi / 2
             else:
                 rx = self.rx[self.line == line]
                 ry = self.ry[self.line == line]
