@@ -275,8 +275,10 @@ class CSEMSurvey():
         txmesh.exportVTK(self.basename+"-txpos.vtk")
 
     def inversion(self, inner_area_cell_size=1e7, outer_area_cell_size=None,
-                  inner_boundary_factor=.2, invpoly=None, topo=None,
-                  dim=None, extend_world=10, useQHull=True,
+                  inner_boundary_factor=.2, cell_size=1e7,
+                  invpoly=None, topo=None, useQHull=True, n_cores=60,
+                  dim=None, extend_world=10, depth=1000.,
+                  tx_refine=200., rx_refine1=30, rx_refine2=200,  # names!
                   triangle_quality=34., tetgen_quality=1.4,
                   symlog_threshold=1e-4, sig_bg=0.001, **kwargs):
         """Run inversion including mesh generation etc.
@@ -301,9 +303,7 @@ class CSEMSurvey():
         saemdata = np.load('data/' + dataname + ".npz", allow_pickle=True)
         # generate npz structure as in saveData
         M = BlankWorld(name=invmesh,
-                       x_dim=[-1e4, 1e4],
-                       y_dim=[-1e4, 1e4],
-                       z_dim=[-1e4, 1e4],
+                       x_dim=[-dim, dim], y_dim=[-dim, dim], z_dim=[-dim, dim],
                        preserve_edges=True,
                        t_dir='./',  # kann weg! lieber voller filename
                        topo=topo,
@@ -332,10 +332,9 @@ class CSEMSurvey():
                                     [xmax+dx, ymax+dy, 0.],
                                     [xmin-dy, ymax+dy, 0.]])
 
-        txs = [mu.refine_path(saemdata['tx'][0], length=200.)]
-
+        txs = [mu.refine_path(tx, length=tx_refine) for tx in saemdata['tx']]
         M.build_surface(insert_line_tx=txs)
-        M.add_inv_domains(-800., invpoly, cell_size=1e7)
+        M.add_inv_domains(-depth, invpoly, cell_size=cell_size)
         M.build_halfspace_mesh()
         # %%
         # add receiver locations to parameter file for all receiver patches
@@ -343,14 +342,15 @@ class CSEMSurvey():
             M.add_rx(rx)
 
             # build refined triangles around receivers in the mesh
-            rx_tri = mu.refine_rx(rx, 30., 200.)
+            rx_tri = mu.refine_rx(rx, rx_refine1, rx_refine2)
             M.add_paths(rx_tri)
 
-        M.extend_world(10., 10., 10.)
-        M.call_tetgen(tet_param='-pq1.4aA', print_infos=False)
+        M.extend_world(extend_world, extend_world, extend_world)
+        M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
+                      print_infos=False)
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=60, p_fwd=1, start_iter=0)
+                       n_cores=n_cores, p_fwd=1, start_iter=0)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
