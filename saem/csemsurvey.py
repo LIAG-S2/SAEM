@@ -274,6 +274,102 @@ class CSEMSurvey():
 
         txmesh.exportVTK(self.basename+"-txpos.vtk")
 
+    def inversion(self, inner_area_cell_size=1e7, outer_area_cell_size=None,
+                  inner_boundary_factor=.2, invpoly=None, topo=None,
+                  dim=None, extend_world=10, useQHull=True,
+                  triangle_quality=34., tetgen_quality=1.4,
+                  symlog_threshold=1e-4, sig_bg=0.001, **kwargs):
+        """Run inversion including mesh generation etc.
+
+        * check data and errors
+        * automatical boundary computation
+        * setting up meshes
+        * run inversion parsing keyword arguments
+        * load results
+        """
+        from custEM.meshgen.meshgen_tools import BlankWorld
+        from custEM.meshgen import meshgen_utils as mu
+        from custEM.inv.inv_utils import MultiFWD
+
+        if outer_area_cell_size is None:
+            outer_area_cell_size = inner_area_cell_size * 100
+
+        invmod = 'bla'
+        invmesh = 'invmesh_' + invmod
+        dataname = self.basename or "mydata"
+
+        saemdata = np.load('data/' + dataname + ".npz", allow_pickle=True)
+        # generate npz structure as in saveData
+        M = BlankWorld(name=invmesh,
+                       x_dim=[-1e4, 1e4],
+                       y_dim=[-1e4, 1e4],
+                       z_dim=[-1e4, 1e4],
+                       preserve_edges=True,
+                       t_dir='./',  # kann weg! lieber voller filename
+                       topo=topo,
+                       inner_area_cell_size=inner_area_cell_size,
+                       easting_shift=-saemdata['origin'][0],
+                       northing_shift=-saemdata['origin'][1],
+                       rotation=float(saemdata['rotation'])*180/np.pi,
+                       outer_area_cell_size=outer_area_cell_size,
+                       )
+        if invpoly is None:
+            allrx = np.stack((["rx"][:, :2] for data in saemdata["DATA"]))
+            if useQHull:
+                from scipy.spatial import ConvexHull
+                points = saemdata["DATA"][0]["rx"][:, :2]
+                ch = ConvexHull(points)
+                invpoly = np.array([[*points[v, :], 0.]
+                                    for v in ch.vertices]) * \
+                    (inner_boundary_factor + 1.0)
+            else:
+                xmin, xmax = min(allrx[:, 0]), max(allrx[:, 0])
+                ymin, ymax = min(allrx[:, 1]), max(allrx[:, 1])
+                dx = (xmax - xmin) * inner_boundary_factor
+                dy = (ymax - ymin) * inner_boundary_factor
+                invpoly = np.array([[xmin-dx, ymin-dy, 0.],
+                                    [xmax+dx, ymin-dy, 0.],
+                                    [xmax+dx, ymax+dy, 0.],
+                                    [xmin-dy, ymax+dy, 0.]])
+
+        txs = [mu.refine_path(saemdata['tx'][0], length=200.)]
+
+        M.build_surface(insert_line_tx=txs)
+        M.add_inv_domains(-800., invpoly, cell_size=1e7)
+        M.build_halfspace_mesh()
+        # %%
+        # add receiver locations to parameter file for all receiver patches
+        for rx in [data["rx"] for data in saemdata["DATA"]]:
+            M.add_rx(rx)
+
+            # build refined triangles around receivers in the mesh
+            rx_tri = mu.refine_rx(rx, 30., 200.)
+            M.add_paths(rx_tri)
+
+        M.extend_world(10., 10., 10.)
+        M.call_tetgen(tet_param='-pq1.4aA', print_infos=False)
+        # setup fop
+        fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
+                       n_cores=60, p_fwd=1, start_iter=0)
+        # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
+        # set up inversion operator
+        inv = pg.Inversion(fop=fop)
+        inv.setPostStep(fop.analyze)
+        dT = pg.trans.TransSymLog(symlog_threshold)
+        inv.dataTrans = dT
+        inv.setRegularization(limits=kwargs.pop("limits", [1e-4, 1.0]))
+        # run inversion
+        kwargs.setdefault("lam", 10)
+        kwargs.setdefault("maxIter", 21)
+        invmodel = inv.run(fop.measured, fop.errors, verbose=True,
+                           startModel=fop.sig_0, **kwargs)
+        # post-processing
+        np.save(fop.inv_dir + 'inv_model.npy', invmodel)
+        pgmesh = fop.mesh()
+        pgmesh['sigma'] = invmodel
+        pgmesh['res'] = 1. / invmodel
+        pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
+
 
 if __name__ == "__main__":
     # %% way 1 - load ready patches
@@ -284,7 +380,7 @@ if __name__ == "__main__":
     # patch1 = CSEMData("flight*.mat")
     # self.addPatch(patch1)
     # %% way 3 - directly from Mare file or npz
-    # self = CSEMSurvey("blabla.mare")
+    # self = CSEMSurvey("blabla.emdata")
     # self = CSEMSurvey("blabla.npz")
     # %%
     print(self)
