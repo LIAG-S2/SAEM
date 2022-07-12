@@ -278,7 +278,7 @@ class CSEMSurvey():
                   inner_boundary_factor=.2, cell_size=1e7,
                   invpoly=None, topo=None, useQHull=True, n_cores=60,
                   dim=None, extend_world=10, depth=1000.,
-                  tx_refine=200., rx_refine1=30, rx_refine2=200,  # names!
+                  tx_refine=200., rx_refine=30, rx_refine_rot=200,  # names!
                   triangle_quality=34., tetgen_quality=1.4,
                   symlog_threshold=1e-4, sig_bg=0.001, **kwargs):
         """Run inversion including mesh generation etc.
@@ -342,7 +342,7 @@ class CSEMSurvey():
             M.add_rx(rx)
 
             # build refined triangles around receivers in the mesh
-            rx_tri = mu.refine_rx(rx, rx_refine1, rx_refine2)
+            rx_tri = mu.refine_rx(rx, rx_refine, rx_refine_rot)
             M.add_paths(rx_tri)
 
         M.extend_world(extend_world, extend_world, extend_world)

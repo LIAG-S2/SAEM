@@ -20,8 +20,9 @@ sdfsdfsdf
 # from hdf5storage import loadmat
 from scipy.io import loadmat
 
+matfile = "L01_Source_LIAG_Tx02_Ncyc16_Ltsregress.mat"
+ALL = loadmat(matfile)
 
-matfile = "L1_Source_LIAGMUN_Tx02_Ncyc16_ltsregress.mat"
 bla = loadmat(matfile)["ztfs"][0][0]
 # %%
 matfile = matfile.replace("L1", "L2")

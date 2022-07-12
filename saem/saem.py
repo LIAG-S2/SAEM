@@ -217,19 +217,26 @@ class CSEMData():
         for filename in filenames[1:]:
             print("reading "+filename)
             MAT1 = loadmat(filename)["ztfs"][0][0]
-            for i in range(len(MAT)):
-                if i == 12:
-                    assert len(MAT[i]) == len(MAT1[i]), "nF not matching"
-                    assert np.allclose(MAT[i], MAT1[i]), "freqs not matching"
+            for name in MAT.dtype.names:
+                if name == "periods":
+                    assert len(MAT[name]) == len(MAT1[name]), "nFreqs no match"
+                    assert np.allclose(MAT[name], MAT1[name]), "freqs no match"
                 else:
-                    MAT[i] = np.concatenate((MAT[i], MAT1[i]), axis=-1)
+                    MAT[name] = np.concatenate((MAT[name], MAT1[name]),
+                                               axis=-1)
 
-        self.f = np.round(100.0 / np.squeeze(MAT[12])) / 100.
-        self.ry, self.rx = MAT[19]
-        self.rz = MAT[18][0]
-        DY, DX, DZ = np.squeeze(MAT[13])
+        self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
+        self.ry, self.rx = MAT["xy"]
+        if "topo" in MAT.dtype.names:
+            self.rz = MAT["topo"][0]
+        elif "lla" in MAT.dtype.names:
+            self.rz = MAT["lla"][2]
+        else:
+            raise Exception("Could not determine altitude!")
+
+        DY, DX, DZ = np.squeeze(MAT["tfs"])
         self.DATA = np.stack((-DX, -DY, DZ))
-        self.ERR = np.squeeze(MAT[14])
+        self.ERR = np.squeeze(MAT["tfs_se"])
         self.alt = self.rz - self.txAlt
         return True
 
