@@ -20,7 +20,9 @@ self.showLineData(line=5)
 self.rotate()
 # %%
 self.filter(minTxDist=300, maxTxDist=3000)
+self.deactivateNoisyData(rErr=0.5)
 self.estimateError()
+self.deactivateNoisyData(rErr=0.5, aErr=0.01)
 # %%
 self.showData(line=5)
 # %%
