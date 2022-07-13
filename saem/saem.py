@@ -1033,6 +1033,11 @@ class CSEMData():
 
         return fig, ax
 
+    def showDataFit(self, line=1, nf=0):
+        """Show data and model response for single line/freq."""
+        fig, ax = self.showLineFreq(line=line, nf=nf)
+        self.showLineFreq(line=line, nf=nf, ax=ax, what="response")
+
     def showLineData(self, line=None, ax=None, **kwargs):
         """Show data of a line as pcolor.
 
