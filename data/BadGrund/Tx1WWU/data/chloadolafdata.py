@@ -13,7 +13,7 @@ ground = 400  #  altitude of ground
 # %% read in the old data and take every second data point (12->24m)
 self = CSEMData(datafile="L*.mat", txPos=txpos, txalt=ground)
 self.showField("alt")
-self.generateDataPDF()
+# self.generateDataPDF()
 sdfsdfsdf
 # self.filter(every=2)
 # %%
@@ -21,9 +21,9 @@ sdfsdfsdf
 from scipy.io import loadmat
 
 matfile = "L01_Source_LIAG_Tx02_Ncyc16_Ltsregress.mat"
-ALL = loadmat(matfile)
-
+# ALL = loadmat(matfile)
 bla = loadmat(matfile)["ztfs"][0][0]
+MAT=bla
 # %%
 matfile = matfile.replace("L1", "L2")
 bla2 = loadmat(matfile)["ztfs"][0][0]

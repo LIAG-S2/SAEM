@@ -20,13 +20,16 @@ self.showLineData(line=5)
 self.rotate()
 # %%
 self.filter(minTxDist=300, maxTxDist=3000)
+self.estimateError()
 # %%
 self.showData(line=5)
 # %%
+txdir = -1
 self.cmp = [1, 0, 1]
-self.saveData("Tx2IPHT_BxBz")
+self.saveData("Tx2IPHT_BxBz", txdir=txdir)
 self.filter(every=2)
-self.saveData("Tx2IPHT_BxBzE2")
+self.saveData("Tx2IPHT_BxBzE2", txdir=txdir)
 self.filter(every=2)
-self.saveData("Tx2IPHT_BxBzE4")
-self.saveData("Tx2IPHT_BzE4", cmp=[0, 0, 1])
+self.saveData("Tx2IPHT_BxBzE4", txdir=txdir)
+self.saveData("Tx2IPHT_BzE4", cmp=[0, 0, 1], txdir=txdir)
+self.saveData("Tx2IPHT_BxE4", cmp=[1, 0, 0], txdir=txdir)

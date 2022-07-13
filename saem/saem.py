@@ -181,17 +181,17 @@ class CSEMData():
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
-        MAT["line"] = np.ones(MAT["xy"].shape[-1], dtype=int)
-        line = 1
         if "f" not in MAT:
             return False
+        MAT["line"] = np.ones(MAT["lon"].shape[-1], dtype=int)
+        line = 1
         if len(filenames) > 1:
             print("read "+filename)
         for filename in filenames[1:]:
             print("reading "+filename)
             MAT1 = loadmat(filename)
             line += 1
-            MAT1["line"] = np.ones(MAT1["xy"].shape[-1], dtype=int) * line
+            MAT1["line"] = np.ones(MAT1["lon"].shape[-1], dtype=int) * line
             assert len(MAT["f"]) == len(MAT1["f"]), filename+" nf not matching"
             assert np.allclose(MAT["f"], MAT1["f"]), filename+" f not matching"
             for key in MAT1.keys():
