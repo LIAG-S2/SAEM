@@ -102,9 +102,9 @@ class CSEMData():
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
-            if not self.loadMatFile(filename):
-                print("No frequency in data, try read BGR style")
-                self.loadMatFile2(filename)
+            if not self.loadEmteresMatFile(filename):
+                print("No frequency in data, try read WWU style")
+                self.loadWWUMatFile(filename)
 
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
@@ -173,7 +173,7 @@ class CSEMData():
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
         self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
 
-    def loadMatFile(self, filename):
+    def loadEmteresMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
@@ -205,8 +205,8 @@ class CSEMData():
         self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
         return True
 
-    def loadMatFile2(self, filename):
-        """Load data from mat file (Olaf BGR processing)."""
+    def loadWWUMatFile(self, filename):
+        """Load data from mat file (WWU processing)."""
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
         assert len(filenames) > 0
@@ -233,6 +233,9 @@ class CSEMData():
             self.rz = MAT["lla"][2]
         else:
             raise Exception("Could not determine altitude!")
+
+        if "line" in MAT.dtype.names:
+            self.line = MAT["line"]
 
         DY, DX, DZ = np.squeeze(MAT["tfs"])
         self.DATA = np.stack((-DX, -DY, DZ))
