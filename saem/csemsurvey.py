@@ -164,6 +164,11 @@ class CSEMSurvey():
 
         return DATA, lines
 
+    def setOrigin(self, *args, **kwargs):
+        """Set the same origin for all patches (reshifting if existing)."""
+        for p in self.patches:
+            p.setOrigin(*args, **kwargs)
+
     def filter(self, *args, **kwargs):
         """Filter."""
         for p in self.patches:
