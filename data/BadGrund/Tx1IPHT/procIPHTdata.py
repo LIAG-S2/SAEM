@@ -22,18 +22,19 @@ self.deactivateNoisyData(rErr=0.5)
 # %%
 self.showData(line=5)
 # %%
-self.setOrigin([580000, 5740000])
+self.setOrigin([580000., 5740000.])
 self.showField("line")
-# self.rotate(ang=0)  #
 # %%
-self.cmp = [0, 1, 1]
-self.saveData("Tx2IPHT_ByBz")
+self.basename = "Tx2IPHT"
+self.saveData()
+self.saveData(cmp=[0, 1, 1])
 self.filter(every=2)
-self.saveData("Tx2IPHT_ByBzE2")
+self.basename += "_E2"
+self.saveData()
 self.filter(every=2)
-self.saveData("Tx2IPHT_ByBzE4")
+self.basename = self.basename.replace("E2", "E4")
+self.saveData()
 # %%
-self.saveData("Tx2IPHT_BxE4", cmp=[1, 0, 0])
-self.saveData("Tx2IPHT_ByE4", cmp=[0, 1, 0])
-self.saveData("Tx2IPHT_BzE4", cmp=[0, 0, 1])
-self.saveData("Tx2IPHT_BxByBzE4", cmp=[1, 1, 1])
+self.saveData(cmp=[1, 0, 0])
+self.saveData(cmp=[0, 1, 0])
+self.saveData(cmp=[0, 0, 1])

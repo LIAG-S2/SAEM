@@ -342,9 +342,9 @@ class CSEMSurvey():
         M.build_halfspace_mesh()
         # %%
         # add receiver locations to parameter file for all receiver patches
-        allrx = mu.resolve_rx_overlaps(
+        reducedrx = mu.resolve_rx_overlaps(
             [data["rx"] for data in saemdata["DATA"]], rx_refine)
-        rx_tri = mu.refine_rx(allrx, rx_refine, 60.)
+        rx_tri = mu.refine_rx(reducedrx, rx_refine, 60.)
         M.add_paths(rx_tri)
         for rx in [data["rx"] for data in saemdata["DATA"]]:
             M.add_rx(rx)

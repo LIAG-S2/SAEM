@@ -1602,7 +1602,7 @@ class CSEMData():
                  cmp=cmp,
                  DATA=DATA,
                  line=self.line,
-                 origin=self.origin,  # global coordinates with altitude
+                 origin=np.array(self.origin),  # global coordinates w altitude
                  rotation=self.angle)
 
     def loadResults(self, datafile=None, invmesh="Prisms", dirname=None,
