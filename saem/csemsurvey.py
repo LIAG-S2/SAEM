@@ -274,12 +274,11 @@ class CSEMSurvey():
 
         txmesh.exportVTK(self.basename+"-txpos.vtk")
 
-    def inversion(self, inner_area_cell_size=1e7, outer_area_cell_size=None,
-                  inner_boundary_factor=.2, cell_size=1e7,
+    def inversion(self, inner_area_cell_size=1e4, outer_area_cell_size=None,
+                  inner_boundary_factor=.1, cell_size=1e7,
                   invpoly=None, topo=None, useQHull=True, n_cores=60,
                   dim=None, extend_world=10, depth=1000.,
-                  tx_refine=200., rx_refine=30, rx_refine_rot=200,  # names!
-                  triangle_quality=34., tetgen_quality=1.4,
+                  tx_refine=50., rx_refine=30, tetgen_quality=1.3,
                   symlog_threshold=1e-4, sig_bg=0.001, **kwargs):
         """Run inversion including mesh generation etc.
 
@@ -338,12 +337,12 @@ class CSEMSurvey():
         M.build_halfspace_mesh()
         # %%
         # add receiver locations to parameter file for all receiver patches
+        allrx = mu.resolve_rx_overlaps(
+            [data["rx"] for data in saemdata["DATA"]], rx_refine)
+        rx_tri = mu.refine_rx(allrx, rx_refine, 60.)
+        M.add_paths(rx_tri)
         for rx in [data["rx"] for data in saemdata["DATA"]]:
             M.add_rx(rx)
-
-            # build refined triangles around receivers in the mesh
-            rx_tri = mu.refine_rx(rx, rx_refine, rx_refine_rot)
-            M.add_paths(rx_tri)
 
         M.extend_world(extend_world, extend_world, extend_world)
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
