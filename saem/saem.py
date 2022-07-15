@@ -366,40 +366,44 @@ class CSEMData():
             origin of coordinate system, if not given, center of Tx
         """
         self.rotateBack()  # always go back to original system
-        if origin is None:
-            self.origin = [np.mean(self.tx), np.mean(self.ty)]
-        else:
-            self.origin = origin
+        self.setOrigin(origin)
         if ang is None:
-            if line is None:
-                # ang = np.mean(np.arctan2(
-                #     np.diff(self.ty), np.diff(self.tx))) + np.pi / 2
-                ang = np.arctan2(self.ty[-1]-self.ty[0],
-                                 self.tx[-1]-self.tx[0]) + np.pi / 2
-            else:
+            if line is not None:  # use Tx orientation so that Tx points to y
                 rx = self.rx[self.line == line]
                 ry = self.ry[self.line == line]
                 ang = np.median(np.arctan2(ry-ry[0], rx-rx[0]))
+            else:  # use specific line so that line points to x
+                ang = np.arctan2(self.ty[-1]-self.ty[0],
+                                 self.tx[-1]-self.tx[0]) + np.pi / 2
+                # ang = np.mean(np.arctan2(
+                #     np.diff(self.ty), np.diff(self.tx))) + np.pi / 2
 
-        self.A = np.array([[np.cos(ang), np.sin(ang)],
-                           [-np.sin(ang), np.cos(ang)]])
-        self.tx, self.ty = self.A.dot(np.array([self.tx-self.origin[0],
-                                                self.ty-self.origin[1]]))
-        self.tx = np.round(self.tx*10+0.001) / 10
-        self.rx, self.ry = self.A.dot(np.vstack([self.rx-self.origin[0],
-                                                 self.ry-self.origin[1]]))
+        co, si = np.cos(ang), np.sin(ang)
+        self.A = np.array([[co, si], [-si, co]])
+        if ang != 0:
+            self.tx, self.ty = self.A.dot(np.array([self.tx, self.ty]))
+            self.tx = np.round(self.tx*10+0.001) / 10  # just in 2D case
+            self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
-        for i in range(len(self.f)):
-            # self.A.dot
-            Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
-            self.DATAX[i, :] = Bxy[0, :]
-            self.DATAY[i, :] = Bxy[1, :]
+            for i in range(len(self.f)):
+                Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
+                                              self.DATAY[i, :])))
+                self.DATAX[i, :] = Bxy[0, :]
+                self.DATAY[i, :] = Bxy[1, :]
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
 
-    def setOrigin(self, origin):
+    def setOrigin(self, origin=None):
         """Set origin."""
+        # first shift back to old origin
+        self.tx += self.origin[0]
+        self.ty += self.origin[1]
+        self.rx += self.origin[0]
+        self.ry += self.origin[1]
+        if origin is None:
+            origin = [np.mean(self.tx), np.mean(self.ty)]
+        # now shift to new origin
         self.tx -= origin[0]
         self.ty -= origin[1]
         self.rx -= origin[0]
@@ -1510,8 +1514,8 @@ class CSEMData():
     def deactivateNoisyData(self, aErr=None, rErr=None):
         """Set data below a certain threshold to nan (inactive)."""
         if aErr is not None:
-            self.DATA[np.abs(self.DATA) < aErr] = np.nan + 1j * np.nan
-            self.DATA[np.abs(self.DATA) < aErr] = np.nan + 1j * np.nan
+            self.DATA[np.abs(self.DATA.real) < aErr] = np.nan + 1j * np.nan
+            self.DATA[np.abs(self.DATA.imag) < aErr] = np.nan + 1j * np.nan
 
         if rErr is not None:
             rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
