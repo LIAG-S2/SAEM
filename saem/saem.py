@@ -55,7 +55,7 @@ class CSEMData():
         if "txPos" in kwargs:
             txpos = kwargs["txPos"]
             if isinstance(txpos, str):
-                if txpos.lower().find(".kml"):
+                if txpos.lower().find(".kml") > 0:
                     self.tx, self.ty, *_ = readCoordsFromKML(txpos)
                 else:
                     self.tx, self.ty = np.genfromtxt(txpos, unpack=True,
@@ -256,7 +256,15 @@ class CSEMData():
         if "line" in MAT.dtype.names:
             self.line = MAT["line"]
 
-        DY, DX, DZ = np.squeeze(MAT["tfs"])
+        TMP = np.squeeze(MAT["tfs"])
+        if TMP.shape[0] == 3:
+            DY, DX, DZ = TMP
+        else:
+            DZ = TMP
+            DX = np.zeros_like(DZ)
+            DY = np.zeros_like(DZ)
+            self.cmp = [0, 0, 1]
+
         self.DATA = np.stack((-DX, -DY, DZ))
         self.ERR = np.squeeze(MAT["tfs_se"])
         self.alt = self.rz - self.txAlt
