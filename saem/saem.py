@@ -18,6 +18,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 from .plotting import plotSymbols, showSounding, updatePlotKwargs
 from .plotting import underlayBackground, makeSymlogTicks, dMap
 from .modelling import fopSAEM, bipole
+from .tools import readCoordsFromKML
 
 
 class CSEMData():
@@ -50,7 +51,17 @@ class CSEMData():
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
         self.cmp = kwargs.pop("cmp", [1, 1, 1])  # active components
         self.txAlt = kwargs.pop("txalt", 0.0)
-        self.tx, self.ty = kwargs.pop("txPos", (None, None))
+        self.tx, self.ty = None, None
+        if "txPos" in kwargs:
+            txpos = kwargs["txPos"]
+            if isinstance(txpos, str):
+                if txpos.lower().find(".kml"):
+                    self.tx, self.ty, *_ = readCoordsFromKML(txpos)
+                else:
+                    self.tx, self.ty = np.genfromtxt(txpos, unpack=True,
+                                                     usecols=[0, 1])
+            else:  # take it directly
+                self.tx, self.ty, *_ = txpos
         self.rx = kwargs.pop("rx", np.array([100.0]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
         self.f = kwargs.pop("f", [])
@@ -1595,9 +1606,9 @@ class CSEMData():
         DATA = [data]
         meany = 0  # np.median(self.ry[ind]) # needed anymore?
         np.savez(fname+".npz",
-                 tx=[np.column_stack((self.tx[::txdir],
-                                      self.ty[::txdir]-meany,
-                                      self.tx*0))],
+                 tx=[np.column_stack((np.array(self.tx)[::txdir],
+                                      np.array(self.ty)[::txdir]-meany,
+                                      np.array(self.tx)*0))],
                  freqs=self.f,
                  cmp=cmp,
                  DATA=DATA,

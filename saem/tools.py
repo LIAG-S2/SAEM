@@ -1,6 +1,7 @@
 """Several tools for SAEM."""
 import numpy as np
 
+
 def detectLinesAlongAxis(rx, ry, axis='x', sort=True, show=False):
     """Alernative - Split data in lines for line-wise processing."""
 
@@ -28,12 +29,12 @@ def detectLinesAlongAxis(rx, ry, axis='x', sort=True, show=False):
         means = []
         for li in np.unique(dummy):
             if axis == 'x':
-                means.append(np.mean(ry[dummy==li], axis=0))
+                means.append(np.mean(ry[dummy == li], axis=0))
             elif axis == 'y':
-                means.append(np.mean(rx[dummy==li], axis=0))
+                means.append(np.mean(rx[dummy == li], axis=0))
         lsorted = np.argsort(means)
         for li, lold in enumerate(lsorted):
-            line[dummy==lold] = li + 1
+            line[dummy == lold] = li + 1
 
     return line
 
@@ -47,7 +48,7 @@ def detectLinesByDistance(rx, ry, axis='x', sort=True, show=False,
     li = 0
     for ri in range(1, len(rx)):
         dummy[ri-1] = li
-        dist = np.sqrt((rx[ri]-rx[ri-1])**2 +\
+        dist = np.sqrt((rx[ri]-rx[ri-1])**2 +
                        (ry[ri]-ry[ri-1])**2)
         if dist > minDist:
             li += 1
@@ -57,12 +58,12 @@ def detectLinesByDistance(rx, ry, axis='x', sort=True, show=False,
         means = []
         for li in np.unique(dummy):
             if axis == 'x':
-                means.append(np.mean(ry[dummy==li], axis=0))
+                means.append(np.mean(ry[dummy == li], axis=0))
             elif axis == 'y':
-                means.append(np.mean(rx[dummy==li], axis=0))
+                means.append(np.mean(rx[dummy == li], axis=0))
         lsorted = np.argsort(means)
         for li, lold in enumerate(lsorted):
-            line[dummy==lold] = li + 1
+            line[dummy == lold] = li + 1
 
     return line
 
@@ -95,3 +96,43 @@ def detectLinesOld(rx, ry, show=False):
             line[i] = nLine
 
     return line
+
+
+def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
+    """Read coordinates from KML file.
+
+    Parameters
+    ----------
+    xmlfile : str
+        XML or KML file
+    proj : str ['utm']
+        projection (UTM)
+    zone : int [32]
+        UTM zone
+    ellps : str ['WGS84']
+        ellipsoid
+
+    Returns
+    -------
+    pos : np.array (Nx3)
+        matrix of x, y, z positions
+    """
+    import pyproj
+    import xml.etree.ElementTree as ET
+
+    utm = pyproj.Proj(proj=proj, zone=zone, ellps=ellps)
+    tree = ET.parse(xmlfile)
+    root = tree.getroot()
+    X, Y, Z = [], [], []
+    for line in root.iter("*"):
+        if line.tag.find("coordinates"):
+            lin = line.text.replace("\n", "").replace("\t", "")
+            for col in lin.split(" "):
+                if col.find(",") > 0:
+                    vals = np.array(col.split(","), dtype=float)
+                    if len(vals) > 2:
+                        X.append(vals[0])
+                        Y.append(vals[1])
+                        Z.append(vals[2])
+
+    return np.vstack((*utm(X, Y), Z))
