@@ -2,6 +2,21 @@
 import numpy as np
 
 
+def distToTx(rx, ry, tx, ty):
+    """Compute minimum distance to segmented Tx."""
+    dist2 = np.ones_like(rx) * 1e9
+    for i in range(len(tx)-1):
+        px = rx - tx[i]
+        py = ry - ty[i]
+        bx = tx[i + 1] - tx[i]
+        by = ty[i + 1] - ty[i]
+        t = (px * bx + by * py) / (bx**2 + by**2)
+        t = np.maximum(np.minimum(t, 1), 0)
+        dist2 = np.minimum(dist2, (px-t*bx)**2+(py-t*by)**2)
+
+    return np.sqrt(dist2)
+
+
 def detectLinesAlongAxis(rx, ry, axis='x', sort=True, show=False):
     """Alernative - Split data in lines for line-wise processing."""
 

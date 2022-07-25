@@ -18,7 +18,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 from .plotting import plotSymbols, showSounding, updatePlotKwargs
 from .plotting import underlayBackground, makeSymlogTicks, dMap
 from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML
+from .tools import readCoordsFromKML, distToTx
 
 
 class CSEMData():
@@ -194,6 +194,7 @@ class CSEMData():
         MAT = loadmat(filename)
         if "f" not in MAT:
             return False
+
         MAT["line"] = np.ones(MAT["lon"].shape[-1], dtype=int)
         line = 1
         if len(filenames) > 1:
@@ -226,6 +227,10 @@ class CSEMData():
         filenames = sorted(glob(filename))
         assert len(filenames) > 0
         filename = filenames[0]
+        # ALL = loadmat(filename)
+        # if "zfts" not in ALL:
+        #     raise ImportError
+        # MAT = ALL["ztfs"][0][0]
         MAT = loadmat(filename)["ztfs"][0][0]
         MAT["line"] = np.ones(MAT["xy"].shape[-1], dtype=int)
         line = 1
@@ -531,12 +536,13 @@ class CSEMData():
 
     def txDistance(self):
         """Distance to transmitter."""
-        ang = np.median(np.arctan2(np.diff(self.ty), np.diff(self.tx)))
-        ang += np.pi / 2
-        A = np.array([[np.cos(ang), np.sin(ang)], [-np.sin(ang), np.cos(ang)]])
-        rx, ry = A.dot(np.array([self.rx-np.mean(self.tx),
-                                 self.ry-np.mean(self.ty)]))
-        return np.abs(rx)
+        return distToTx(self.rx, self.ry, self.tx, self.ty)
+        # ang = np.median(np.arctan2(np.diff(self.ty), np.diff(self.tx)))
+        # ang += np.pi / 2
+        # A = np.array([[np.cos(ang), np.sin(ang)], [-np.sin(ang), np.cos(ang)]])
+        # rx, ry = A.dot(np.array([self.rx-np.mean(self.tx),
+        #                          self.ry-np.mean(self.ty)]))
+        # return np.abs(rx)
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
                minTxDist=None, maxTxDist=None, every=None):
