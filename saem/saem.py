@@ -534,15 +534,18 @@ class CSEMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
-    def txDistance(self):
+    def txDistance(self, seg=True):
         """Distance to transmitter."""
-        return distToTx(self.rx, self.ry, self.tx, self.ty)
-        # ang = np.median(np.arctan2(np.diff(self.ty), np.diff(self.tx)))
-        # ang += np.pi / 2
-        # A = np.array([[np.cos(ang), np.sin(ang)], [-np.sin(ang), np.cos(ang)]])
-        # rx, ry = A.dot(np.array([self.rx-np.mean(self.tx),
-        #                          self.ry-np.mean(self.ty)]))
-        # return np.abs(rx)
+        if seg:  # segment-wise
+            return distToTx(self.rx, self.ry, self.tx, self.ty)
+        else:  # old: rotate and x distance
+            ang = np.median(np.arctan2(np.diff(self.ty), np.diff(self.tx)))
+            ang += np.pi / 2
+            A = np.array([[np.cos(ang), np.sin(ang)],
+                          [-np.sin(ang), np.cos(ang)]])
+            rx, ry = A.dot(np.array([self.rx-np.mean(self.tx),
+                                     self.ry-np.mean(self.ty)]))
+            return np.abs(rx)
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
                minTxDist=None, maxTxDist=None, every=None):
