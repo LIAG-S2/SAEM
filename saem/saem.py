@@ -92,11 +92,13 @@ class CSEMData():
         """String representation of the class."""
         sdata = "CSEM data with {:d} stations and {:d} frequencies".format(
             len(self.rx), len(self.f))
-        txlen = np.sqrt(np.diff(self.tx)**2+np.diff(self.ty)**2)[0]
+        txlen = np.sum(np.sqrt(np.diff(self.tx)**2+np.diff(self.ty)**2))
         stx = "Transmitter length {:.0f}m".format(txlen)
+        dx = np.sqrt(np.diff(self.rx)**2+np.diff(self.ry)**2)
+        smrx = "Median Rx distance {:.1f}m".format(np.median(dx))
         spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])
 
-        return "\n".join((sdata, stx, spos))
+        return "\n".join((sdata, stx, smrx, spos))
 
     @property
     def nRx(self):
@@ -228,9 +230,10 @@ class CSEMData():
         assert len(filenames) > 0
         filename = filenames[0]
         # ALL = loadmat(filename)
-        # if "zfts" not in ALL:
-        #     raise ImportError
-        # MAT = ALL["ztfs"][0][0]
+        # if "zfts" in ALL:
+        #     MAT = ALL["ztfs"][0][0]
+        # elif "data" in ALL:
+        #     MAT = ALL["data"][0][0]
         MAT = loadmat(filename)["ztfs"][0][0]
         MAT["line"] = np.ones(MAT["xy"].shape[-1], dtype=int)
         line = 1
