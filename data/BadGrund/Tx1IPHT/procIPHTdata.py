@@ -13,11 +13,11 @@ self.radius = 60  # make plot similar to WWU bird
 self.filter(fmin=12, fmax=1100)
 self.filter(fInd=np.arange(0, len(self.f), 2))  # every second
 # %%
-self.showLineData(line=5)
+self.showLineData2(line=5, what="relerror", x="y")
 # %%
 self.filter(minTxDist=500, maxTxDist=3000)
-self.deactivateNoisyData(rErr=0.5)
-self.estimateError()  # 5%+1pV/A
+# self.deactivateNoisyData(rErr=0.5)
+self.estimateError(ignoreErr=False, useMax=True)  # 3-10% + 1-2pV/A
 self.deactivateNoisyData(rErr=0.5)
 # %%
 self.showData(line=5)

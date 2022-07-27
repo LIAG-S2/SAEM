@@ -279,8 +279,9 @@ class CSEMSurvey():
 
         txmesh.exportVTK(self.basename+"-txpos.vtk")
 
-    def inversion(self, inner_area_cell_size=1e4, outer_area_cell_size=None,
-                  inner_boundary_factor=.1, cell_size=1e7,
+    def inversion(self,
+                  inner_area_cell_size=1e4, outer_area_cell_size=None,  # m^2
+                  inner_boundary_factor=.1, cell_size=1e7,  # m^3
                   invpoly=None, topo=None, useQHull=True, n_cores=60,
                   dim=None, extend_world=10, depth=1000.,
                   tx_refine=50., rx_refine=30, tetgen_quality=1.3,
