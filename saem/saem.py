@@ -1608,6 +1608,12 @@ class CSEMData():
 
     def saveData(self, fname=None, line=None, txdir=1, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
+        if "cmp" in kwargs and kwargs["cmp"] == "all":
+            for cmp in [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 0, 1],
+                        [0, 1, 1], [1, 1, 1]]:
+                kwargs["cmp"] = cmp
+                self.saveData(fname=fname, line=line, txdir=txdir, **kwargs)
+
         cmp = kwargs.setdefault("cmp", self.cmp)
         allcmp = ['X', 'Y', 'Z']
         if fname is None:
