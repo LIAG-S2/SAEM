@@ -300,10 +300,10 @@ class CSEMData():
         """Set the position of the current sounding to be shown or inverted."""
         if position:
             dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
-            if self.verbose:
-                print("distance is ", min(np.sqrt(dr)))
-
             nrx = np.argmin(dr)
+            if self.verbose:
+                print("closest point at distance is ", min(np.sqrt(dr)))
+                print("Tx distance ", self.txDistance()[nrx])
 
         self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
         self.dataX = self.DATAX[:, nrx]
