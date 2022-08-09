@@ -792,8 +792,9 @@ class CSEMData():
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
                 col = kwargs.get("color", "C" + str(i))
+                lab = kwargs.get("label", "B"+allcmp[i])
                 ax = showSounding(data, self.f, ax=ax, color=col, ls="",
-                                  marker="x", label="B"+allcmp[i], **kwargs)
+                                  marker="x", label=lab, **kwargs)
                 if response is not None:
                     ax[0].plot(respRe[ncmp], self.f, ls="-", color=col)
                     ax[1].plot(respIm[ncmp], self.f, ls="-", color=col)
