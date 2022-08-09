@@ -301,7 +301,7 @@ class CSEMData():
         if position:
             dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
             if self.verbose:
-                print("distance is ", np.sqrt(dr))
+                print("distance is ", min(np.sqrt(dr)))
 
             nrx = np.argmin(dr)
 
