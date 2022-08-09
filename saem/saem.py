@@ -783,16 +783,22 @@ class CSEMData():
         ax = kwargs.pop("ax", None)
         allcmp = ['x', 'y', 'z']
         if response is not None:
-            respRe, respIm = np.reshape(response, (2, -1))
-            respRe = np.reshape(respRe, (sum(cmp), -1))
-            respIm = np.reshape(respIm, (sum(cmp), -1))
+            if response is True:
+                respRe = np.stack([self.RESP[i, :, self.nrx].real
+                                   for i in np.nonzero(cmp)[0]])
+                respIm = np.stack([self.RESP[i, :, self.nrx].imag
+                                   for i in np.nonzero(cmp)[0]])
+            else:
+                respRe, respIm = np.reshape(response, (2, -1))
+                respRe = np.reshape(respRe, (sum(cmp), -1))
+                respIm = np.reshape(respIm, (sum(cmp), -1))
 
         ncmp = 0
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
                 col = kwargs.get("color", "C" + str(i))
-                lab = kwargs.get("label", "B"+allcmp[i])
+                lab = kwargs.get("label", "B" + allcmp[i])
                 ax = showSounding(data, self.f, ax=ax, color=col, ls="",
                                   marker="x", label=lab, **kwargs)
                 if response is not None:
