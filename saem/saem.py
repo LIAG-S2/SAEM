@@ -791,11 +791,12 @@ class CSEMData():
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
-                ax = showSounding(data, self.f, ax=ax, color="C"+str(i), ls="",
+                col = kwargs.get("color", "C" + str(i))
+                ax = showSounding(data, self.f, ax=ax, color=col, ls="",
                                   marker="x", label="B"+allcmp[i], **kwargs)
                 if response is not None:
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", color="C"+str(i))
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", color="C"+str(i))
+                    ax[0].plot(respRe[ncmp], self.f, ls="-", color=col)
+                    ax[1].plot(respIm[ncmp], self.f, ls="-", color=col)
                     ncmp += 1
 
         for a in ax:
