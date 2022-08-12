@@ -48,10 +48,15 @@ class CSEMSurvey():
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
+
+        a = 0
+        line =ALL["line"]
         for i in range(len(ALL["DATA"])):
             patch = CSEMData()
             patch.extractData(ALL, i)
             self.addPatch(patch)
+            patch.line = line[a:a+len(patch.rx)]
+            a += len(patch.rx)
 
     def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file format."""
