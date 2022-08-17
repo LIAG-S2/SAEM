@@ -123,6 +123,7 @@ class CSEMSurvey():
         patch : CSEMData | str
             CSEMData instance or string to load into that
         """
+
         if isinstance(patch, str):
             patch = CSEMData(patch)
             if name is not None:
