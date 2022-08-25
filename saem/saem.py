@@ -1540,7 +1540,8 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 
-    def estimateError(self, ignoreErr=True, useMax=False, **kwargs):
+    def estimateError(self, ignoreErr=True, useMax=False, ri=None,
+                      **kwargs):
         """Estimate data error to be saved in self.ERR.
 
         Errors can be
@@ -1555,20 +1556,46 @@ class CSEMData():
         """
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
-        aErr = np.zeros_like(self.DATA, dtype=complex)
-        aErr.real = absError
-        aErr.imag = absError
-        rErr = np.abs(self.DATA.real) * relError + \
-            np.abs(self.DATA.imag) * relError * 1j
+        cmp = kwargs.pop("cmp", slice(0, 3))
+        freq = kwargs.pop("freq", slice(0, self.nF))
 
-        if ignoreErr:
-            self.ERR = np.zeros_like(self.DATA)
+        if ri is None:
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.real = absError
+            aErr.imag = absError
+            rErr = np.abs(self.DATA.real) * relError + \
+                np.abs(self.DATA.imag) * relError * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :] = np.zeros_like(self.DATA[cmp, freq, :])
+
+        elif ri == "real":
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.real = absError
+            rErr = np.abs(self.DATA.real) * relError + \
+                np.abs(self.DATA.imag) * 0. * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :].real = np.zeros(
+                    self.ERR[cmp, freq, :].real.shape)
+
+        elif ri == "imag":
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.imag = absError
+            rErr = np.abs(self.DATA.real) * 0. + \
+                np.abs(self.DATA.imag) * relError * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :].imag = np.zeros(
+                    self.ERR[cmp, freq, :].real.shape)
 
         # decide upon adding or maximizing errors
         if useMax:
-            self.ERR = np.maximum(np.maximum(self.ERR, aErr), rErr)
+            self.ERR[cmp, freq, :] = np.maximum(np.maximum(
+                self.ERR[cmp, freq, :], aErr[cmp, freq, :]), rErr[cmp, freq, :])
         else:
-            self.ERR = self.ERR + aErr + rErr
+            self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
+                aErr[cmp, freq, :] + rErr[cmp, freq, :]
 
     def deactivateNoisyData(self, aErr=None, rErr=None):
         """Set data below a certain threshold to nan (inactive)."""
