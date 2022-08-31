@@ -274,14 +274,18 @@ class CSEMData():
             self.cmp = [0, 0, 1]
 
         self.DATA = np.stack((-DX, -DY, DZ))
-        self.ERR = np.squeeze(MAT["tfs_se"])
+        tmp = np.squeeze(MAT["tfs_se"])
+        if tmp.dtype is complex:
+            self.ERR = tmp
+        else:
+            self.ERR = tmp * (1+1j)
+
         self.alt = self.rz - self.txAlt
         return True
 
     def createConfig(self, fullTx=False):
         """Create EMPYMOD input argument configuration."""
-        self.cfg = {
-                    'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
+        self.cfg = {'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
@@ -532,7 +536,7 @@ class CSEMData():
 
         if show:
             self.showField(self.line)
-            
+
     def detectLinesBySpacing(self, vec, axis='x', show=False):
         """Alernative - Split data in lines for line-wise processing."""
 
@@ -1558,11 +1562,17 @@ class CSEMData():
             ignore already existing error (from processing or previous estimat)
         useMax : bool [False]
             use maximum of all three error parts instead of sum
+        cmp : iterable|int [0:3]
+            components (0=x, 1=y, 2=z) to which it is applied
+        freq : iterable|int [0:nF]
+            frequency number(s) to which it is applied
         """
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
         cmp = kwargs.pop("cmp", slice(0, 3))
         freq = kwargs.pop("freq", slice(0, self.nF))
+        if self.ERR is None:  # never initialized (e.g. after simulate)
+            self.ERR = np.zeros_like(self.DATA, dtype=complex)
 
         if ri is None:
             aErr = np.zeros_like(self.DATA, dtype=complex)
@@ -1572,7 +1582,8 @@ class CSEMData():
                 np.abs(self.DATA.imag) * relError * 1j
 
             if ignoreErr:
-                self.ERR[cmp, freq, :] = np.zeros_like(self.DATA[cmp, freq, :])
+                self.ERR[cmp, freq, :] = 0 + 0j
+                #np.zeros_like(self.DATA[cmp, freq, :]) + (0+0j)
 
         elif ri == "real":
             aErr = np.zeros_like(self.DATA, dtype=complex)
@@ -1597,7 +1608,8 @@ class CSEMData():
         # decide upon adding or maximizing errors
         if useMax:
             self.ERR[cmp, freq, :] = np.maximum(np.maximum(
-                self.ERR[cmp, freq, :], aErr[cmp, freq, :]), rErr[cmp, freq, :])
+                self.ERR[cmp, freq, :], aErr[cmp, freq, :]),
+                rErr[cmp, freq, :])
         else:
             self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
                 aErr[cmp, freq, :] + rErr[cmp, freq, :]
