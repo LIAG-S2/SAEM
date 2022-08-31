@@ -1524,15 +1524,20 @@ class CSEMData():
     def estimateError(self, ignoreErr=True, useMax=False, **kwargs):
         """Estimate data error to be saved in self.ERR.
 
-        Errors can be
+        Errors can be (according to useMax=False/True for A/B)
         A) a sum of absolute and relative error (and the processing error)
         B) the maximum of all contributions (relative, absolute, processing)
 
         Parameters
         ----------
-        relError
-
-        absError
+        relError : float [0.05]
+            relative data error (0.05 means 5%)
+        absError : [self.llthres = 0.001]
+            absolute data error in nT/A
+        ignoreErr : bool [True]
+            ignore already existing error (from processing or previous estimat)
+        useMax : bool [False]
+            use maximum of all three error parts instead of sum
         """
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
