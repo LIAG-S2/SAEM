@@ -532,6 +532,23 @@ class CSEMData():
 
         if show:
             self.showField(self.line)
+            
+    def detectLinesBySpacing(self, vec, axis='x', show=False):
+        """Alernative - Split data in lines for line-wise processing."""
+
+        if axis == 'x':
+            r = self.rx
+        elif axis == 'y':
+            r = self.ry
+        else:
+            print('Choose either *x* or *y* axis. Aborting this method ...')
+            return
+
+        self.line = np.argmin(np.abs(
+            np.tile(r, (len(vec), 1)).T - vec), axis=1)
+
+        if show:
+            self.showField(self.line)
 
     def removeNoneLineData(self):
         """Remove data not belonging to a specific line."""
@@ -1009,17 +1026,19 @@ class CSEMData():
                             x, np.real(data),
                             yerr=[errbar[i].real, errbar[i].real],
                             marker='o', lw=0., barsabove=True,
+                            color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                         ax[1, ncmp].errorbar(
                             x, np.imag(data),
                             yerr=[errbar[i].imag, errbar[i].imag],
                             marker='o', lw=0., barsabove=True,
+                            color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        ax[0, ncmp].plot(x, np.real(data), '+-', lw=lw,
-                                         label=label)
-                        ax[1, ncmp].plot(x, np.imag(data), '+-', lw=lw,
-                                         label=label)
+                        ax[0, ncmp].plot(x, np.real(data), '--', lw=lw,
+                                         color=kw["color"], label=label)
+                        ax[1, ncmp].plot(x, np.imag(data), '--', lw=lw,
+                                         color=kw["color"], label=label)
                     if kw["log"]:
                         ax[0, ncmp].set_yscale('symlog',
                                                linthresh=kw["llthres"])
@@ -1521,7 +1540,8 @@ class CSEMData():
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 
-    def estimateError(self, ignoreErr=True, useMax=False, **kwargs):
+    def estimateError(self, ignoreErr=True, useMax=False, ri=None,
+                      **kwargs):
         """Estimate data error to be saved in self.ERR.
 
         Errors can be (according to useMax=False/True for A/B)
@@ -1541,20 +1561,46 @@ class CSEMData():
         """
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
-        aErr = np.zeros_like(self.DATA, dtype=complex)
-        aErr.real = absError
-        aErr.imag = absError
-        rErr = np.abs(self.DATA.real) * relError + \
-            np.abs(self.DATA.imag) * relError * 1j
+        cmp = kwargs.pop("cmp", slice(0, 3))
+        freq = kwargs.pop("freq", slice(0, self.nF))
 
-        if ignoreErr:
-            self.ERR = np.zeros_like(self.DATA)
+        if ri is None:
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.real = absError
+            aErr.imag = absError
+            rErr = np.abs(self.DATA.real) * relError + \
+                np.abs(self.DATA.imag) * relError * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :] = np.zeros_like(self.DATA[cmp, freq, :])
+
+        elif ri == "real":
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.real = absError
+            rErr = np.abs(self.DATA.real) * relError + \
+                np.abs(self.DATA.imag) * 0. * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :].real = np.zeros(
+                    self.ERR[cmp, freq, :].real.shape)
+
+        elif ri == "imag":
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.imag = absError
+            rErr = np.abs(self.DATA.real) * 0. + \
+                np.abs(self.DATA.imag) * relError * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :].imag = np.zeros(
+                    self.ERR[cmp, freq, :].real.shape)
 
         # decide upon adding or maximizing errors
         if useMax:
-            self.ERR = np.maximum(np.maximum(self.ERR, aErr), rErr)
+            self.ERR[cmp, freq, :] = np.maximum(np.maximum(
+                self.ERR[cmp, freq, :], aErr[cmp, freq, :]), rErr[cmp, freq, :])
         else:
-            self.ERR = self.ERR + aErr + rErr
+            self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
+                aErr[cmp, freq, :] + rErr[cmp, freq, :]
 
     def deactivateNoisyData(self, aErr=None, rErr=None):
         """Set data below a certain threshold to nan (inactive)."""
