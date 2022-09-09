@@ -160,22 +160,23 @@ def makeSymlogTicks(cb, alim):
 def updatePlotKwargs(cmp, **kwargs):
     """Set default values for different plotting tools."""
     cmp = kwargs.setdefault("cmp", cmp)
-    what = kwargs.setdefault("what", "data")
+    kwargs.setdefault("what", "data")
     log = kwargs.setdefault("log", True)
-    color = kwargs.setdefault("color", None)
+    kwargs.setdefault("color", None)
     if log:
-        cmap = kwargs.setdefault("cmap", "PuOr_r")
+        kwargs.setdefault("cmap", "PuOr_r")
         alim = kwargs.setdefault("alim", [1e-3, 1e1])
     else:
-        cmap = kwargs.setdefault("cmap", "seismic")
+        kwargs.setdefault("cmap", "seismic")
         alim = kwargs.setdefault("alim", [-10., 10.])
-    amphi = kwargs.setdefault("amphi", False)
 
-    plim = kwargs.setdefault("plim", [-180., 180.])
+    kwargs.setdefault("amphi", False)
+
+    kwargs.setdefault("plim", [-180., 180.])
     llthres = kwargs.setdefault("llthres", alim[0])
 
     if log and alim[0] != llthres:
         print("Warning, different values vor *llthres* and *alim[0]* are "
-              "usually not reasonbale. Continuing ..." )
+              "usually not reasonbale. Continuing ...")
 
     return kwargs

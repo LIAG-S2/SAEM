@@ -54,8 +54,7 @@ def detectLinesAlongAxis(rx, ry, axis='x', sort=True, show=False):
     return line
 
 
-def detectLinesByDistance(rx, ry, axis='x', sort=True, show=False,
-                          minDist=200.):
+def detectLinesByDistance(rx, ry, axis='x', sort=True, minDist=200.):
     """Split data in lines for line-wise processing."""
 
     dummy = np.zeros_like(rx, dtype=int)
@@ -81,6 +80,23 @@ def detectLinesByDistance(rx, ry, axis='x', sort=True, show=False,
             line[dummy == lold] = li + 1
 
     return line
+
+def detectLinesBySpacing(self, vec, axis='x', show=False):
+    """Alernative - Split data in lines for line-wise processing."""
+
+    if axis == 'x':
+        r = self.rx
+    elif axis == 'y':
+        r = self.ry
+    else:
+        print('Choose either *x* or *y* axis. Aborting this method ...')
+        return
+
+    self.line = np.argmin(np.abs(
+        np.tile(r, (len(vec), 1)).T - vec), axis=1)
+
+    if show:
+        self.showField(self.line)
 
 
 def detectLinesOld(rx, ry, show=False):

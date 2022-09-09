@@ -18,7 +18,8 @@ from matplotlib.colors import LogNorm, SymLogNorm
 from .plotting import plotSymbols, showSounding, updatePlotKwargs
 from .plotting import underlayBackground, makeSymlogTicks, dMap
 from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, distToTx
+from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
+from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
 
 
 class CSEMData():
@@ -44,6 +45,9 @@ class CSEMData():
         alt : float
             flight altitude
         """
+        self.detectLinesAlongAxis = self.detectLines  # backward
+        self.detectLinesByDistance = self.detectLines  # compatibility
+        self.detectLinesBySpacing = self.detectLines  # compatibility
         self.basename = "noname"
         self.isLoop = False
         zone = kwargs.pop("zone", 32)
@@ -61,7 +65,8 @@ class CSEMData():
                     self.tx, self.ty = np.genfromtxt(txpos, unpack=True,
                                                      usecols=[0, 1])
             else:  # take it directly
-                self.tx, self.ty, *_ = txpos
+                self.tx, self.ty, *_ = np.array(txpos)
+
         self.rx = kwargs.pop("rx", np.array([100.0]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
         self.f = kwargs.pop("f", [])
@@ -302,6 +307,8 @@ class CSEMData():
 
     def setPos(self, nrx=0, position=None, show=False):
         """Set the position of the current sounding to be shown or inverted."""
+        if hasattr(nrx, '__iter__'):  # obviously a position
+            position = nrx
         if position:
             dr = (self.rx - position[0])**2 + (self.ry - position[1])**2
             nrx = np.argmin(dr)
@@ -441,115 +448,30 @@ class CSEMData():
         self.ry -= origin[1]
         self.origin = origin
 
-    def detectLines(self, show=False):
-        """Split data in lines for line-wise processing."""
-        dt = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        dtmin = np.median(dt) * 2
-        dx = np.round(np.diff(self.rx) / dt * 2)
-        dy = np.round(np.diff(self.ry) / dt * 2)
-        sdx = np.hstack((0, np.diff(np.sign(dx)), 0))
-        sdy = np.hstack((0, np.diff(np.sign(dy)), 0))
-        self.line = np.zeros_like(self.rx, dtype=int)
-        nLine = 1
-        act = True
-        for i in range(len(sdx)):
-            if sdx[i] != 0:
-                act = not act
-                if act:
-                    nLine += 1
-            if sdy[i] != 0:
-                act = not act
-                if act:
-                    nLine += 1
-            if i > 0 and dt[i-1] > dtmin:
-                act = True
-                nLine += 1
+    def detectLines(self, mode=None, show=False, **kwargs):
+        """Split data in lines for line-wise processing.
 
-            if act:
-                self.line[i] = nLine
+        Several modes are available:
+            'x'/'y': along coordinate axis
+            spacing vector: by given spacing
+            float: minimum distance
+        """
+        if mode is None:  # catch old call kwargs
+            if "axis" in kwargs:
+                mode = kwargs.pop("axis")
+            elif "vec" in kwargs:
+                mode = kwargs.pop("axis")
+            elif "minDist" in kwargs:
+                mode = kwargs.pop("minDist")
 
-        if show:
-            self.showField(self.line)
-
-    def detectLinesByDistance(self, axis='x', sort=True, show=False,
-                              minDist=200.):
-        """Alernative - Split data in lines for line-wise processing."""
-
-        dummy = np.zeros_like(self.rx, dtype=int)
-        self.line = np.zeros_like(self.rx, dtype=int)
-        li = 0
-        for ri in range(1, len(self.rx)):
-            dummy[ri-1] = li
-            dist = np.sqrt((self.rx[ri] - self.rx[ri-1])**2 +
-                           (self.ry[ri] - self.ry[ri-1])**2)
-            if dist > minDist:
-                li += 1
-        dummy[-1] = li
-
-        if sort:
-            means = []
-            for li in np.unique(dummy):
-                if axis == 'x':
-                    means.append(np.mean(self.ry[dummy == li], axis=0))
-                elif axis == 'y':
-                    means.append(np.mean(self.rx[dummy == li], axis=0))
-            lsorted = np.argsort(means)
-            for li, lold in enumerate(lsorted):
-                self.line[dummy == lold] = li + 1
-
-        if show:
-            self.showField(self.line)
-
-    def detectLinesAlongAxis(self, axis='x', sort=True, show=False):
-        """Alernative - Split data in lines for line-wise processing."""
-
-        if axis == 'x':
-            r = self.rx
-        elif axis == 'y':
-            r = self.ry
+        if mode == "x" or mode == "y":
+            self.line = detectLinesAlongAxis(self.rx, self.ry, axis=mode)
+        elif hasattr(mode, "__iter__"):
+            self.line = detectLinesBySpacing(self.rx, self.ry, vec=mode)
+        elif isinstance(mode, (int, float)):
+            self.line = detectLinesByDistance(self.rx, self.ry, minDist=mode)
         else:
-            print('Choose either *x* or *y* axis. Aborting this method ...')
-            return
-
-        dummy = np.zeros_like(self.rx, dtype=int)
-        self.line = np.zeros_like(self.rx, dtype=int)
-        li = 0
-        last_sign = np.sign(r[1] - r[0])
-        for ri in range(1, len(self.rx)):
-            sign = np.sign(r[ri] - r[ri-1])
-            dummy[ri-1] = li
-            if sign != last_sign:
-                li += 1
-                last_sign *= -1
-        dummy[-1] = li
-
-        if sort:
-            means = []
-            for li in np.unique(dummy):
-                if axis == 'x':
-                    means.append(np.mean(self.ry[dummy == li], axis=0))
-                elif axis == 'y':
-                    means.append(np.mean(self.rx[dummy == li], axis=0))
-            lsorted = np.argsort(means)
-            for li, lold in enumerate(lsorted):
-                self.line[dummy == lold] = li + 1
-
-        if show:
-            self.showField(self.line)
-
-    def detectLinesBySpacing(self, vec, axis='x', show=False):
-        """Alernative - Split data in lines for line-wise processing."""
-
-        if axis == 'x':
-            r = self.rx
-        elif axis == 'y':
-            r = self.ry
-        else:
-            print('Choose either *x* or *y* axis. Aborting this method ...')
-            return
-
-        self.line = np.argmin(np.abs(
-            np.tile(r, (len(vec), 1)).T - vec), axis=1)
+            self.line = detectLinesOld(self.rx, self.ry)
 
         if show:
             self.showField(self.line)
@@ -572,7 +494,7 @@ class CSEMData():
             return np.abs(rx)
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
-               minTxDist=None, maxTxDist=None, every=None):
+               minTxDist=None, maxTxDist=None, every=None, line=None):
         """Filter data according to frequency and and receiver properties.
 
         Parameters
@@ -593,6 +515,8 @@ class CSEMData():
             maximum distance to transmitter
         every : int
             use only every n-th receiver
+        line : int
+            remove a line completely
         """
         # part 1: frequency axis
         if fInd is None:
@@ -621,6 +545,8 @@ class CSEMData():
                 minTxDist = minTxDist or 0
                 maxTxDist = maxTxDist or 9e9
                 nInd = np.nonzero((dTx >= minTxDist) * (dTx <= maxTxDist))[0]
+            elif line is not None:
+                nInd = np.nonzero(self.line != line)[0]
             else:
                 nInd = np.arange(len(self.rx))
 
@@ -980,8 +906,7 @@ class CSEMData():
         log : bool|float
             use logarithmic scale
         """
-
-        kw = updatePlotKwargs(self.cmp, **kwargs)
+        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
         label = kwargs.pop("label", kw["what"])
         lw = kwargs.pop("lw", 0.5)
         self.chooseData(kw["what"], kw["llthres"])
@@ -1123,7 +1048,7 @@ class CSEMData():
         log : bool|float
             use logarithmic scale
         """
-        kw = updatePlotKwargs(self.cmp, **kwargs)
+        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
         self.chooseData(kw["what"], kw["llthres"])
         nn = np.arange(len(self.rx))
         if line is not None:
@@ -1237,7 +1162,7 @@ class CSEMData():
         nf : int | float
             frequency index (int) or value (float) to plot
         """
-        kw = updatePlotKwargs(self.cmp, **kwargs)
+        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
         kw.setdefault("numpoints", 0)
         kw.setdefault("radius", self.radius)
         self.chooseData(kw["what"], kw["llthres"])
@@ -1318,7 +1243,7 @@ class CSEMData():
 
     def showLineData2(self, line=None, ax=None, **kwargs):
         """Show alternative line plot."""
-        kw = updatePlotKwargs(self.cmp, **kwargs)
+        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
         self.chooseData(kw["what"], kw["llthres"])
         kw.setdefault("radius", "rect")
         kwx = kw.pop('x', "x")
@@ -1423,7 +1348,10 @@ class CSEMData():
             if "nf" in kwargs:
                 return self.showLineFreq(*args, **kwargs)
             else:
-                return self.showLineData2(*args, **kwargs)
+                if kwargs.get("amphi", False):
+                    return self.showLineData(*args, **kwargs)
+                else:
+                    return self.showLineData2(*args, **kwargs)
         else:
             return self.showPatchData(*args, **kwargs)
 
