@@ -300,10 +300,6 @@ class CSEMSurvey():
         * run inversion parsing keyword arguments
         * load results
         """
-        from custEM.meshgen.meshgen_tools import BlankWorld
-        from custEM.meshgen import meshgen_utils as mu
-        from custEM.inv.inv_utils import MultiFWD
-
         if outer_area_cell_size is None:
             outer_area_cell_size = inner_area_cell_size * 100
 
@@ -311,24 +307,25 @@ class CSEMSurvey():
         invmesh = 'invmesh_' + invmod
         dataname = self.basename or "mydata"
 
-        saemdata = np.load('data/' + dataname + ".npz", allow_pickle=True)
-        # generate npz structure as in saveData
-        M = BlankWorld(name=invmesh,
-                       x_dim=[-dim, dim], y_dim=[-dim, dim], z_dim=[-dim, dim],
-                       preserve_edges=True,
-                       t_dir='./',  # kann weg! lieber voller filename
-                       topo=topo,
-                       inner_area_cell_size=inner_area_cell_size,
-                       easting_shift=-saemdata['origin'][0],
-                       northing_shift=-saemdata['origin'][1],
-                       rotation=float(saemdata['rotation'])*180/np.pi,
-                       outer_area_cell_size=outer_area_cell_size,
-                       )
+        if "npzfile" in kwargs:
+            npzfile = kwargs.pop("npzfile", 'data/' + dataname + ".npz")
+            saemdata = np.load(npzfile, allow_pickle=True)
+        else:
+            # %%
+            saemdata = {}
+            saemdata["DATA"], lines = self.getData(**kwargs)
+            saemdata["txs"] = [np.column_stack([p.tx, p.ty, p.ty*0])
+                               for p in self.patches]
+            saemdata["origin"] = self.origin
+            saemdata["rotation"] = self.angle
+            # %%
         if invpoly is None:
-            allrx = np.stack((["rx"][:, :2] for data in saemdata["DATA"]))
+            allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
+            alltx = np.vstack(saemdata["txs"])[:, :2]
+            allrx = np.vstack([allrx, alltx])
             if useQHull:
                 from scipy.spatial import ConvexHull
-                points = saemdata["DATA"][0]["rx"][:, :2]
+                points = allrx
                 ch = ConvexHull(points)
                 invpoly = np.array([[*points[v, :], 0.]
                                     for v in ch.vertices]) * \
@@ -343,6 +340,28 @@ class CSEMSurvey():
                                     [xmax+dx, ymax+dy, 0.],
                                     [xmin-dy, ymax+dy, 0.]])
 
+        if kwargs.pop("check", False):
+            _, ax = self.showPositions()
+            ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
+            ax.plot(invpoly[::invpoly.shape[0]-1, 0],
+                    invpoly[::invpoly.shape[0]-1, 1], "k-")
+            return
+        # generate npz structure as in saveData
+        from custEM.meshgen.meshgen_tools import BlankWorld
+        from custEM.meshgen import meshgen_utils as mu
+        from custEM.inv.inv_utils import MultiFWD
+
+        M = BlankWorld(name=invmesh,
+                       x_dim=[-dim, dim], y_dim=[-dim, dim], z_dim=[-dim, dim],
+                       preserve_edges=True,
+                       t_dir='./',  # kann weg! lieber voller filename
+                       topo=topo,
+                       inner_area_cell_size=inner_area_cell_size,
+                       easting_shift=-saemdata['origin'][0],
+                       northing_shift=-saemdata['origin'][1],
+                       rotation=float(saemdata['rotation'])*180/np.pi,
+                       outer_area_cell_size=outer_area_cell_size,
+                       )
         txs = [mu.refine_path(tx, length=tx_refine) for tx in saemdata['tx']]
         M.build_surface(insert_line_tx=txs)
         M.add_inv_domains(-depth, invpoly, cell_size=cell_size)
