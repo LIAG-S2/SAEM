@@ -50,7 +50,7 @@ class CSEMSurvey():
         self.f = ALL["freqs"]
 
         a = 0
-        line =ALL["line"]
+        line = ALL["line"]
         for i in range(len(ALL["DATA"])):
             patch = CSEMData()
             patch.extractData(ALL, i)
@@ -303,7 +303,7 @@ class CSEMSurvey():
         if outer_area_cell_size is None:
             outer_area_cell_size = inner_area_cell_size * 100
 
-        invmod = 'bla'
+        invmod = self.basename
         invmesh = 'invmesh_' + invmod
         dataname = self.basename or "mydata"
 
@@ -318,6 +318,7 @@ class CSEMSurvey():
                                for p in self.patches]
             saemdata["origin"] = self.origin
             saemdata["rotation"] = self.angle
+            saemdata["freqs"] = self.patches[0].f
             # %%
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
@@ -362,7 +363,7 @@ class CSEMSurvey():
                        rotation=float(saemdata['rotation'])*180/np.pi,
                        outer_area_cell_size=outer_area_cell_size,
                        )
-        txs = [mu.refine_path(tx, length=tx_refine) for tx in saemdata['tx']]
+        txs = [mu.refine_path(tx, length=tx_refine) for tx in saemdata['txs']]
         M.build_surface(insert_line_tx=txs)
         M.add_inv_domains(-depth, invpoly, cell_size=cell_size)
         M.build_halfspace_mesh()
