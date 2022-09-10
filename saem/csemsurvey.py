@@ -313,16 +313,18 @@ class CSEMSurvey():
         else:
             # %%
             saemdata = {}
-            saemdata["DATA"], lines = self.getData(**kwargs)
-            saemdata["txs"] = [np.column_stack([p.tx, p.ty, p.ty*0])
-                               for p in self.patches]
+            saemdata["DATA"], saemdata["line"] = self.getData(**kwargs)
+            saemdata["tx"] = [np.column_stack([p.tx, p.ty, p.ty*0])
+                              for p in self.patches]
             saemdata["origin"] = self.origin
             saemdata["rotation"] = self.angle
             saemdata["freqs"] = self.patches[0].f
+            # cmp should not be needed as it is inside DATA
+            saemdata["cmp"] = kwargs.setdefault("cmp", self.patches[0].cmp)
             # %%
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
-            alltx = np.vstack(saemdata["txs"])[:, :2]
+            alltx = np.vstack(saemdata["tx"])[:, :2]
             allrx = np.vstack([allrx, alltx])
             if useQHull:
                 from scipy.spatial import ConvexHull
@@ -363,7 +365,7 @@ class CSEMSurvey():
                        rotation=float(saemdata['rotation'])*180/np.pi,
                        outer_area_cell_size=outer_area_cell_size,
                        )
-        txs = [mu.refine_path(tx, length=tx_refine) for tx in saemdata['txs']]
+        txs = [mu.refine_path(tx, length=tx_refine) for tx in saemdata['tx']]
         M.build_surface(insert_line_tx=txs)
         M.add_inv_domains(-depth, invpoly, cell_size=cell_size)
         M.build_halfspace_mesh()
@@ -399,7 +401,17 @@ class CSEMSurvey():
         pgmesh = fop.mesh()
         pgmesh['sigma'] = invmodel
         pgmesh['res'] = 1. / invmodel
+        cov = np.zeros(fop._jac.cols())
+        for i in range(fop._jac.rows()):
+            cov += np.abs(fop._jac.row(i))
+        cov *= invmodel / pgmesh.cellSizes()
+        np.save(fop.inv_dir + invmod + '_coverage.npy', cov)
+        pgmesh['coverageLog10'] = np.log10(cov)
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
+        resultdir = "inv_results/" + invmod + "_" + invmesh + "/"
+        self.loadResults(dirname=resultdir)
+        self.generateDataPDF(resultdir+"fit.pdf",
+                             mode="linefreqwise", x="y", alim=[1e-3, 1])
 
 
 if __name__ == "__main__":
