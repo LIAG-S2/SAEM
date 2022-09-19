@@ -17,7 +17,7 @@ def distToTx(rx, ry, tx, ty):
     return np.sqrt(dist2)
 
 
-def detectLinesAlongAxis(rx, ry, axis='x', sort=True, show=False):
+def detectLinesAlongAxis(rx, ry, axis='x'):
     """Alernative - Split data in lines for line-wise processing."""
 
     if axis == 'x':
@@ -40,21 +40,10 @@ def detectLinesAlongAxis(rx, ry, axis='x', sort=True, show=False):
             last_sign *= -1
     dummy[-1] = li
 
-    if sort:
-        means = []
-        for li in np.unique(dummy):
-            if axis == 'x':
-                means.append(np.mean(ry[dummy == li], axis=0))
-            elif axis == 'y':
-                means.append(np.mean(rx[dummy == li], axis=0))
-        lsorted = np.argsort(means)
-        for li, lold in enumerate(lsorted):
-            line[dummy == lold] = li + 1
-
-    return line
+    return sortLines(rx, ry, line, dummy, axis)
 
 
-def detectLinesByDistance(rx, ry, axis='x', sort=True, minDist=200.):
+def detectLinesByDistance(rx, ry, minDist=200., axis='x'):
     """Split data in lines for line-wise processing."""
 
     dummy = np.zeros_like(rx, dtype=int)
@@ -68,35 +57,21 @@ def detectLinesByDistance(rx, ry, axis='x', sort=True, minDist=200.):
             li += 1
     dummy[-1] = li
 
-    if sort:
-        means = []
-        for li in np.unique(dummy):
-            if axis == 'x':
-                means.append(np.mean(ry[dummy == li], axis=0))
-            elif axis == 'y':
-                means.append(np.mean(rx[dummy == li], axis=0))
-        lsorted = np.argsort(means)
-        for li, lold in enumerate(lsorted):
-            line[dummy == lold] = li + 1
+    return sortLines(rx, ry, line, dummy, axis)
 
-    return line
 
-def detectLinesBySpacing(self, vec, axis='x', show=False):
+def detectLinesBySpacing(rx, ry, vec, axis='x'):
     """Alernative - Split data in lines for line-wise processing."""
 
     if axis == 'x':
-        r = self.rx
+        r = rx
     elif axis == 'y':
-        r = self.ry
+        r = ry
     else:
         print('Choose either *x* or *y* axis. Aborting this method ...')
         return
 
-    self.line = np.argmin(np.abs(
-        np.tile(r, (len(vec), 1)).T - vec), axis=1)
-
-    if show:
-        self.showField(self.line)
+    return np.argmin(np.abs(np.tile(r, (len(vec), 1)).T - vec), axis=1)
 
 
 def detectLinesOld(rx, ry, show=False):
@@ -128,6 +103,25 @@ def detectLinesOld(rx, ry, show=False):
 
     return line
 
+
+def sortLines(rx, ry, line, dummy, axis):
+
+    """
+    Sort line elements by Rx or Ry coordinates.
+    """
+
+    means = []
+    for li in np.unique(dummy):
+        if axis == 'x':
+            means.append(np.mean(ry[dummy==li], axis=0))
+        elif axis == 'y':
+            means.append(np.mean(rx[dummy==li], axis=0))
+
+    lsorted = np.argsort(means)
+    for li, lold in enumerate(lsorted):
+        line[dummy == lold] = li + 1
+
+    return line
 
 def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
     """Read coordinates from KML file.

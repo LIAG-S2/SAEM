@@ -448,7 +448,7 @@ class CSEMData():
         self.ry -= origin[1]
         self.origin = origin
 
-    def detectLines(self, mode=None, show=False, **kwargs):
+    def detectLines(self, mode=None, axis='x', show=False):
         """Split data in lines for line-wise processing.
 
         Several modes are available:
@@ -456,20 +456,14 @@ class CSEMData():
             spacing vector: by given spacing
             float: minimum distance
         """
-        if mode is None:  # catch old call kwargs
-            if "axis" in kwargs:
-                mode = kwargs.pop("axis")
-            elif "vec" in kwargs:
-                mode = kwargs.pop("axis")
-            elif "minDist" in kwargs:
-                mode = kwargs.pop("minDist")
 
         if mode == "x" or mode == "y":
             self.line = detectLinesAlongAxis(self.rx, self.ry, axis=mode)
         elif hasattr(mode, "__iter__"):
-            self.line = detectLinesBySpacing(self.rx, self.ry, vec=mode)
+            self.line = detectLinesBySpacing(self.rx, self.ry, mode, axis=axis)
         elif isinstance(mode, (int, float)):
-            self.line = detectLinesByDistance(self.rx, self.ry, minDist=mode)
+            self.line = detectLinesByDistance(self.rx, self.ry, mode,
+                                              axis=axis)
         else:
             self.line = detectLinesOld(self.rx, self.ry)
 
@@ -914,10 +908,6 @@ class CSEMData():
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
 
-        errbar = None
-        if kw["what"] == 'data' and np.any(self.ERR):
-            errbar = self.ERR[:, nf, nn]
-
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
                                    squeeze=False, sharex=True,
@@ -931,13 +921,20 @@ class CSEMData():
 
         kwargs.setdefault("x", "x")
         if kwargs["x"] == "x":
-            x = self.rx[nn]
+            x = np.sort(self.rx[nn])
+            si = np.argsort(self.rx[nn])
         elif kwargs["x"] == "y":
-            x = self.ry[nn]
+            x = np.sort(self.ry[nn])
+            si = np.argsort(self.ry[nn])
         elif kwargs["x"] == "d":
             # need to eval line direction first, otherwise bugged
-            x = np.sqrt((np.mean(self.tx) - self.rx[nn])**2 +
-                        (np.mean(self.ty) - self.ry[nn])**2)
+            x = np.sort(np.sqrt((np.mean(self.tx) - self.rx[nn])**2 +
+                                (np.mean(self.ty) - self.ry[nn])**2))
+
+        nn = nn[si]
+        errbar = None
+        if kw["what"] == 'data' and np.any(self.ERR):
+            errbar = self.ERR[:, nf, nn]
 
         for i in range(3):
             if kw["cmp"][i] > 0:
