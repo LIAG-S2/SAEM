@@ -45,9 +45,7 @@ class CSEMData():
         alt : float
             flight altitude
         """
-        self.detectLinesAlongAxis = self.detectLines  # backward
-        self.detectLinesByDistance = self.detectLines  # compatibility
-        self.detectLinesBySpacing = self.detectLines  # compatibility
+
         self.basename = "noname"
         self.isLoop = False
         zone = kwargs.pop("zone", 32)
@@ -270,20 +268,25 @@ class CSEMData():
             self.line = MAT["line"]
 
         TMP = np.squeeze(MAT["tfs"])
-        if TMP.shape[0] == 3:
-            DY, DX, DZ = TMP
-        else:
-            DZ = TMP
-            DX = np.zeros_like(DZ)
-            DY = np.zeros_like(DZ)
+        if len(TMP.shape) != 3:
+            TMP2 = np.zeros((3, *TMP.shape), dtype=complex)
+            TMP2[2, :, :] = TMP
+            TMP = TMP2
             self.cmp = [0, 0, 1]
 
+        DY, DX, DZ = TMP
+
         self.DATA = np.stack((-DX, -DY, DZ))
-        tmp = np.squeeze(MAT["tfs_se"])
-        if tmp.dtype is complex:
-            self.ERR = tmp
+        TMP = np.squeeze(MAT["tfs_se"])
+        if len(TMP.shape) != 3:
+            TMP2 = np.zeros((3, *TMP.shape), dtype=complex)
+            TMP2[2, :, :] = TMP
+            TMP = TMP2
+
+        if TMP.dtype is complex:
+            self.ERR = TMP
         else:
-            self.ERR = tmp * (1+1j)
+            self.ERR = TMP * (1+1j)
 
         self.alt = self.rz - self.txAlt
         return True
