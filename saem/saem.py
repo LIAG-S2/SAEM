@@ -1542,7 +1542,7 @@ class CSEMData():
             self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
                 aErr[cmp, freq, :] + rErr[cmp, freq, :]
 
-    def deactivateNoisyData(self, aErr=None, rErr=None):
+    def deactivateNoisyData(self, aErr=1e-4, rErr=0.5):
         """Set data below a certain threshold to nan (inactive)."""
         if aErr is not None:
             self.DATA[np.abs(self.DATA.real) < aErr] = np.nan + 1j * np.nan
