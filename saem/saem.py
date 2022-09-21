@@ -470,6 +470,8 @@ class CSEMData():
         else:
             self.line = detectLinesOld(self.rx, self.ry)
 
+        self.line += 1
+
         if show:
             self.showField(self.line)
 

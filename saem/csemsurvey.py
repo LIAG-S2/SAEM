@@ -381,9 +381,10 @@ class CSEMSurvey():
         M.extend_world(extend_world, extend_world, extend_world)
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
+
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=n_cores, p_fwd=1, start_iter=0)
+                       n_cores=60, p_fwd=1, start_iter=0)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
