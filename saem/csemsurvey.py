@@ -144,6 +144,10 @@ class CSEMSurvey():
 
         self.patches.append(patch)
 
+    def add(self, *args, **kwargs):
+        """Alias for addPatch."""
+        self.addPatch(*args, **kwargs)
+
     def showPositions(self):
         """Show all positions."""
         fig, ax = plt.subplots()
@@ -322,17 +326,22 @@ class CSEMSurvey():
             # cmp should not be needed as it is inside DATA
             saemdata["cmp"] = kwargs.setdefault("cmp", self.patches[0].cmp)
             # %%
+        x0, y0 = 0, 0
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
             alltx = np.vstack(saemdata["tx"])[:, :2]
             allrx = np.vstack([allrx, alltx])
+            x0 = np.median(allrx[:, 0])
+            y0 = np.median(allrx[:, 1])
             if useQHull:
                 from scipy.spatial import ConvexHull
                 points = allrx
-                ch = ConvexHull(points)
+                points -= [x0, y0]
+                ch = ConvexHull(points)                
                 invpoly = np.array([[*points[v, :], 0.]
                                     for v in ch.vertices]) * \
                     (inner_boundary_factor + 1.0)
+                invpoly += [x0, y0, 0.]
             else:
                 xmin, xmax = min(allrx[:, 0]), max(allrx[:, 0])
                 ymin, ymax = min(allrx[:, 1]), max(allrx[:, 1])
@@ -355,7 +364,9 @@ class CSEMSurvey():
         from custEM.inv.inv_utils import MultiFWD
 
         M = BlankWorld(name=invmesh,
-                       x_dim=[-dim, dim], y_dim=[-dim, dim], z_dim=[-dim, dim],
+                       x_dim=[x0-dim, x0+dim], 
+                       y_dim=[y0-dim, y0+dim], 
+                       z_dim=[-dim, dim],
                        preserve_edges=True,
                        t_dir='./',  # kann weg! lieber voller filename
                        topo=topo,
@@ -381,9 +392,10 @@ class CSEMSurvey():
         M.extend_world(extend_world, extend_world, extend_world)
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
+
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=n_cores, p_fwd=1, start_iter=0)
+                       n_cores=60, p_fwd=1, start_iter=0)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
@@ -410,8 +422,9 @@ class CSEMSurvey():
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
         resultdir = "inv_results/" + invmod + "_" + invmesh + "/"
         self.loadResults(dirname=resultdir)
-        self.generateDataPDF(resultdir+"fit.pdf",
-                             mode="linefreqwise", x="y", alim=[1e-3, 1])
+        for i, p in enumerate(self.patches):
+            p.generateDataPDF(resultdir+f"fit{i+1}.pdf",
+                              mode="linefreqwise", x="y", alim=[1e-3, 1])
 
 
 if __name__ == "__main__":
