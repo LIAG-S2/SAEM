@@ -470,6 +470,8 @@ class CSEMData():
         else:
             self.line = detectLinesOld(self.rx, self.ry)
 
+        self.line += 1
+
         if show:
             self.showField(self.line)
 
@@ -774,49 +776,50 @@ class CSEMData():
                 wmisfit - error-weighted misfit
         """
         llthres = llthres or self.llthres
-        if what.lower() == "data":
-            self.DATAX, self.DATAY, self.DATAZ = self.DATA
-        elif what.lower() == "prim":
-            if self.prim is None:
-                self.computePrimaryFields()
-
-            self.DATAX, self.DATAY, self.DATAZ = self.prim
-        elif what.lower() == "secdata":
-            if self.prim is None:
-                self.computePrimaryFields()
-
-            primabs = np.sqrt(np.sum(self.prim**2, axis=0))
-            self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs - 1.0
-        elif what.lower() == "response":
-            self.DATAX, self.DATAY, self.DATAZ = self.RESP
-        elif what.lower() == "error":
-            self.DATAX, self.DATAY, self.DATAZ = self.ERR
-        elif what.lower() == "relerror":
-            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
-            self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
-        elif what.lower() == "misfit":
-            self.DATAX, self.DATAY, self.DATAZ = self.DATA - self.RESP
-            # [self.DATAX, self.DATAY, self.DATAZ] = [
-            #     self.DATA[i] - self.RESP[i] for i in range(3)]
-        elif what.lower() == "rmisfit":
-            # for i, DD in enumerate([self.DATAX, self.DATAY, self.DATAZ]):
-            for i in range(3):
-                rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
-                ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
-                # rr[np.abs(rr) < llthres] = 0
-                # ii[np.abs(ii) < llthres] = 0
-                # DD = rr + ii *1j
-                if i == 0:
-                    self.DATAX = rr + ii * 1j
-                elif i == 1:
-                    self.DATAY = rr + ii * 1j
-                elif i == 2:
-                    self.DATAZ = rr + ii * 1j
-        elif what.lower() == "wmisfit":
-            mis = self.DATA - self.RESP
-            wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
-            self.DATAX, self.DATAY, self.DATAZ = wmis
+        if isinstance(what, str):
+            if what.lower() == "data":
+                self.DATAX, self.DATAY, self.DATAZ = self.DATA
+            elif what.lower() == "prim":
+                if self.prim is None:
+                    self.computePrimaryFields()
+    
+                self.DATAX, self.DATAY, self.DATAZ = self.prim
+            elif what.lower() == "secdata":
+                if self.prim is None:
+                    self.computePrimaryFields()
+    
+                primabs = np.sqrt(np.sum(self.prim**2, axis=0))
+                self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs - 1.0
+            elif what.lower() == "response":
+                self.DATAX, self.DATAY, self.DATAZ = self.RESP
+            elif what.lower() == "error":
+                self.DATAX, self.DATAY, self.DATAZ = self.ERR
+            elif what.lower() == "relerror":
+                rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+                ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+                self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
+            elif what.lower() == "misfit":
+                self.DATAX, self.DATAY, self.DATAZ = self.DATA - self.RESP
+                # [self.DATAX, self.DATAY, self.DATAZ] = [
+                #     self.DATA[i] - self.RESP[i] for i in range(3)]
+            elif what.lower() == "rmisfit":
+                # for i, DD in enumerate([self.DATAX, self.DATAY, self.DATAZ]):
+                for i in range(3):
+                    rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
+                    ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
+                    # rr[np.abs(rr) < llthres] = 0
+                    # ii[np.abs(ii) < llthres] = 0
+                    # DD = rr + ii *1j
+                    if i == 0:
+                        self.DATAX = rr + ii * 1j
+                    elif i == 1:
+                        self.DATAY = rr + ii * 1j
+                    elif i == 2:
+                        self.DATAZ = rr + ii * 1j
+            elif what.lower() == "wmisfit":
+                mis = self.DATA - self.RESP
+                wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+                self.DATAX, self.DATAY, self.DATAZ = wmis
         else:  # try using the argument
             self.DATAX, self.DATAY, self.DATAZ = what
 
@@ -1189,35 +1192,37 @@ class CSEMData():
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
 
         ncmp = 0
+        alim = kw.pop("alim", [1e-3, 1])
+        plim = kw.pop("plim", [-180, 180])
         for j, cc in enumerate(allcmp):
             data = getattr(self, "DATA"+cc.upper()).copy()
             if scale:
                 data /= self.prim[j]
             if kw["amphi"]:
                 kw.pop("cmap", None)
-                alim = kw.pop("alim", [1e-3, 1])
-                plim = kw.pop("plim", [-180, 180])
                 kw.pop("log", None)
                 plotSymbols(self.rx, self.ry, np.abs(data[nf]),
-                            ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kw,
+                            ax=ax[0, j],  colorBar=(j == len(allcmp)-1), 
+                            **kw,
                             cmap=amap, log=True, alim=alim)
                 plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
-                            ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kw,
+                            ax=ax[1, j],  colorBar=(j == len(allcmp)-1), 
+                            **kw,
                             cmap="hsv", log=False, alim=plim)
                 ax[0, j].set_title("log10 T"+cc+" [pT/A]")
                 ax[1, j].set_title(r"$\phi$"+cc+" [°]")
             else:
                 _, cb1 = plotSymbols(self.rx, self.ry, np.real(data[nf]),
-                                     ax=ax[0, j], **kw)
+                                     ax=ax[0, j], alim=alim, **kw)
                 _, cb2 = plotSymbols(self.rx, self.ry, np.imag(data[nf]),
-                                     ax=ax[1, j], **kw)
+                                     ax=ax[1, j], alim=alim, **kw)
 
                 ax[0, j].set_title("real T"+cc+" [nT/A]")
                 ax[1, j].set_title("imag T"+cc+" [nT/A]")
 
                 for cb in [cb1, cb2]:
                     if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
-                        makeSymlogTicks(cb, kw["alim"])
+                        makeSymlogTicks(cb, alim)
                     elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
                         pass
                     else:
@@ -1231,11 +1236,12 @@ class CSEMData():
                 underlayBackground(ax, background, self.utm)
 
         basename = kwargs.pop("name", self.basename)
-        if "what" in kwargs:
+        if "what" in kwargs and isinstance(kwargs["what"], str):
             basename += " " + kwargs["what"]
 
         fig.suptitle(basename+"  f="+str(self.f[nf])+"Hz")
 
+        # self.chooseData(kw.get("what", "data"), kw["llthres"])
         if "what" in kwargs:
             self.chooseData("data", kw["llthres"])
 

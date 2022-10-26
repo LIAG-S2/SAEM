@@ -127,12 +127,13 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         pc.set_clim([alim[0], alim[1]])
 
     cb = None
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
-    cb = plt.colorbar(pc, cax=cax)
-
-    if label:
-        cb.set_label(label)
+    if kwargs.get("colorBar", True):
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cb = plt.colorbar(pc, cax=cax)
+    
+        if label:
+            cb.set_label(label)
 
     return ax, cb
 
