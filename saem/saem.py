@@ -987,8 +987,12 @@ class CSEMData():
             ax[0, 0].set_ylabel("Amplitude (nT/A)")
             ax[1, 0].set_ylabel("Phase (°)")
         else:
-            ax[0, 0].set_ylabel("Real T (nT/A)")
-            ax[1, 0].set_ylabel("Imag T (nT/A)")
+            if kw["field"] == 'B':
+                ax[0, 0].set_ylabel(r"$\Re$(B) (nT/A)")
+                ax[1, 0].set_ylabel(r"$\Im$(B) (nT/A)")
+            elif kw["field"] == 'E':
+                ax[0, 0].set_ylabel(r"$\Re$(E) (V/m)")
+                ax[1, 0].set_ylabel(r"$\Im$(E) (V/m)")
 
         # if "x" not in kwargs:
         #     xt = np.round(np.linspace(0, len(nn)-1, 7))

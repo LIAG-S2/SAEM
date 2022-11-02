@@ -164,6 +164,7 @@ def updatePlotKwargs(cmp, **kwargs):
     kwargs.setdefault("what", "data")
     log = kwargs.setdefault("log", True)
     kwargs.setdefault("color", None)
+    kwargs.setdefault("field", 'B')
     if log:
         kwargs.setdefault("cmap", "PuOr_r")
         alim = kwargs.setdefault("alim", [1e-3, 1e1])
