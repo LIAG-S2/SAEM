@@ -54,11 +54,7 @@ class CSEMData(EMData):
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.depth = None
         self.alt = self.rz - self.txAlt
-        self.prim = None
         self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
-        self.RESP = None
-        self.ERR = None
-        self.A = np.array([[1, 0], [0, 1]])
 
         if datafile is not None:
             self.loadData(datafile)
@@ -315,7 +311,7 @@ class CSEMData(EMData):
         pfy = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [0, 90]  # z
         pfz = bipole(**cfg).real * fak
-        self.prim = np.stack([pfx, pfy, pfz])
+        self.PRIM = np.stack([pfx, pfy, pfz])
 
     def txDistance(self, seg=True):
         """Distance to transmitter."""
@@ -472,7 +468,7 @@ class CSEMData(EMData):
 
         return ax
 
-    def chooseData(self, what="data", llthres=None):
+    def chooseData(self, what="data"):
         """Choose data to show by showData or showLineData.
 
         Parameters
@@ -489,20 +485,20 @@ class CSEMData(EMData):
                 rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
         """
-        llthres = llthres or self.llthres
+
         if isinstance(what, str):
             if what.lower() == "data":
                 self.DATAX, self.DATAY, self.DATAZ = self.DATA
             elif what.lower() == "prim":
-                if self.prim is None:
+                if self.PRIM is None:
                     self.computePrimaryFields()
 
-                self.DATAX, self.DATAY, self.DATAZ = self.prim
+                self.DATAX, self.DATAY, self.DATAZ = self.PRIM
             elif what.lower() == "secdata":
-                if self.prim is None:
+                if self.PRIM is None:
                     self.computePrimaryFields()
 
-                primabs = np.sqrt(np.sum(self.prim**2, axis=0))
+                primabs = np.sqrt(np.sum(self.PRIM**2, axis=0))
                 self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs - 1.0
             elif what.lower() == "response":
                 self.DATAX, self.DATAY, self.DATAZ = self.RESP

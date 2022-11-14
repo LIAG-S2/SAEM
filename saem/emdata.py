@@ -50,6 +50,10 @@ class EMData():
         self.origin = [0, 0, 0]
         self.angle = 0
         self.llthres = 1e-3
+        self.A = np.array([[1, 0], [0, 1]])
+        self.PRIM = None
+        self.RESP = None
+        self.ERR = None
 
     def __repr__(self):
         """String representation of the class."""
@@ -96,6 +100,60 @@ class EMData():
                                                      usecols=[0, 1])
             else:  # take it directly
                 self.tx, self.ty, *_ = np.array(txpos)
+
+    def chooseActive(self, what="data"):
+        """
+        Choose activate data for visualization. If what is an array of
+        correct shape instead of a str, individual data arrays can be passed
+        to the visualization methods.
+
+
+        Parameters
+        ----------
+        what : str
+            property name or matrix to choose / show
+                data - measured data
+                resp - forward response
+                aerr - absolute data error
+                rerr - relative data error
+                amisfit - absolute misfit between data and response
+                rmisfit - relative misfit between data and response
+                wmisfit - error-weighted misfit
+                pf - primary fields
+                sf - measured secondary data divided by primary fields
+        """
+
+        self.ACTIVE = np.zeros_like(self.DATA)
+        if isinstance(what, str):
+            if what.lower() == "data":
+                self.ACTIVE[:] = self.DATA[:]
+            elif what.lower() == "resp":
+                self.ACTIVE[:] = self.RESP[:]
+            elif what.lower() == "aerr":
+                self.ACTIVE[:] = self.ERR[:]
+            elif what.lower() == "rerr":
+                rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+                ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+                self.ACTIVE[:] = rr + ii * 1j
+            elif what.lower() == "amisfit":
+                self.ACTIVE[:] = self.DATA[:] - self.RESP[:]
+            elif what.lower() == "rmisfit":
+                for i in range(len(self.DATA)):
+                    rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
+                    ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
+                    self.ACTIVE[i, :] = rr + ii * 1j
+            elif what.lower() == "wmisfit":
+                mis = self.DATA - self.RESP
+                wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+                self.ACTIVE[:] = wmis
+            elif what.lower() == "pf":
+                self.ACTIVE[:] = self.PRIM[:]
+            elif what.lower() == "sf":
+                primAbs = np.sqrt(np.sum(self.PRIM**2, axis=0))
+                self.ACTIVE[:] = self.DATA / primAbs - 1.0
+        else:
+            print('  -  choosing passed data array  -  ')
+            self.ACTIVE[:] = what
 
     def setPos(self, nrx=0, position=None, show=False):
         """Set the position of the current sounding to be shown or inverted."""
@@ -280,9 +338,9 @@ class EMData():
         if np.any(self.ERR):
             self.ERR = self.ERR[:, fInd, :]
 
-        if np.any(self.prim):
+        if np.any(self.PRIM):
             for i in range(3):
-                self.prim[i] = self.prim[i][fInd, :]
+                self.PRIM[i] = self.PRIM[i][fInd, :]
 
         # part 2: receiver axis
         if nInd is None:
@@ -308,14 +366,14 @@ class EMData():
                 self.ERR = self.ERR[:, :, nInd]
             if np.any(self.RESP):
                 self.RESP = self.RESP[:, :, nInd]
-            if np.any(self.prim):
+            if np.any(self.PRIM):
                 for i in range(3):
-                    self.prim[i] = self.prim[i][:, nInd]
+                    self.PRIM[i] = self.PRIM[i][:, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
-            if self.prim is not None:
+            if self.PRIM is not None:
                 for i in range(3):
-                    self.prim[i] = self.prim[i][:, nInd]
+                    self.PRIM[i] = self.PRIM[i][:, nInd]
 
         self.chooseData("data")  # make sure DATAX/Y/Z have correct size
 
@@ -735,7 +793,7 @@ class EMData():
         for j, cc in enumerate(allcmp):
             data = getattr(self, "DATA"+cc.upper()).copy()
             if scale:
-                data /= self.prim[j]
+                data /= self.PRIM[j]
             if kw["amphi"]:
                 kw.pop("cmap", None)
                 kw.pop("log", None)
