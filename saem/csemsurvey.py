@@ -337,7 +337,7 @@ class CSEMSurvey():
                 from scipy.spatial import ConvexHull
                 points = allrx
                 points -= [x0, y0]
-                ch = ConvexHull(points)                
+                ch = ConvexHull(points)
                 invpoly = np.array([[*points[v, :], 0.]
                                     for v in ch.vertices]) * \
                     (inner_boundary_factor + 1.0)
@@ -364,8 +364,8 @@ class CSEMSurvey():
         from custEM.inv.inv_utils import MultiFWD
 
         M = BlankWorld(name=invmesh,
-                       x_dim=[x0-dim, x0+dim], 
-                       y_dim=[y0-dim, y0+dim], 
+                       x_dim=[x0-dim, x0+dim],
+                       y_dim=[y0-dim, y0+dim],
                        z_dim=[-dim, dim],
                        preserve_edges=True,
                        t_dir='./',  # kann weg! lieber voller filename

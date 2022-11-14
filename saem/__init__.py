@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Refraction seismics or first arrival traveltime calculations."""
+"""Tools for handling EM data."""
 
 
 from .saem import CSEMData
 from .maredata import Mare2dEMData
 from .csemsurvey import CSEMSurvey
 from .plotting import showSounding
+from .emdata import EMData
 
 
 __all__ = [
+	'EMData'
     'CSEMData',
     'CSEMSurvey',
     'showSounding',

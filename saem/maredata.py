@@ -79,7 +79,7 @@ class Mare2dEMData():
                     sline = lines[i].split()
                     flipimag = sline[-1].startswith("lag")
                     if flipimag:
-                        print("FLipImag lag")
+                        print("FLipImag due to *lag* definition")
 
                 i += 1
 
@@ -314,8 +314,6 @@ class Mare2dEMData():
         if not np.any(np.isfinite(out)):
             print("Using real/imag instead")
             out = re + im * 1j
-        if np.any(np.isnan(out)):
-            print("Found NaN values!")
 
         return out
 
