@@ -4,23 +4,23 @@ import numpy as np
 from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+# from matplotlib.backends.backend_pdf import PdfPages
+# from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import pyproj
+# import pyproj
 
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
-from matplotlib.colors import LogNorm, SymLogNorm
+# from matplotlib.colors import LogNorm, SymLogNorm
 
-from .plotting import plotSymbols, showSounding, updatePlotKwargs
-from .plotting import underlayBackground, makeSymlogTicks, dMap
+# from .plotting import plotSymbols, showSounding, updatePlotKwargs
+from .plotting import showSounding
 from .emdata import EMData
 from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
-from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
+# from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
+from .tools import distToTx
 
 
 class CSEMData(EMData):
