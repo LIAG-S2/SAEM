@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
 from matplotlib.patches import Rectangle
-from matplotlib.colors import SymLogNorm, Normalize, LinearSegmentedColormap
+from matplotlib.colors import SymLogNorm, LogNorm
+from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pygimli.viewer.mpl import underlayMap, underlayBKGMap
@@ -61,7 +62,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     return ax
 
 
-def plotSymbols(x, y, w, ax=None, **kwargs):
+def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     """Plot circles or rectangles for each point in a map.
 
     Parameters
@@ -103,15 +104,20 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         if numpoints == 0 and type(radius) is not str:
             rect = Circle((xi, yi), radius, ec=None)
         elif radius == 'rect':
-            rect = Rectangle((xi-width*0.49, yi), width*0.98, 1.,ec=None)
+            rect = Rectangle((xi-width*0.5, yi), width, 1., ec=None)
         else:
             rect = RegularPolygon((xi, yi), numpoints, radius=radius, ec=None)
 
         patches.append(rect)
 
     norm = None
-    alim = kwargs.pop("alim", [min(w), max(w)])
-    log = kwargs.pop("log", False)
+    if mode == "phase":
+        alim = kwargs.setdefault("plim", [-180., 180.])
+        cmap = "hsv"
+        log = False
+    else:
+        alim = kwargs.setdefault("alim", [min(w), max(w)])
+        log = kwargs.setdefault("log", False)
     if log:
         norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
     else:
@@ -123,6 +129,8 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     ax.add_collection(pc)
     if log:
         pc.set_clim([-alim[1], alim[1]])
+        if mode == "amp":
+            pc.set_clim(alim[0], alim[1])
     else:
         pc.set_clim([alim[0], alim[1]])
 
@@ -131,7 +139,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cb = plt.colorbar(pc, cax=cax)
-    
+
         if label:
             cb.set_label(label)
 
@@ -158,9 +166,9 @@ def makeSymlogTicks(cb, alim):
     cb.set_ticklabels(['{:.0e}'.format(tick) for tick in ticks])
 
 
-def updatePlotKwargs(cmp, **kwargs):
+def updatePlotKwargs(**kwargs):
     """Set default values for different plotting tools."""
-    cmp = kwargs.setdefault("cmp", cmp)
+
     kwargs.setdefault("what", "data")
     log = kwargs.setdefault("log", True)
     kwargs.setdefault("color", None)
@@ -173,7 +181,6 @@ def updatePlotKwargs(cmp, **kwargs):
         alim = kwargs.setdefault("alim", [-10., 10.])
 
     kwargs.setdefault("amphi", False)
-
     kwargs.setdefault("plim", [-180., 180.])
     llthres = kwargs.setdefault("llthres", alim[0])
 

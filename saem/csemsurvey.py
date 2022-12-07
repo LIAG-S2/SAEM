@@ -29,7 +29,6 @@ class CSEMSurvey():
         self.origin = [0, 0, 0]
         self.angle = 0.
         self.basename = "new"
-        self.cmp = [1, 1, 1]
         if arg is not None:
             if isinstance(arg, str):
                 if arg.endswith(".emdata"):  # obviously a Mare2d File
@@ -44,7 +43,7 @@ class CSEMSurvey():
 
         return st
 
-    def loadNPZ(self, filename, **kwargs):
+    def loadNPZ(self, filename, mtdata=False, **kwargs):
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
@@ -52,7 +51,11 @@ class CSEMSurvey():
         a = 0
         line = ALL["line"]
         for i in range(len(ALL["DATA"])):
-            patch = CSEMData()
+            if not mtdata:
+                patch = CSEMData()
+            else:
+                patch = MTData()
+
             patch.extractData(ALL, i)
             self.addPatch(patch)
             patch.line = line[a:a+len(patch.rx)]
@@ -97,7 +100,6 @@ class CSEMSurvey():
             rx, ry, rz = part.rxpos.T
             cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
                           txPos=txpos)
-            cs.cmp = [1, 1, 1]
             cs.basename = "patch{:d}".format(i+1)
             for i, mat in enumerate(mats):
                 if mat.shape[0] == 0:
@@ -107,7 +109,7 @@ class CSEMSurvey():
 
             cs.DATA = np.stack(mats)
             cs.ERR = np.stack(errs)
-            cs.chooseData()
+            cs.chooseActive()
             self.addPatch(cs)
 
         if "txs" in kwargs:
@@ -236,6 +238,7 @@ class CSEMSurvey():
     def loadResults(self, dirname=None, datafile=None, invmesh="Prisms",
                     jacobian=None):
         """Load inversion results from directory."""
+
         datafile = datafile or self.basename
         if dirname is None:
             dirname = datafile + "_" + invmesh + "/"

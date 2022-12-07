@@ -45,18 +45,15 @@ class MTData(EMData):
 
         super().__init__()
 
-        self.updateData(**kwargs)
-        self.depth = None
-        self.prim = None
+        self.updateDefaults(**kwargs)
         self.createDataArray(mode)
-        self.RESP = None
-        self.ERR = None
 
         if datafile is not None:
             self.loadData(datafile)
 
-        self.chooseData()
-        self.createConfig()
+        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+        self.radius = np.median(dxy) * 0.5
+        # self.createConfig()
 
     def __repr__(self):
         """String representation of the class."""
@@ -69,20 +66,30 @@ class MTData(EMData):
 
         if mode == 'ZT':
             self.DATA = np.zeros((6, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy', 'Tx', 'Ty']
         elif mode == 'Z':
             self.DATA = np.zeros((4, self.nF, self.nRx), dtype=complex)
-        elif mode in ['Zd', 'Zo', 'T']:
+            self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy']
+        elif mode == 'Zd':
             self.DATA = np.zeros((2, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Zxx', 'Zyy']
+        elif mode == 'Zo':
+            self.DATA = np.zeros((2, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Zxy', 'Zyx']
+        elif mode == 'T':
+            self.DATA = np.zeros((2, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Tx', 'Ty']
         else:
             print('Error! Choose correct mode for MTData initialization.')
             raise SystemExit
+        self.cmp = np.ones(len(self.cstr), dtype=bool)
 
     def loadData(self, filename, detectLines=False):
         """Load any data format."""
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
-            self.loadIPHTMatFile(filename):
+            self.loadIPHTMatFile(filename)
 
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
@@ -93,7 +100,7 @@ class MTData(EMData):
     def addData(self, new, detectLines=False):
         """Add (concatenate) data."""
         if isinstance(new, str):
-            new = CSEMData(new)
+            new = MTData(new)
         if new.tx is not None:
             assert np.allclose(self.tx, new.tx), "Tx(x) not matching!"
         if new.ty is not None:
@@ -101,7 +108,7 @@ class MTData(EMData):
         if new.f is not None:
             assert np.allclose(self.f, new.f)
         for attr in ["rx", "ry", "rz", "line", "alt",
-                     'DATA', 'ERR', 'RESP', 'prim']:
+                     'DATA', 'ERR', 'RESP', 'PRIM']:
             one = getattr(self, attr)
             two = getattr(new, attr)
             if np.any(one) and np.any(two):
@@ -119,36 +126,25 @@ class MTData(EMData):
     def extractData(self, ALL, nr=0):
         """Extract data from NPZ structure."""
         freqs = ALL["freqs"]
-        txgeo = ALL["tx"][nr][:, :2].T
-        data = ALL["DATA"][nr]
         rxs = data["rx"]
         self.__init__(f=freqs, rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
 
         if 'line' in ALL:
             self.line = ALL["line"]
 
-        self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
-        self.DATAY = np.zeros_like(self.DATAX)
-        self.DATAZ = np.zeros_like(self.DATAX)
-        try:
-            self.cmp = ALL["cmp"]
-        except Exception:
-            print('CMP detect change exception, using old way')
-            self.cmp = [np.any(getattr(self, "DATA"+cc))
-                        for cc in ["X", "Y", "Z"]]
+        data = ALL["DATA"][nr]
+        self.cmp = ALL["cmp"]
+        self.ACTIVE = np.zeros_like(self.DATA)
+        self.ERR = np.zeros_like(self.DATA)
 
-        self.ERRX = np.ones_like(self.DATAX)
-        self.ERRY = np.ones_like(self.DATAY)
-        self.ERRZ = np.ones_like(self.DATAZ)
         for ic, cmp in enumerate(data["cmp"]):
-            setattr(self, "DATA"+cmp[1].upper(),
-                    data["dataR"][0, ic, :, :] +
-                    data["dataI"][0, ic, :, :] * 1j)
-            setattr(self, "ERR"+cmp[1].upper(),
-                    data["errorR"][0, ic, :, :] +
-                    data["errorI"][0, ic, :, :] * 1j)
-        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
+            self.ACTIVE[ic, :] = data["errorR"][0, ic, :, :] + \
+                                 data["errorI"][0, ic, :, :] * 1j
+        self.ERR[:] = self.ACTIVE[:]
+        for ic, cmp in enumerate(data["cmp"]):
+            self.ACTIVE[ic, :] = data["dataR"][0, ic, :, :] + \
+                                 data["dataI"][0, ic, :, :] * 1j
+        self.DATA[:] = self.ACTIVE[:]
 
     def loadIPHTMatFile(self, filename):
         """Load data from mat file (WWU processing)."""
@@ -667,16 +663,14 @@ class MTData(EMData):
         return ax
 
 
-if __name__ == "__main__":
-    txpos = np.array([[559497.46, 5784467.953],
-                      [559026.532, 5784301.022]]).T
-    self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-    print(self)
+# if __name__ == "__main__":
+    # self = MTData(datafile="data_f*.mat")
+    # print(self)
     # self.generateDataPDF()
-    self.showData(nf=1)
+    # self.showData(nf=1)
     # self.showField("alt", background="BKG")
     # self.invertSounding(nrx=20)
     # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    self.showSounding(nrx=20)
+    # self.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()

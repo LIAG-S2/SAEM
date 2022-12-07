@@ -1,32 +1,23 @@
 from glob import glob
-import os.path
 import numpy as np
 from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-import pyproj
-
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
-from matplotlib.colors import LogNorm, SymLogNorm
 
-from .plotting import plotSymbols, showSounding, updatePlotKwargs
-from .plotting import underlayBackground, makeSymlogTicks, dMap
+from .plotting import showSounding
 from .emdata import EMData
 from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
-from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
+from .tools import distToTx
 
 
 class CSEMData(EMData):
     """Class for CSEM frequency-domain data patch (single Tx)."""
 
-    def __init__(self, datafile=None, **kwargs):
+    def __init__(self, datafile=None, mode='B', **kwargs):
         """Initialize CSEM data class
 
         Parameters
@@ -49,17 +40,17 @@ class CSEMData(EMData):
 
         super().__init__()
 
-        self.updateData(**kwargs)
-        self.isLoop = False
+        self.updateDefaults(**kwargs)
+        self.createDataArray(mode)
+        self.loop = kwargs.pop("loop", False)
         self.txAlt = kwargs.pop("txalt", 0.0)
-        self.depth = None
         self.alt = self.rz - self.txAlt
-        self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
 
         if datafile is not None:
             self.loadData(datafile)
 
-        self.chooseData()
+        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+        self.radius = np.median(dxy) * 0.5
         self.createConfig()
 
     def __repr__(self):
@@ -73,6 +64,22 @@ class CSEMData(EMData):
         spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])
 
         return "\n".join((sdata, stx, smrx, spos))
+
+    def createDataArray(self, mode):
+
+        if mode == 'EB':
+            self.DATA = np.zeros((6, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Ex', 'Ey', 'Ez', 'Bx', 'By', 'Bz']
+        elif mode == 'B':
+            self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Bx', 'By', 'Bz']
+        elif mode == 'E':
+            self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
+            self.cstr = ['Ex', 'Ey', 'Ez']
+        else:
+            print('Error! Choose correct mode for CSEMData initialization.')
+            raise SystemExit
+        self.cmp = np.ones(len(self.cstr), dtype=bool)
 
     def loadData(self, filename, detectLines=False):
         """Load any data format."""
@@ -100,7 +107,7 @@ class CSEMData(EMData):
         if new.f is not None:
             assert np.allclose(self.f, new.f)
         for attr in ["rx", "ry", "rz", "line", "alt",
-                     'DATA', 'ERR', 'RESP', 'prim']:
+                     'DATA', 'ERR', 'RESP', 'PRIM']:
             one = getattr(self, attr)
             two = getattr(new, attr)
             if np.any(one) and np.any(two):
@@ -468,65 +475,6 @@ class CSEMData(EMData):
 
         return ax
 
-    def chooseData(self, what="data"):
-        """Choose data to show by showData or showLineData.
-
-        Parameters
-        ----------
-        what : str
-            property name or matrix to choose / show
-                data - measured data
-                prim - primary fields
-                secdata - measured secondary data divided by primary fields
-                response - forward response
-                error - absolute data error
-                relerror - relative data error
-                misfit - absolute misfit between data and response
-                rmisfit - relative misfit between data and response
-                wmisfit - error-weighted misfit
-        """
-
-        if isinstance(what, str):
-            if what.lower() == "data":
-                self.DATAX, self.DATAY, self.DATAZ = self.DATA
-            elif what.lower() == "prim":
-                if self.PRIM is None:
-                    self.computePrimaryFields()
-
-                self.DATAX, self.DATAY, self.DATAZ = self.PRIM
-            elif what.lower() == "secdata":
-                if self.PRIM is None:
-                    self.computePrimaryFields()
-
-                primabs = np.sqrt(np.sum(self.PRIM**2, axis=0))
-                self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs - 1.0
-            elif what.lower() == "response":
-                self.DATAX, self.DATAY, self.DATAZ = self.RESP
-            elif what.lower() == "error":
-                self.DATAX, self.DATAY, self.DATAZ = self.ERR
-            elif what.lower() == "relerror":
-                rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-                ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
-                self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
-            elif what.lower() == "misfit":
-                self.DATAX, self.DATAY, self.DATAZ = self.DATA - self.RESP
-            elif what.lower() == "rmisfit":
-                for i in range(3):
-                    rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
-                    ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
-                    if i == 0:
-                        self.DATAX = rr + ii * 1j
-                    elif i == 1:
-                        self.DATAY = rr + ii * 1j
-                    elif i == 2:
-                        self.DATAZ = rr + ii * 1j
-            elif what.lower() == "wmisfit":
-                mis = self.DATA - self.RESP
-                wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
-                self.DATAX, self.DATAY, self.DATAZ = wmis
-        else:  # try using the argument
-            self.DATAX, self.DATAY, self.DATAZ = what
-
     def getData(self, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.pop("cmp", self.cmp)
@@ -613,61 +561,6 @@ class CSEMData(EMData):
                  line=self.line,
                  origin=np.array(self.origin),  # global coordinates w altitude
                  rotation=self.angle)
-
-    def loadResults(self, datafile=None, invmesh="Prisms", dirname=None,
-                    jacobian=None):
-        """Load inversion results from directory."""
-        datafile = datafile or self.basename
-        if dirname is None:
-            dirname = datafile + "_" + invmesh + "/"
-        if dirname[-1] != "/":
-            dirname += "/"
-
-        if os.path.exists(dirname + "inv_model.npy"):
-            self.model = np.load(dirname + "inv_model.npy")
-        else:
-            self.model = np.load(sorted(glob(dirname+"sig_iter_*.npy"))[0])
-
-        self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
-        self.loadResponse(dirname)
-        self.J = None
-        if os.path.exists(dirname+"invmesh.vtk"):
-            self.mesh = pg.load(dirname+"invmesh.vtk")
-        else:
-            self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
-
-        jacobian = jacobian or datafile+"_jacobian.bmat"
-        jname = dirname + jacobian
-        if os.path.exists(jname):
-            self.J = pg.load(jname)
-            print("Loaded jacobian: "+jname, self.J.rows(), self.J.cols())
-        elif os.path.exists(dirname+"jacobian.bmat"):
-            self.J = pg.load(dirname+"jacobian.bmat")
-            print("Loaded jacobian: ", self.J.rows(), self.J.cols())
-
-    def loadResponse(self, dirname=None, response=None):
-        """Load model response file."""
-        if response is None:
-            respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
-            if len(respfiles) == 0:
-                pg.error("Could not find response file")
-
-            responseVec = np.load(respfiles[-1])
-            respR, respI = np.split(responseVec, 2)
-            response = respR + respI*1j
-
-        sizes = [sum(self.cmp), self.nF, self.nRx]
-        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
-        try:
-            RESP[self.getIndices()] = response
-        except ValueError:
-            RESP[:] = response
-
-        RESP = np.reshape(RESP, sizes)
-        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
-        self.RESP[np.nonzero(self.cmp)[0]] = RESP
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""

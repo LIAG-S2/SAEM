@@ -8,12 +8,3 @@ from .csemsurvey import CSEMSurvey
 from .plotting import showSounding
 from .emdata import EMData
 from .mt import MTData
-
-
-__all__ = [
-	'EMData'
-	'MTData'
-    'CSEMData',
-    'CSEMSurvey',
-    'showSounding',
-]
