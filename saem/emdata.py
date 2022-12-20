@@ -46,7 +46,6 @@ class EMData():
             flight altitude
         """
 
-        self.updateDefaults(**kwargs)
         self.origin = [0, 0, 0]
         self.angle = 0
         self.llthres = 1e-3
@@ -87,17 +86,30 @@ class EMData():
         self.rz = kwargs.pop("rz", np.array([0.]))
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
 
-        self.tx, self.ty = np.array([0., 0.]), np.array([0., 0.])
         if "txPos" in kwargs:
             txpos = kwargs["txPos"]
             if isinstance(txpos, str):
                 if txpos.lower().find(".kml") > 0:
-                    self.tx, self.ty, *_ = readCoordsFromKML(txpos)
+                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos)
                 else:
-                    self.tx, self.ty = np.genfromtxt(txpos, unpack=True,
-                                                     usecols=[0, 1])
+                    self.tx, self.ty, self.tz = np.genfromtxt(
+                        txpos, unpack=True, usecols=[0, 1, 2])
             else:  # take it directly
-                self.tx, self.ty, *_ = np.array(txpos)
+                self.tx, self.ty, self.tz = np.array(txpos)
+
+    def getIndices(self):
+        """Return indices of finite data into full matrix."""
+        ff = np.array([], dtype=bool)
+        for i in range(3):
+            if self.cmp[i]:
+                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
+                ff = np.hstack((ff, np.isfinite(tmp)))
+
+        return ff
+
+    def nData(self):
+        """Number of data (for splitting the response)."""
+        return sum(self.getIndices())
 
     def chooseActive(self, what="data"):
         """
@@ -924,6 +936,87 @@ class EMData():
             print('Error, "axis" must be "x", "y", or "d". Aborting  ...')
             raise SystemExit
         return(nn[si], x)
+
+    def getData(self, line=None, **kwargs):
+        """Save data in numpy format for 2D/3D inversion."""
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        if np.shape(self.ERR) != np.shape(self.DATA):
+            self.estimateError(**kwargs)
+
+        if line is None:  # take all existing (nonzero) lines
+            nn = np.nonzero(self.line > 0)[0]
+        else:
+            nn = np.nonzero(self.line == line)[0]
+
+        ypos = np.round((self.ry[nn])*10)/10  # get to straight line
+        rxpos = np.round(np.column_stack((self.rx[nn], ypos,
+                                          self.rz[nn]-self.txAlt))*10)/10
+
+        dataR = np.zeros((1, sum(cmp), self.nF, len(nn)))
+        dataI = np.zeros_like(dataR)
+        errorR = np.zeros_like(dataR)
+        errorI = np.zeros_like(dataR)
+
+        cstr = []
+        ncmp = 0
+        for ic, cid in enumerate(cmp):
+            if cid:
+                dataR[0, ncmp, :, :] = self.DATA[ic][:, nn].real
+                dataI[0, ncmp, :, :] = self.DATA[ic][:, nn].imag
+                errorR[0, ncmp, :, :] = self.ERR[ic][:, nn].real
+                errorI[0, ncmp, :, :] = self.ERR[ic][:, nn].imag
+                cstr.append(self.cstr[ic])
+                ncmp += 1
+
+        # error estimation
+        data = dict(dataR=dataR, dataI=dataI,
+                    errorR=errorR, errorI=errorI,
+                    rx=rxpos, cmp=cstr)
+
+        return data
+
+    def saveData(self, fname=None, line=None, txdir=1, **kwargs):
+        """Save data in numpy format for 2D/3D inversion."""
+        if "cmp" in kwargs and kwargs["cmp"] == "all":
+            for cmp in [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 0, 1],
+                        [0, 1, 1], [1, 1, 1]]:
+                kwargs["cmp"] = cmp
+                self.saveData(fname=fname, line=line, txdir=txdir, **kwargs)
+
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        if fname is None:
+            fname = self.basename
+            if line is not None:
+                fname += "_line" + str(line)
+
+            for ci, cid in enumerate(cmp):
+                if cid:
+                    fname += self.cstr[ci]
+        else:
+            if fname.startswith("+"):
+                fname = self.basename + "-" + fname
+
+        if line == "all":
+            line = np.arange(1, max(self.line)+1)
+
+        if hasattr(line, "__iter__"):
+            for i in line:
+                self.saveData(line=i)
+            return
+
+        data = self.getData(line=line, **kwargs)
+        data["tx_ids"] = [0]
+        DATA = [data]
+        np.savez(fname+".npz",
+                 tx=[np.column_stack((np.array(self.tx)[::txdir],
+                                      np.array(self.ty)[::txdir],
+                                      np.array(self.tz)[::txdir]))],
+                 freqs=self.f,
+                 cmp=cmp,
+                 DATA=DATA,
+                 line=self.line,
+                 origin=np.array(self.origin),  # global coordinates w altitude
+                 rotation=self.angle)
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', **kwargs):

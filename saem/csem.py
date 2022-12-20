@@ -40,6 +40,9 @@ class CSEMData(EMData):
 
         super().__init__()
 
+        self.tx = np.array([0., 0.])
+        self.ty = np.array([0., 0.])
+        self.tz = np.array([0., 0.])
         self.updateDefaults(**kwargs)
         self.createDataArray(mode)
         self.loop = kwargs.pop("loop", False)
@@ -68,17 +71,15 @@ class CSEMData(EMData):
     def createDataArray(self, mode):
 
         if mode == 'EB':
-            self.DATA = np.zeros((6, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Ex', 'Ey', 'Ez', 'Bx', 'By', 'Bz']
         elif mode == 'B':
-            self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Bx', 'By', 'Bz']
         elif mode == 'E':
-            self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Ex', 'Ey', 'Ez']
         else:
             print('Error! Choose correct mode for CSEMData initialization.')
             raise SystemExit
+        self.DATA = np.zeros(len(self.cstr), self.nF, self.nRx), dtype=complex)
         self.cmp = np.ones(len(self.cstr), dtype=bool)
 
     def loadData(self, filename, detectLines=False):
@@ -125,7 +126,7 @@ class CSEMData(EMData):
     def extractData(self, ALL, nr=0):
         """Extract data from NPZ structure."""
         freqs = ALL["freqs"]
-        txgeo = ALL["tx"][nr][:, :2].T
+        txgeo = ALL["tx"][nr][:, :3].T
         data = ALL["DATA"][nr]
         rxs = data["rx"]
         self.__init__(txPos=txgeo, f=freqs,
@@ -474,107 +475,6 @@ class CSEMData(EMData):
             a.legend()
 
         return ax
-
-    def getData(self, line=None, **kwargs):
-        """Save data in numpy format for 2D/3D inversion."""
-        cmp = kwargs.pop("cmp", self.cmp)
-        if np.shape(self.ERR) != np.shape(self.DATA):
-            self.estimateError(**kwargs)
-
-        if line is None:  # take all existing (nonzero) lines
-            ind = np.nonzero(self.line > 0)[0]
-        else:
-            ind = np.nonzero(self.line == line)[0]
-
-        allcmp = ['X', 'Y', 'Z']
-        meany = 0  # np.median(self.ry[ind]) # needed anymore?
-        ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
-        rxpos = np.round(np.column_stack((self.rx[ind], ypos,
-                                          self.rz[ind]-self.txAlt))*10)/10
-        nF = len(self.f)
-        nT = 1
-        nR = len(ind)  # rxpos.shape[0]
-        nC = sum(cmp)
-        dataR = np.zeros([nT, nC, nF, nR])
-        dataI = np.zeros_like(dataR)
-        errorR = np.zeros_like(dataR)
-        errorI = np.zeros_like(dataR)
-        kC = 0
-        Cmp = []
-        for iC in range(3):
-            if cmp[iC]:
-                dataR[0, kC, :, :] = self.DATA[iC][:, ind].real
-                dataI[0, kC, :, :] = self.DATA[iC][:, ind].imag
-                errorR[0, kC, :, :] = self.ERR[iC][:, ind].real
-                errorI[0, kC, :, :] = self.ERR[iC][:, ind].imag
-                Cmp.append('B'+allcmp[iC].lower())
-                kC += 1
-
-        # error estimation
-        data = dict(dataR=dataR, dataI=dataI,
-                    errorR=errorR, errorI=errorI,
-                    rx=rxpos, cmp=Cmp)
-
-        return data
-
-    def saveData(self, fname=None, line=None, txdir=1, **kwargs):
-        """Save data in numpy format for 2D/3D inversion."""
-        if "cmp" in kwargs and kwargs["cmp"] == "all":
-            for cmp in [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 0, 1],
-                        [0, 1, 1], [1, 1, 1]]:
-                kwargs["cmp"] = cmp
-                self.saveData(fname=fname, line=line, txdir=txdir, **kwargs)
-
-        cmp = kwargs.setdefault("cmp", self.cmp)
-        allcmp = ['X', 'Y', 'Z']
-        if fname is None:
-            fname = self.basename
-            if line is not None:
-                fname += "-line" + str(line)
-
-            for i in range(3):
-                if cmp[i]:
-                    fname += "B" + allcmp[i].lower()
-        else:
-            if fname.startswith("+"):
-                fname = self.basename + "-" + fname
-
-        if line == "all":
-            line = np.arange(1, max(self.line)+1)
-
-        if hasattr(line, "__iter__"):
-            for i in line:
-                self.saveData(line=i)
-            return
-
-        data = self.getData(line=line, **kwargs)
-        data["tx_ids"] = [0]
-        DATA = [data]
-        meany = 0  # np.median(self.ry[ind]) # needed anymore?
-        np.savez(fname+".npz",
-                 tx=[np.column_stack((np.array(self.tx)[::txdir],
-                                      np.array(self.ty)[::txdir]-meany,
-                                      np.array(self.tx)*0))],
-                 freqs=self.f,
-                 cmp=cmp,
-                 DATA=DATA,
-                 line=self.line,
-                 origin=np.array(self.origin),  # global coordinates w altitude
-                 rotation=self.angle)
-
-    def getIndices(self):
-        """Return indices of finite data into full matrix."""
-        ff = np.array([], dtype=bool)
-        for i in range(3):
-            if self.cmp[i]:
-                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
-                ff = np.hstack((ff, np.isfinite(tmp)))
-
-        return ff
-
-    def nData(self):
-        """Number of data (for splitting the response)."""
-        return sum(self.getIndices())
 
     def showResult(self, **kwargs):
         """Show inversion result."""

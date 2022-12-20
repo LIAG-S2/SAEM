@@ -45,6 +45,9 @@ class MTData(EMData):
 
         super().__init__()
 
+        self.tx=[[-5e3, 5e3], [0., 0.]]
+        self.ty=[[0., 0.], [-5e3, 5e3]]
+        self.tz=[[1e6, 1e6], [1e6, 1e6]]
         self.updateDefaults(**kwargs)
         self.createDataArray(mode)
 
@@ -53,6 +56,7 @@ class MTData(EMData):
 
         dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
         self.radius = np.median(dxy) * 0.5
+
         # self.createConfig()
 
     def __repr__(self):
@@ -65,23 +69,19 @@ class MTData(EMData):
     def createDataArray(self, mode):
 
         if mode == 'ZT':
-            self.DATA = np.zeros((6, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy', 'Tx', 'Ty']
         elif mode == 'Z':
-            self.DATA = np.zeros((4, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy']
+        elif mode == 'T':
+            self.cstr = ['Tx', 'Ty']
         elif mode == 'Zd':
-            self.DATA = np.zeros((2, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Zxx', 'Zyy']
         elif mode == 'Zo':
-            self.DATA = np.zeros((2, self.nF, self.nRx), dtype=complex)
             self.cstr = ['Zxy', 'Zyx']
-        elif mode == 'T':
-            self.DATA = np.zeros((2, self.nF, self.nRx), dtype=complex)
-            self.cstr = ['Tx', 'Ty']
         else:
             print('Error! Choose correct mode for MTData initialization.')
             raise SystemExit
+        self.DATA = np.zeros(len(self.cstr), self.nF, self.nRx), dtype=complex)
         self.cmp = np.ones(len(self.cstr), dtype=bool)
 
     def loadData(self, filename, detectLines=False):

@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pygimli as pg
 from saem import Mare2dEMData
-from saem import CSEMData
+from saem import CSEMData, MTData
 
 
 class CSEMSurvey():
@@ -134,6 +134,8 @@ class CSEMSurvey():
         if len(self.patches) == 0:
             self.angle = patch.angle
             self.origin = patch.origin
+            self.cmp = patch.cmp
+            print('  -  copy *angle*, *origin* and *cmp* from first patch  -')
         else:
             assert self.angle == patch.angle, "angle not matching"
             assert np.allclose(self.origin, patch.origin), "origin not equal"
@@ -164,18 +166,6 @@ class CSEMSurvey():
         for i, p in enumerate(self.patches):
             p.showData(**kwargs)
 
-    def getData(self, line=None, **kwargs):
-        """Gather data from individual patches."""
-        DATA = []
-        lines = np.array([])
-        for i, p in enumerate(self.patches):
-            data = p.getData(line=line, **kwargs)
-            data["tx_ids"] = [i]  # for now fixed, later global list
-            DATA.append(data)
-            lines = np.concatenate((lines, p.line+(i+1)*100))
-
-        return DATA, lines
-
     def setOrigin(self, *args, **kwargs):
         """Set the same origin for all patches (reshifting if existing)."""
         for p in self.patches:
@@ -191,18 +181,29 @@ class CSEMSurvey():
         for p in self.patches:
             p.estimateError(*args, **kwargs)
 
+    def getData(self, line=None, **kwargs):
+        """Gather data from individual patches."""
+        DATA = []
+        lines = np.array([])
+        for i, p in enumerate(self.patches):
+            data = p.getData(line=line, **kwargs)
+            data["tx_ids"] = [i]  # for now fixed, later global list
+            DATA.append(data)
+            lines = np.concatenate((lines, p.line+(i+1)*100))
+
+        return DATA, lines
+
     def saveData(self, fname=None, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.setdefault("cmp", self.patches[0].cmp)
-        allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
             if line is not None:
                 fname += "-line" + str(line)
 
-            for i in range(3):
-                if cmp[i]:
-                    fname += "B" + allcmp[i].lower()
+            for ci, cid in enumerate(cmp):
+                if cid:
+                    fname += self.patches[0].cstr[ci]
         else:
             if fname.startswith("+"):
                 fname = self.basename + "-" + fname
@@ -214,12 +215,16 @@ class CSEMSurvey():
                  freqs=self.patches[0].f,
                  DATA=DATA,
                  line=lines,
-                 cmp=cmp,
+                 cmp=[patch["cmp"] for patch in DATA],
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
+
+        if not dirname.endswith('/'):
+            dirname += '/'
+
         if response is None:
             respfiles = sorted(glob(dirname+"response_iter*.npy"))
             if len(respfiles) == 0:
