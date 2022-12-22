@@ -147,9 +147,46 @@ class MTData(EMData):
         self.DATA[:] = self.ACTIVE[:]
 
     def loadIPHTMatFile(self, filename):
+        self.basename = filename.replace("*", "").replace(".mat", "")
+        filenames = sorted(glob(filename))
+        assert len(filenames) > 0
+        filename = filenames[0]
+        MAT = loadmat(filename)
+        if len([var for var in MAT.keys() if "_" not in var]) == 1:
+            MAT = MAT[[var for var in MAT.keys() if "_" not in var][0]][0]
+            MAT1 = dict()
+    
+            for i, temp in enumerate(MAT):
+                for name in MAT.dtype.names:
+                    if name == "nr":
+                        temp[name]=np.ones(temp["rx"].shape[-1], dtype=int) * temp["nr"][0][0]
+                        
+                    if name != "frequencies":
+                        if i==0:
+                            MAT1[name] = temp[name]
+                        else:
+                            MAT1[name] = np.concatenate((MAT1[name], temp[name]),
+                                                       axis=-1)
+            
+            self.line=MAT["nr"]
+            self.f = MAT[0]["frequencies"]
+            self.ry, self.rx, self.rz = MAT1["rx"]
+            self.DATA=MAT1["data"]
+            self.ERR=MAT1["err"]
+            
+        else:
+            self.line=MAT["nr"]
+            self.f = MAT["frequencies"]
+            self.ry, self.rx, self.rz = MAT1["rx"]
+            self.DATA=MAT1["data"]
+            self.ERR=MAT1["err"]
+        
+        self.alt = self.rz
+        
+    def loadWWUMatFile(self, filename):
         """Load data from mat file (WWU processing)."""
 
-        print("Need to implement loadIPHTMatFile method")
+        print("Need to implement Anneke's processing")
 
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
