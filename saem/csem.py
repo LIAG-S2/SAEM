@@ -79,7 +79,8 @@ class CSEMData(EMData):
         else:
             print('Error! Choose correct mode for CSEMData initialization.')
             raise SystemExit
-        self.DATA = np.zeros(len(self.cstr), self.nF, self.nRx), dtype=complex)
+        self.DATA = np.zeros((len(self.cstr), self.nF, self.nRx),
+                             dtype=complex)
         self.cmp = np.ones(len(self.cstr), dtype=bool)
 
     def loadData(self, filename, detectLines=False):

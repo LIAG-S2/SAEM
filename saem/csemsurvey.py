@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pygimli as pg
 from saem import Mare2dEMData
-from saem import CSEMData, MTData
+from saem import CSEMData
 
 
 class CSEMSurvey():
@@ -49,12 +49,20 @@ class CSEMSurvey():
         self.f = ALL["freqs"]
 
         a = 0
-        line = ALL["line"]
+
+        try:
+            line = ALL["line"]
+        except KeyError:
+            line = np.array([])
+            [np.append(line, np.ones(len(ALL["DATA"][i]['rx']))) for i in
+             range(len(ALL["DATA"]))]
+
         for i in range(len(ALL["DATA"])):
             if not mtdata:
                 patch = CSEMData()
             else:
-                patch = MTData()
+                pass
+                #patch = MTData()
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
@@ -227,8 +235,6 @@ class CSEMSurvey():
 
         if response is None:
             respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
             if len(respfiles) == 0:
                 pg.error("Could not find response file")
 
