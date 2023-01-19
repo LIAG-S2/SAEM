@@ -91,6 +91,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     numpoints = kwargs.pop("numpoints", 0)
     radius = kwargs.pop("radius", 10.)
     label = kwargs.pop("label", False)
+    symlog = kwargs.pop("symlog", True)
 
     assert len(x) == len(y) == len(w), "Vector lengths have to match!"
     if ax is None:
@@ -120,16 +121,22 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
         log = kwargs.setdefault("log", False)
     if log:
         norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
+        if not symlog:
+            norm = LogNorm(vmin=alim[0], vmax=alim[1])
     else:
         norm = Normalize(vmin=alim[0], vmax=alim[1])
 
     pc = collections.PatchCollection(patches, cmap=cmap, linewidths=0)
     pc.set_norm(norm)
-    pc.set_array(w)
+    if symlog:
+        pc.set_array(w)
+    else:
+        pc.set_array(np.abs(w))
+        ax.plot(x[w<0], y[w<0], 'k_', markersize=1.)
     ax.add_collection(pc)
     if log:
         pc.set_clim([-alim[1], alim[1]])
-        if mode == "amp":
+        if mode == "amp" or not symlog:
             pc.set_clim(alim[0], alim[1])
     else:
         pc.set_clim([alim[0], alim[1]])
