@@ -140,9 +140,17 @@ class CSEMData(EMData):
         self.DATAY = np.zeros_like(self.DATAX)
         self.DATAZ = np.zeros_like(self.DATAX)
         try:
-            self.cmp = ALL["cmp"]
+            cmp = ALL["DATA"][nr]["cmp"]
+            for cstr in cmp:
+                try:
+                    idx = self.cstr.index(cstr)
+                    self.cmp[idx] = 1
+                except ValueError:
+                    self.cmp[idx] = 0
+
         except Exception:
             print('CMP detect change exception, using old way')
+            print(Exception)
             self.cmp = [np.any(getattr(self, "DATA"+cc))
                         for cc in ["X", "Y", "Z"]]
 

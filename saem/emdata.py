@@ -1012,7 +1012,6 @@ class EMData():
                                       np.array(self.ty)[::txdir],
                                       np.array(self.tz)[::txdir]))],
                  freqs=self.f,
-                 cmp=cmp,
                  DATA=DATA,
                  line=self.line,
                  origin=np.array(self.origin),  # global coordinates w altitude
@@ -1193,8 +1192,6 @@ class EMData():
         if response is None:
             respfiles = sorted(glob(dirname+"response_iter*.npy"))
             if len(respfiles) == 0:
-                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
-            if len(respfiles) == 0:
                 pg.error("Could not find response file")
 
             responseVec = np.load(respfiles[-1])
@@ -1205,8 +1202,10 @@ class EMData():
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
         try:
             RESP[self.getIndices()] = response
+            print('here', self.getIndices(), response, self.cmp)
         except ValueError:
             RESP[:] = response
+
 
         RESP = np.reshape(RESP, sizes)
         self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
