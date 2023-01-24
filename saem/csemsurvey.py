@@ -53,9 +53,10 @@ class CSEMSurvey():
         try:
             line = ALL["line"]
         except KeyError:
-            line = np.array([])
-            [np.append(line, np.ones(len(ALL["DATA"][i]['rx']))) for i in
-             range(len(ALL["DATA"]))]
+            line = np.array([], dtype=int)
+            for i in range(len(ALL["DATA"])):
+                line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
+                                               dtype=int))
 
         for i in range(len(ALL["DATA"])):
             if not mtdata:

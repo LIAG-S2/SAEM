@@ -91,7 +91,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     numpoints = kwargs.pop("numpoints", 0)
     radius = kwargs.pop("radius", 10.)
     label = kwargs.pop("label", False)
-    symlog = kwargs.pop("symlog", True)
+    symlog = kwargs.setdefault("symlog", True)
 
     assert len(x) == len(y) == len(w), "Vector lengths have to match!"
     if ax is None:
@@ -180,9 +180,10 @@ def updatePlotKwargs(**kwargs):
     log = kwargs.setdefault("log", True)
     kwargs.setdefault("color", None)
     kwargs.setdefault("field", 'B')
+    kwargs.setdefault("symlog", True)
     if log:
         kwargs.setdefault("cmap", "PuOr_r")
-        alim = kwargs.setdefault("alim", [1e-3, 1e1])
+        alim = kwargs.setdefault("alim", [1e-3, 1e0])
     else:
         kwargs.setdefault("cmap", "seismic")
         alim = kwargs.setdefault("alim", [-10., 10.])
@@ -196,3 +197,20 @@ def updatePlotKwargs(**kwargs):
               "usually not reasonbale. Continuing ...")
 
     return kwargs
+
+
+def makeSubTitles(ax, ncmp, cstr, ci, what):
+
+    for i, ri in enumerate([r'$\Re$($', r'$\Im$($']):
+        if what == 'pf':
+            ax[i, ncmp].set_title(
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '$)')
+        elif what == 'sf':
+            ax[i, ncmp].set_title(
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
+        elif what == 'sf/pf':
+            ax[i, ncmp].set_title(
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' + 
+                cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
+        else:
+            ax[i, ncmp].set_title(ri + cstr[ci] + ')')

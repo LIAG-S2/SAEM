@@ -17,6 +17,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 
 from .plotting import plotSymbols, showSounding, updatePlotKwargs
 from .plotting import underlayBackground, makeSymlogTicks, dMap
+from .plotting import makeSubTitles
 from .modelling import fopSAEM, bipole
 from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
 from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
@@ -160,8 +161,17 @@ class EMData():
             elif what.lower() == "pf":
                 return self.PRIM[:]
             elif what.lower() == "sf":
-                primAbs = np.sqrt(np.sum(self.PRIM**2, axis=0))
-                return self.DATA / primAbs - 1.0
+                return self.DATA - self.PRIM
+            elif what.lower() == "sf/pf":
+                tmp = np.zeros_like(self.DATA)
+                for i in range(len(self.DATA)):
+                    rr = ((self.DATA[i].real - self.PRIM[i].real) /
+                                self.PRIM[i].real)
+
+                    ii = ((self.DATA[i].imag - self.PRIM[i].imag) /
+                                self.PRIM[i].imag)
+                    tmp[i, :] = rr + ii * 1j
+                return tmp
             else:
                 print('Error! Wrong argument chosen to specify active data. '
                       'Aborting  ...')
@@ -863,12 +873,11 @@ class EMData():
                     _, cb2 = plotSymbols(self.rx, self.ry, np.imag(subset),
                                          ax=ax[1, ncmp], **kw)
 
-                    ax[0, ncmp].set_title(r'$\Re$(' + self.cstr[ci] + ')')
-                    ax[1, ncmp].set_title(r'$\Im$(' + self.cstr[ci] + ')')
-
+                    makeSubTitles(ax, ncmp, self.cstr, ci, kw["what"])
                     for cb in [cb1, cb2]:
                         if ncmp + 1 == sum(cmp) and kw["log"]:
-                            makeSymlogTicks(cb, kw["alim"])
+                            if kw["symlog"]:
+                                makeSymlogTicks(cb, kw["alim"])
                         elif ncmp + 1 == sum(cmp) and not kw["log"]:
                             pass
                         else:
@@ -1202,7 +1211,6 @@ class EMData():
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
         try:
             RESP[self.getIndices()] = response
-            print('here', self.getIndices(), response, self.cmp)
         except ValueError:
             RESP[:] = response
 
