@@ -107,6 +107,11 @@ class CSEMSurvey():
                             np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
 
             rx, ry, rz = part.rxpos.T
+
+
+            if "txs" in kwargs:
+                txpos = kwargs["txs"][i].T
+
             cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
                           txPos=txpos)
             cs.basename = "patch{:d}".format(i+1)
@@ -120,11 +125,6 @@ class CSEMSurvey():
             cs.ERR = np.stack(errs)
             cs.chooseActive()
             self.addPatch(cs)
-
-        if "txs" in kwargs:
-            txs = kwargs["txs"]
-            for i, p in enumerate(self.patches):
-                p.tx, p.ty = txs[tI[i]].T[:2]
 
     def addPatch(self, patch, name=None):
         """Add a new patch to the file.

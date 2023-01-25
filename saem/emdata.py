@@ -201,6 +201,7 @@ class EMData():
 
     def createConfig(self, fullTx=False):
         """Create EMPYMOD input argument configuration."""
+
         self.cfg = {'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
