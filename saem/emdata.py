@@ -1,7 +1,6 @@
+"""EMData base class for any type of electromagnetic data."""
 from glob import glob
-import os.path
 import numpy as np
-from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -10,16 +9,16 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pyproj
 
 import pygimli as pg
-from pygimli.viewer.mpl import drawModel1D
-from pygimli.viewer.mpl import showStitchedModels
-from pygimli.core.math import symlog
+# from pygimli.viewer.mpl import drawModel1D
+# from pygimli.viewer.mpl import showStitchedModels
+# from pygimli.core.math import symlog
 from matplotlib.colors import LogNorm, SymLogNorm
 
-from .plotting import plotSymbols, showSounding, updatePlotKwargs
-from .plotting import underlayBackground, makeSymlogTicks, dMap
-from .plotting import makeSubTitles
-from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
+# from .plotting import showSounding, dMap
+from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
+from .plotting import makeSubTitles, updatePlotKwargs
+# from .modelling import fopSAEM, bipole
+from .tools import readCoordsFromKML, detectLinesAlongAxis  # , distToTx
 from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
 
 
@@ -27,7 +26,7 @@ class EMData():
     """Class for EM frequency-domain data."""
 
     def __init__(self, datafile=None, **kwargs):
-        """Initialize CSEM data class
+        """Initialize CSEM data class.
 
         Parameters
         ----------
@@ -46,7 +45,6 @@ class EMData():
         alt : float
             flight altitude
         """
-
         self.origin = [0, 0, 0]
         self.angle = 0
         self.llthres = 1e-3
@@ -74,7 +72,7 @@ class EMData():
         return len(self.f)
 
     def updateDefaults(self, **kwargs):
-
+        """Update default keyword arguments."""
         self.f = kwargs.pop("f", [])
         self.basename = "noname"
         self.basename = kwargs.pop("basename", self.basename)
@@ -113,10 +111,10 @@ class EMData():
         return sum(self.getIndices())
 
     def chooseActive(self, what="data"):
-        """
-        Choose activate data for visualization. If what is an array of
-        correct shape instead of a str, individual data arrays can be passed
-        to the visualization methods.
+        """Choose activate data for visualization.
+
+        If what is an array of correct shape instead of a str, individual data
+        arrays can be passed to the visualization methods.
 
 
         Parameters
@@ -133,7 +131,6 @@ class EMData():
                 pf - primary fields
                 sf - measured secondary data divided by primary fields
         """
-
         if isinstance(what, str):
             if what.lower() == "data":
                 return self.DATA[:]
@@ -166,10 +163,10 @@ class EMData():
                 tmp = np.zeros_like(self.DATA)
                 for i in range(len(self.DATA)):
                     rr = ((self.DATA[i].real - self.PRIM[i].real) /
-                                self.PRIM[i].real)
+                          self.PRIM[i].real)
 
                     ii = ((self.DATA[i].imag - self.PRIM[i].imag) /
-                                self.PRIM[i].imag)
+                          self.PRIM[i].imag)
                     tmp[i, :] = rr + ii * 1j
                 return tmp
             else:
@@ -201,7 +198,6 @@ class EMData():
 
     def createConfig(self, fullTx=False):
         """Create EMPYMOD input argument configuration."""
-
         self.cfg = {'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
@@ -303,7 +299,6 @@ class EMData():
             spacing vector: by given spacing
             float: minimum distance
         """
-
         if isinstance(mode, (str)):
             self.line = detectLinesAlongAxis(self.rx, self.ry, axis=mode)
         elif hasattr(mode, "__iter__"):
@@ -909,7 +904,6 @@ class EMData():
         * showLineData (if line=given): x-f patch plot
         * showLineFreq (if line and nf given): x-f line plot
         """
-
         if "line" in kwargs:
             if "nf" in kwargs:
                 return self.showLineFreq(*args, **kwargs)
@@ -927,7 +921,7 @@ class EMData():
         self.showLineFreq(line=line, nf=nf, ax=ax, what="response")
 
     def sortAlongAxis(self, line, axis):
-
+        """Dort points along a given axis (x, y or d)."""
         nn = np.arange(len(self.rx))
         if line is not None:
             nn = np.nonzero(self.line == line)[0]
@@ -1153,7 +1147,7 @@ class EMData():
 
             if ignoreErr:
                 self.ERR[cmp, freq, :] = 0 + 0j
-                #np.zeros_like(self.DATA[cmp, freq, :]) + (0+0j)
+                # np.zeros_like(self.DATA[cmp, freq, :]) + (0+0j)
 
         elif ri == "real":
             aErr = np.zeros_like(self.DATA, dtype=complex)
@@ -1214,7 +1208,6 @@ class EMData():
             RESP[self.getIndices()] = response
         except ValueError:
             RESP[:] = response
-
 
         RESP = np.reshape(RESP, sizes)
         self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
