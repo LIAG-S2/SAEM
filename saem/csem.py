@@ -1,3 +1,4 @@
+"""Controlled-source electromagnetic (CSEM) data class."""
 from glob import glob
 import numpy as np
 from scipy.io import loadmat
@@ -18,7 +19,7 @@ class CSEMData(EMData):
     """Class for CSEM frequency-domain data patch (single Tx)."""
 
     def __init__(self, datafile=None, mode='B', **kwargs):
-        """Initialize CSEM data class
+        """Initialize CSEM data class.
 
         Parameters
         ----------
@@ -37,7 +38,6 @@ class CSEMData(EMData):
         alt : float
             flight altitude
         """
-
         super().__init__()
 
         self.tx = np.array([0., 0.])
@@ -69,7 +69,7 @@ class CSEMData(EMData):
         return "\n".join((sdata, stx, smrx, spos))
 
     def createDataArray(self, mode):
-
+        """Create data array for a given model ("E", "B", or "RB")."""
         if mode == 'EB':
             self.cstr = ['Ex', 'Ey', 'Ez', 'Bx', 'By', 'Bz']
         elif mode == 'B':
