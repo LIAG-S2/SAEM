@@ -1,3 +1,4 @@
+"""Mare2dEMData - class for reading in Mare2dEM CSEM data."""
 import numpy as np
 # import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,7 +11,8 @@ from pygimli.core.math import symlog
 
 def deol(s):
     """Remove any EOL from a line."""
-    return s.rstrip("\r").rstrip("\n")
+    return s.rstrip("\n").rstrip("\r")  # CR+NL (Windows), NL (Linux), CR (Mac)
+    # return s.rstrip("\r").rstrip("\n")
 
 
 def lastint(line):
