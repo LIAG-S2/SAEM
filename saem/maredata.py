@@ -30,7 +30,7 @@ class Mare2dEMData():
         self.angle = 0
         self.utmzone = 32
         nameType = {}  # [""] * 50
-        xyz = "yxz"  # changed x and y position
+        xyz = kwargs.pop("kos", "yxz")  # changed x and y position
         for i in range(3):
             nameType[1+i*2] = "RealE" + xyz[i]  # 1,3,5
             nameType[2+i*2] = "ImagE" + xyz[i]  # 2,4,6
@@ -339,12 +339,27 @@ class Mare2dEMData():
         pass
 
     def saveData(self, tx=None, absError=1.5e-3, relError=0.04, fname=None,
-                 topo=1):
-        """Save data for inversion with custEM."""
+                 topo=1, field=("B", "E")):
+        """Save data for inversion with custEM.
+
+        Parameters
+        ----------
+        tx : int
+            transmitter index
+        absError : float
+            absolute error
+        relError : float
+            relative error
+        fname : str
+            file name (otherwise automatically generated)
+        topo : bool
+            use topography
+        field : str | (str, str) ["E", "B"]
+            export E or B fields or both (default)
+        """
         tx = tx or np.arange(len(self.txpos)) + 1
         DATA = []
         TX = []
-        fak = 1e9
         fname = fname or self.basename + "_B_Tx"
         for it, txi in enumerate(np.atleast_1d(tx)):
             # assert matX.shape == matZ.shape, "Bx and Bz not matching"
@@ -359,37 +374,37 @@ class Mare2dEMData():
                     self.txpos[txi-1, 1] + np.array([-1/2, 1/2])*txl,
                     [self.txpos[txi-1, 2]*topo, self.txpos[txi-1, 2]*topo])))
 
-            part = self.getPart(tx=txi, typ="B", clean=True)
-            matX = part.getDataMatrix(field="Bx") * txl * fak
-            matY = part.getDataMatrix(field="By") * txl * fak
-            matZ = -part.getDataMatrix(field="Bz") * txl * fak
-            errX = part.getDataMatrix(field="Bx", column="StdErr")
-            errY = part.getDataMatrix(field="By", column="StdErr")
-            errZ = part.getDataMatrix(field="Bz", column="StdErr")
-            mats = [matX, matY, matZ]
-            allcmp = ["x", "y", "z"]
-            icmp = [i for i in range(3) if len(mats[i]) > 0]
-            if len(icmp) > 0:
-                fname += "{}".format(txi)
-                dataR = np.zeros([1, len(icmp), *mats[icmp[0]].shape])
-                # dataR = np.zeros([1, *mats[icmp[0]].shape, len(icmp)])
-                dataI = np.zeros_like(dataR)
-                lcmp = 0
-                for i in icmp:
-                    dataR[0, lcmp, :, :] = mats[i].real
-                    dataI[0, lcmp, :, :] = mats[i].imag
-                    # dataR[0, :, :, lcmp] = mats[i].real
-                    # dataI[0, :, :, lcmp] = mats[i].imag
-                    lcmp += 1
+            for fi in np.atleast_1d(field):
+                fak = 1e9 if fi == "B" else 1
+                part = self.getPart(tx=txi, typ=fi, clean=True)
+                matX = part.getDataMatrix(field=fi+"x") * txl * fak
+                matY = part.getDataMatrix(field=fi+"y") * txl * fak
+                matZ = -part.getDataMatrix(field=fi+"z") * txl * fak
+                errX = part.getDataMatrix(field=fi+"x", column="StdErr")
+                errY = part.getDataMatrix(field=fi+"y", column="StdErr")
+                errZ = part.getDataMatrix(field=fi+"z", column="StdErr")
+                mats = [matX, matY, matZ]
+                allcmp = ["x", "y", "z"]
+                icmp = [i for i in range(3) if len(mats[i]) > 0]
+                if len(icmp) > 0:
+                    fname += "{}".format(txi)
+                    dataR = np.zeros([1, len(icmp), *mats[icmp[0]].shape])
+                    # dataR = np.zeros([1, *mats[icmp[0]].shape, len(icmp)])
+                    dataI = np.zeros_like(dataR)
+                    lcmp = 0
+                    for i in icmp:
+                        dataR[0, lcmp, :, :] = mats[i].real
+                        dataI[0, lcmp, :, :] = mats[i].imag
+                        lcmp += 1
 
-                errorR = np.abs(dataR) * relError + absError
-                errorI = np.abs(dataI) * relError + absError
-                data = dict(dataR=dataR, dataI=dataI,
-                            errorR=errorR, errorI=errorI,
-                            tx_ids=[int(txi-1)],
-                            rx=part.rxpos*np.array([1, 1, topo]),
-                            cmp=["B"+allcmp[i] for i in icmp])
-                DATA.append(data)
+                    errorR = np.abs(dataR) * relError + absError  # +errR?
+                    errorI = np.abs(dataI) * relError + absError  # +errI?
+                    data = dict(dataR=dataR, dataI=dataI,
+                                errorR=errorR, errorI=errorI,
+                                tx_ids=[int(txi-1)],
+                                rx=part.rxpos*np.array([1, 1, topo]),
+                                cmp=[fi+allcmp[i] for i in icmp])
+                    DATA.append(data)
 
         if len(TX) > 1:
             print(len(TX), TX)
