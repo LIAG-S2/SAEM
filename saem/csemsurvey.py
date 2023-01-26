@@ -79,59 +79,58 @@ class CSEMSurvey():
             mare = Mare2dEMData(mare, flipxy=flipxy)
 
         tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
-        for i in tI:
-            typ = "B"
-            part = mare.getPart(tx=i+1, typ=typ, clean=True)
-            if len(part.DATA) == 0:  # no data
-                typ = "E"
+        for typ in ["E", "B"]:
+            for i in tI:
                 part = mare.getPart(tx=i+1, typ=typ, clean=True)
+                if len(part.DATA) == 0:  # no data
+                    break
 
-            txl = mare.txpos[i, 3]
-            # azimuth and dip need to be used as well !!!
-            txpos = np.array([[mare.txpos[i, 0], mare.txpos[i, 0]],
-                              mare.txpos[i, 1] + np.array([-1/2, 1/2])*txl,
-                              [0, 0]])
-            fak = 1e9
-            mats = [part.getDataMatrix(field=typ+"x") * txl * fak,
-                    part.getDataMatrix(field=typ+"y") * txl * fak,
-                    -part.getDataMatrix(field=typ+"z") * txl * fak]
-            errs = [part.getDataMatrix(field=typ+"x", column="StdErr"),
-                    part.getDataMatrix(field=typ+"y", column="StdErr"),
-                    part.getDataMatrix(field=typ+"z", column="StdErr")]
-            udt = np.unique(mare.DATA["Type"])
-            # make convention: either Real/Imag 1-6,1-6
-            if max(udt) < 20:  # real imag
-                for i in range(3):
-                    errs[i] = errs[i].real*np.abs(mats[i].real) + \
-                        errs[i].imag*np.abs(mats[i].imag) * 1j
-            else:
-                if 31 in udt or 33 in udt or 35 in udt or 1 in udt or 3 in udt:
+                txl = mare.txpos[i, 3]
+                # azimuth and dip need to be used as well !!!
+                txpos = np.array([[mare.txpos[i, 0], mare.txpos[i, 0]],
+                                  mare.txpos[i, 1] + np.array([-1/2, 1/2])*txl,
+                                  [0, 0]])
+                fak = 1e9 if typ == "B" else 1
+                mats = [part.getDataMatrix(field=typ+"x") * txl * fak,
+                        part.getDataMatrix(field=typ+"y") * txl * fak,
+                        -part.getDataMatrix(field=typ+"z") * txl * fak]
+                errs = [part.getDataMatrix(field=typ+"x", column="StdErr"),
+                        part.getDataMatrix(field=typ+"y", column="StdErr"),
+                        part.getDataMatrix(field=typ+"z", column="StdErr")]
+                udt = np.unique(mare.DATA["Type"])
+                # make convention: either Real/Imag 1-6,1-6
+                if max(udt) < 20:  # real imag
                     for i in range(3):
-                        errs[i] = np.abs(errs[i]) * (
-                            np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
+                        errs[i] = errs[i].real*np.abs(mats[i].real) + \
+                            errs[i].imag*np.abs(mats[i].imag) * 1j
                 else:
-                    for i in range(3):
-                        errs[i] = np.log10(np.abs(errs[i])) * (
-                            np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
+                    if 31 in udt or 33 in udt or 35 in udt or 1 in udt or 3 in udt:
+                        for i in range(3):
+                            errs[i] = np.abs(errs[i]) * (
+                                np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
+                    else:
+                        for i in range(3):
+                            errs[i] = np.log10(np.abs(errs[i])) * (
+                                np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
 
-            rx, ry, rz = part.rxpos.T
+                rx, ry, rz = part.rxpos.T
 
-            if "txs" in kwargs:
-                txpos = kwargs["txs"][i].T
+                if "txs" in kwargs:
+                    txpos = kwargs["txs"][i].T
 
-            cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
-                          txPos=txpos)
-            cs.basename = "patch{:d}".format(i+1)
-            for i, mat in enumerate(mats):
-                if mat.shape[0] == 0:
-                    cs.cmp[i] = 0
-                    mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
-                    errs[i] = np.zeros_like(mats[i])
+                cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
+                              txPos=txpos, mode=typ)
+                cs.basename = "patch{:d}".format(i+1)
+                for i, mat in enumerate(mats):
+                    if mat.shape[0] == 0:
+                        cs.cmp[i] = 0
+                        mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
+                        errs[i] = np.zeros_like(mats[i])
 
-            cs.DATA = np.stack(mats)
-            cs.ERR = np.stack(errs)
-            cs.chooseActive()
-            self.addPatch(cs)
+                cs.DATA = np.stack(mats)
+                cs.ERR = np.stack(errs)
+                cs.chooseActive()
+                self.addPatch(cs)
 
     def addPatch(self, patch, name=None):
         """Add a new patch to the file.
