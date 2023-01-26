@@ -1,34 +1,35 @@
+"""Magnetotellurics (MT) data class, derived from EMData."""
 from glob import glob
 import os.path
 import numpy as np
 from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-import pyproj
 
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
-from matplotlib.colors import LogNorm, SymLogNorm
+# from matplotlib.colors import LogNorm, SymLogNorm
 
-from .plotting import plotSymbols, showSounding, updatePlotKwargs
-from .plotting import underlayBackground, makeSymlogTicks, dMap
+# from .plotting import plotSymbols, showSounding, updatePlotKwargs
+from .plotting import showSounding
+# from .plotting import underlayBackground, makeSymlogTicks, dMap
 from .emdata import EMData
-from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
-from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
+from .modelling import fopSAEM  # , bipole
+# from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
+from .tools import distToTx
+# from .tools import detectLinesBySpacing, detectLinesByDistance
 
 
 class MTData(EMData):
     """Class for MT frequency-domain data patch."""
 
     def __init__(self, datafile=None, mode='ZT', **kwargs):
-        """Initialize MT data class. Data, error, response array sizes might
-        be reduced by specifying a specific mode.
+        """Initialize MT data class.
+
+        Data, error, response array sizes might be reduced by specifying a
+        specific mode.
 
         Parameters
         ----------
@@ -42,12 +43,11 @@ class MTData(EMData):
             *Zo* for off-diagonal of impedance tensor (Zxy, Zyx)
             *T* for tipper (Tx, Ty)
         """
-
         super().__init__()
 
-        self.tx=[[-5e3, 5e3], [0., 0.]]
-        self.ty=[[0., 0.], [-5e3, 5e3]]
-        self.tz=[[1e6, 1e6], [1e6, 1e6]]
+        self.tx = [[-5e3, 5e3], [0., 0.]]
+        self.ty = [[0., 0.], [-5e3, 5e3]]
+        self.tz = [[1e6, 1e6], [1e6, 1e6]]
         self.updateDefaults(**kwargs)
         self.createDataArray(mode)
 
@@ -67,7 +67,7 @@ class MTData(EMData):
         return "\n".join((sdata))
 
     def createDataArray(self, mode):
-
+        """Create data arrays according to given mode (ZT, Z, T, Zd, or Zo)."""
         if mode == 'ZT':
             self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy', 'Tx', 'Ty']
         elif mode == 'Z':
@@ -127,7 +127,7 @@ class MTData(EMData):
     def extractData(self, ALL, nr=0):
         """Extract data from NPZ structure."""
         freqs = ALL["freqs"]
-        rxs = data["rx"]
+        rxs = data["rx"]   # !!! must yield error
         self.__init__(f=freqs, rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
 
         if 'line' in ALL:
@@ -148,6 +148,7 @@ class MTData(EMData):
         self.DATA[:] = self.ACTIVE[:]
 
     def loadIPHTMatFile(self, filename):
+        """Load IPHT style Matlab data file."""
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
         assert len(filenames) > 0
@@ -156,39 +157,38 @@ class MTData(EMData):
         if len([var for var in MAT.keys() if "_" not in var]) == 1:
             MAT = MAT[[var for var in MAT.keys() if "_" not in var][0]][0]
             MAT1 = dict()
-    
+
             for i, temp in enumerate(MAT):
                 for name in MAT.dtype.names:
                     if name == "nr":
-                        temp[name]=np.ones(temp["rx"].shape[-1], dtype=int) * temp["nr"][0][0]
-                        
+                        temp[name] = np.ones(temp["rx"].shape[-1],
+                                             dtype=int) * temp["nr"][0][0]
+
                     if name != "frequencies":
-                        if i==0:
+                        if i == 0:
                             MAT1[name] = temp[name]
                         else:
-                            MAT1[name] = np.concatenate((MAT1[name], temp[name]),
-                                                       axis=-1)
-            
-            self.line=MAT["nr"]
+                            MAT1[name] = np.concatenate((MAT1[name],
+                                                         temp[name]), axis=-1)
+
+            self.line = MAT["nr"]
             self.f = MAT[0]["frequencies"]
             self.ry, self.rx, self.rz = MAT1["rx"]
-            self.DATA=MAT1["data"]
-            self.ERR=MAT1["err"]
-            
+            self.DATA = MAT1["data"]
+            self.ERR = MAT1["err"]
+
         else:
-            self.line=MAT["nr"]
+            self.line = MAT["nr"]
             self.f = MAT["frequencies"]
             self.ry, self.rx, self.rz = MAT["rx"]
-            self.DATA=MAT["data"]
-            self.ERR=MAT["err"]
-        
+            self.DATA = MAT["data"]
+            self.ERR = MAT["err"]
+
         self.alt = self.rz
-        
+
     def loadWWUMatFile(self, filename):
         """Load data from mat file (WWU processing)."""
-
         print("Need to implement Anneke's processing")
-
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
         assert len(filenames) > 0
@@ -299,7 +299,7 @@ class MTData(EMData):
         #     self.showData(what="response", **kwargs)
 
     def computePrimaryFields(self):
-        """Needs MT adaption"""
+        """Needs MT adaption."""
         pass
         # """Compute primary fields."""
         # cfg = dict(self.cfg)
@@ -317,7 +317,7 @@ class MTData(EMData):
         # pfz = bipole(**cfg).real * fak
         # self.prim = np.stack([pfx, pfy, pfz])
 
-    def txDistance(self, seg=True):
+    def txDistance(self, seg=True):  # why should MT have tx distance? !!!
         """Distance to transmitter."""
         if seg:  # segment-wise
             return distToTx(self.rx, self.ry, self.tx, self.ty)
