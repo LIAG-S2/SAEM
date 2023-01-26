@@ -401,7 +401,7 @@ class EMData():
         pass  # not yet implemented
 
     def showPos(self, ax=None, line=None, background=None, org=False,
-                color=None, marker=None):
+                color=None, marker=None, **kwargs):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -410,11 +410,12 @@ class EMData():
             # rxy = np.column_stack((self.rx, self.ry))
             pass
 
+        kwargs.setdefault("markersize", 5)
         ma = marker or "."
         ax.plot(self.rx, self.ry, ma, markersize=2, color=color or "blue")
         ax.plot(self.tx, self.ty, "-", markersize=4, color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "ko", markersize=5)
+            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "k", **kwargs)
 
         if line is not None:
             ax.plot(self.rx[self.line == line],

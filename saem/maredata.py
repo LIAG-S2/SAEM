@@ -175,6 +175,7 @@ class Mare2dEMData():
         else:
             _, ax = plt.subplots()
 
+        mode = kwargs.pop("mode", "DTK")
         rxpos = self.rxPositions(globalCoordinates)
         kwargs.setdefault("markersize", 1)
         ax.plot(rxpos[:, 0], rxpos[:, 1], "b.", **kwargs)
@@ -186,7 +187,7 @@ class Mare2dEMData():
         if globalCoordinates:
             if background == "BKG":
                 from pygimli.viewer.mpl import underlayBKGMap
-                underlayBKGMap(ax, utmzone=self.utmzone,
+                underlayBKGMap(ax, utmzone=self.utmzone, mode=mode,
                                uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
             elif background is not None:
                 from pygimli.viewer.mpl import underlayMap

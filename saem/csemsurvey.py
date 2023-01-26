@@ -167,12 +167,13 @@ class CSEMSurvey():
         """Alias for addPatch."""  # maybe do it the other way round
         self.addPatch(*args, **kwargs)
 
-    def showPositions(self):
+    def showPositions(self, **kwargs):
         """Show all positions."""
         fig, ax = plt.subplots()
-        ma = ["x", "+"]
+        ma = ["x", "+", "^", "v"]
         for i, p in enumerate(self.patches):
-            p.showPos(ax=ax, color="C{:d}".format(i), marker=ma[i % 2])
+            p.showPos(ax=ax, color="C{:d}".format(i),
+                      marker=ma[i % len(ma)], **kwargs)
 
         return fig, ax
 
