@@ -1,3 +1,4 @@
+"""Controlled-source electromagnetic (CSEM) survey (patch collection) data."""
 import os.path
 from glob import glob
 import numpy as np
@@ -11,19 +12,12 @@ class CSEMSurvey():
     """Class for (multi-patch/transmitter) CSEM data."""
 
     def __init__(self, arg=None, **kwargs):
-        """Initialize class with either data filename or patch instances.
-
+        """Initialize class with either data filename or patch instance.
 
         Parameters
         ----------
         **kwargs : TYPE
             DESCRIPTION.
-
-        Returns
-        -------
-        None.
-
-
         """
         self.patches = []
         self.origin = [0, 0, 0]
@@ -35,8 +29,16 @@ class CSEMSurvey():
                     self.importMareData(arg, **kwargs)
                 elif arg.endswith(".npz"):
                     self.loadNPZ(arg, **kwargs)
+        elif hasattr(arg, "__iter__"):
+            for a in arg:
+                self.addPatch(a)
+        elif isinstance(arg, CSEMData):
+            self.addPatch(arg)
+        else:
+            raise TypeError("Cannot use type")
 
     def __repr__(self):
+        """String representation."""
         st = "CSEMSurvey class with {:d} patches".format(len(self.patches))
         for i, p in enumerate(self.patches):
             st = "\n".join([st, p.__repr__()])
@@ -63,7 +65,7 @@ class CSEMSurvey():
                 patch = CSEMData()
             else:
                 pass
-                #patch = MTData()
+                # patch = MTData()
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
@@ -71,8 +73,7 @@ class CSEMSurvey():
             a += len(patch.rx)
 
     def importMareData(self, mare, flipxy=False, **kwargs):
-        """Import Mare2dEM file format."""
-
+        """Import Mare2dEM file."""
         if isinstance(mare, str):
             self.basename = mare.replace(".emdata", "")
             mare = Mare2dEMData(mare, flipxy=flipxy)
@@ -108,7 +109,6 @@ class CSEMSurvey():
 
             rx, ry, rz = part.rxpos.T
 
-
             if "txs" in kwargs:
                 txpos = kwargs["txs"][i].T
 
@@ -134,7 +134,6 @@ class CSEMSurvey():
         patch : CSEMData | str
             CSEMData instance or string to load into that
         """
-
         if isinstance(patch, str):
             patch = CSEMData(patch)
             if name is not None:
@@ -158,7 +157,7 @@ class CSEMSurvey():
         self.patches.append(patch)
 
     def add(self, *args, **kwargs):
-        """Alias for addPatch."""
+        """Alias for addPatch."""  # maybe do it the other way round
         self.addPatch(*args, **kwargs)
 
     def showPositions(self):
@@ -186,7 +185,7 @@ class CSEMSurvey():
             p.filter(*args, **kwargs)
 
     def estimateError(self, *args, **kwargs):
-        """estimate error model."""
+        """Estimate error model."""
         for p in self.patches:
             p.estimateError(*args, **kwargs)
 
@@ -230,7 +229,6 @@ class CSEMSurvey():
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
-
         if not dirname.endswith('/'):
             dirname += '/'
 
@@ -250,7 +248,6 @@ class CSEMSurvey():
     def loadResults(self, dirname=None, datafile=None, invmesh="Prisms",
                     jacobian=None):
         """Load inversion results from directory."""
-
         datafile = datafile or self.basename
         if dirname is None:
             dirname = datafile + "_" + invmesh + "/"
