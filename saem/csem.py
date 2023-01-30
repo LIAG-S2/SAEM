@@ -235,9 +235,9 @@ class CSEMData(EMData):
 
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
         self.ry, self.rx = MAT["xy"]
-        if "topo" in MAT.dtype.names:
-            self.rz = MAT["topo"][0]
-        elif "lla" in MAT.dtype.names:
+        # if "topo" in MAT.dtype.names:
+        #     self.rz = MAT["topo"][0]
+        if "lla" in MAT.dtype.names:
             self.rz = MAT["lla"][2]
         else:
             raise Exception("Could not determine altitude!")
