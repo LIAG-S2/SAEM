@@ -90,34 +90,22 @@ class CSEMSurvey():
                 txpos = np.array([[mare.txpos[i, 0], mare.txpos[i, 0]],
                                   mare.txpos[i, 1] + np.array([-1/2, 1/2])*txl,
                                   [0, 0]])
-                fak = 1e9 if typ == "B" else 1
-                mats = [part.getDataMatrix(field=typ+"x") * txl * fak,
-                        part.getDataMatrix(field=typ+"y") * txl * fak,
-                        -part.getDataMatrix(field=typ+"z") * txl * fak]
-                errs = [part.getDataMatrix(field=typ+"x", column="StdErr"),
-                        part.getDataMatrix(field=typ+"y", column="StdErr"),
-                        part.getDataMatrix(field=typ+"z", column="StdErr")]
-                udt = np.unique(mare.DATA["Type"])
-                # make convention: either Real/Imag 1-6,1-6
-                if max(udt) < 20:  # real imag
-                    for i in range(3):
-                        errs[i] = errs[i].real*np.abs(mats[i].real) + \
-                            errs[i].imag*np.abs(mats[i].imag) * 1j
-                else:
-                    if 31 in udt or 33 in udt or 35 in udt or 1 in udt or 3 in udt:
-                        for i in range(3):
-                            errs[i] = np.abs(errs[i]) * (
-                                np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
-                    else:
-                        for i in range(3):
-                            errs[i] = np.log10(np.abs(errs[i])) * (
-                                np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
-
-                rx, ry, rz = part.rxpos.T
 
                 if "txs" in kwargs:
                     txpos = kwargs["txs"][i].T
 
+                fak = 1e9 if typ == "B" else 1
+                mats = [part.getDataMatrix(field=typ+"x") * txl * fak,
+                        part.getDataMatrix(field=typ+"y") * txl * fak,
+                        -part.getDataMatrix(field=typ+"z") * txl * fak]
+                errs = [part.getDataMatrix(field=typ+"x",
+                                           column="StdErr") * txl * fak,
+                        part.getDataMatrix(field=typ+"y",
+                                           column="StdErr") * txl * fak,
+                        part.getDataMatrix(field=typ+"z",
+                                           column="StdErr") * txl * fak]
+
+                rx, ry, rz = part.rxpos.T
                 cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
                               txPos=txpos, mode=typ)
                 cs.basename = "patch{:d}".format(i+1)

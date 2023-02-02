@@ -303,6 +303,7 @@ class Mare2dEMData():
         ptyp = mydata.typeName["Phs"+field]
         rtyp = mydata.typeName["Real"+field]
         ityp = mydata.typeName["Imag"+field]
+
         for i in range(len(mydata.DATA)):
             if typ[i] == atyp:
                 amp[nf[i], nr[i]] = 10**vals[i]
@@ -383,10 +384,11 @@ class Mare2dEMData():
                 matX = part.getDataMatrix(field=fi+"x") * txl * fak
                 matY = part.getDataMatrix(field=fi+"y") * txl * fak
                 matZ = -part.getDataMatrix(field=fi+"z") * txl * fak
-                errX = part.getDataMatrix(field=fi+"x", column="StdErr")
-                errY = part.getDataMatrix(field=fi+"y", column="StdErr")
-                errZ = part.getDataMatrix(field=fi+"z", column="StdErr")
+                errX = part.getDataMatrix(field=fi+"x", column="StdErr") * txl * fak
+                errY = part.getDataMatrix(field=fi+"y", column="StdErr") * txl * fak
+                errZ = part.getDataMatrix(field=fi+"z", column="StdErr") * txl * fak
                 mats = [matX, matY, matZ]
+                errs = [errX, errY, errZ]
                 allcmp = ["x", "y", "z"]
                 icmp = [i for i in range(3) if len(mats[i]) > 0]
                 if len(icmp) > 0:
@@ -394,10 +396,14 @@ class Mare2dEMData():
                     dataR = np.zeros([1, len(icmp), *mats[icmp[0]].shape])
                     # dataR = np.zeros([1, *mats[icmp[0]].shape, len(icmp)])
                     dataI = np.zeros_like(dataR)
+                    errR = np.zeros_like(dataR)
+                    errI = np.zeros_like(dataR)
                     lcmp = 0
                     for i in icmp:
                         dataR[0, lcmp, :, :] = mats[i].real
                         dataI[0, lcmp, :, :] = mats[i].imag
+                        errR[0, lcmp, :, :] = errs[i].real
+                        errI[0, lcmp, :, :] = errs[i].imag
                         lcmp += 1
 
                     errorR = np.abs(dataR) * relError + absError  # +errR?

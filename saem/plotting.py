@@ -213,4 +213,4 @@ def makeSubTitles(ax, ncmp, cstr, ci, what):
                 ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' + 
                 cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
         else:
-            ax[i, ncmp].set_title(ri + cstr[ci] + ')')
+            ax[i, ncmp].set_title(ri + cstr[ci][0] + '_' + cstr[ci][1] + '$)')
