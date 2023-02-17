@@ -421,9 +421,14 @@ class CSEMSurvey():
         pgmesh['sigma'] = invmodel
         pgmesh['res'] = 1. / invmodel
         cov = np.zeros(fop._jac.cols())
+        mT = inv.modelTrans
         for i in range(fop._jac.rows()):
-            cov += np.abs(fop._jac.row(i))
-        cov *= invmodel / pgmesh.cellSizes()
+            cov += np.abs(fop._jac.row(i) * dT.deriv(inv.response) /
+                          dT.error(inv.response, fop.errors))
+
+        cov /= mT.deriv(invmodel)  # previous * invmodel
+        cov /= pgmesh.cellSizes()
+
         np.save(fop.inv_dir + invmod + '_coverage.npy', cov)
         pgmesh['coverageLog10'] = np.log10(cov)
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
