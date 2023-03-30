@@ -53,7 +53,7 @@ class CSEMSurvey():
         a = 0
 
         try:
-            line = ALL["line"]
+            line = ALL["line"]  # NpzFile??
         except KeyError:
             line = np.array([], dtype=int)
             for i in range(len(ALL["DATA"])):
@@ -69,8 +69,9 @@ class CSEMSurvey():
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
-            patch.line = line[a:a+len(patch.rx)]
-            a += len(patch.rx)
+            if hasattr(line, 'len') and len(line) > 0:
+                patch.line = line[a:a+len(patch.rx)]
+                a += len(patch.rx)
 
     def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file."""

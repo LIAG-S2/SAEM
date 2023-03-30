@@ -132,7 +132,7 @@ class CSEMData(EMData):
         freqs = ALL["freqs"]
         txgeo = ALL["tx"][nr][:, :3].T
         data = ALL["DATA"][nr]
-        rxs = data["rx"]
+        rxs = np.array(data["rx"])
         self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
 
