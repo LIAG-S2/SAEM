@@ -29,13 +29,13 @@ class CSEMSurvey():
                     self.importMareData(arg, **kwargs)
                 elif arg.endswith(".npz"):
                     self.loadNPZ(arg, **kwargs)
-        elif hasattr(arg, "__iter__"):
-            for a in arg:
-                self.addPatch(a)
-        elif isinstance(arg, CSEMData):
-            self.addPatch(arg)
-        else:
-            raise TypeError("Cannot use type")
+            elif hasattr(arg, "__iter__"):
+                for a in arg:
+                    self.addPatch(a)
+            elif isinstance(arg, CSEMData):
+                self.addPatch(arg)
+            else:
+                raise TypeError("Cannot use type")
 
     def __repr__(self):
         """String representation."""
