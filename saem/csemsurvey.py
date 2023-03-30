@@ -46,8 +46,11 @@ class CSEMSurvey():
         return st
 
     def __getitem__(self, i):
-        """Return patch number i."""
-        return self.patches[i]
+        """Return property (str) or patch number (int)."""
+        if isinstance(i, int):
+            return self.patches[i]
+        elif isinstance(i, str):
+            return getattr(self, i)
 
     def loadNPZ(self, filename, mtdata=False, **kwargs):
         """Load numpy-compressed (NPZ) file."""
