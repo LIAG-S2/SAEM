@@ -81,6 +81,7 @@ class CSEMSurvey():
                 a += len(patch.rx)
             else:
                 patch.line = np.zeros_like(patch.rx)
+                patch.detectLines()
 
     def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file."""
