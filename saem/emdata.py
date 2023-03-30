@@ -81,8 +81,8 @@ class EMData():
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
 
         self.rx = kwargs.pop("rx", np.array([0.]))
-        self.ry = kwargs.pop("ry", np.array([0.]))
-        self.rz = kwargs.pop("rz", np.array([0.]))
+        self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
+        self.rz = kwargs.pop("rz", np.zeros_like(self.rx))
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
 
         if "txPos" in kwargs:
@@ -94,7 +94,17 @@ class EMData():
                     self.tx, self.ty, self.tz = np.genfromtxt(
                         txpos, unpack=True, usecols=[0, 1, 2])
             else:  # take it directly
-                self.tx, self.ty, self.tz = np.array(txpos)
+                txpos = np.array(txpos)
+                if len(txpos) > 3:
+                    txpos = txpos.T
+
+                if len(txpos) == 2:
+                    self.tx, self.ty = txpos
+                    self.tz = np.zeros_like(self.tx)
+                elif len(txpos) == 3:
+                    self.tx, self.ty, self.tz = txpos
+                else:
+                    raise("Dimensions not matching")
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
