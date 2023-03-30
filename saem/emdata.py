@@ -205,9 +205,9 @@ class EMData():
                 print("Tx distance ", self.txDistance()[nrx])
 
         self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
-        self.dataX = self.DATAX[:, nrx]
-        self.dataY = self.DATAY[:, nrx]
-        self.dataZ = self.DATAZ[:, nrx]
+        self.dataX = self.DATA[0, :, nrx]
+        self.dataY = self.DATA[1, :, nrx]
+        self.dataZ = self.DATA[2, :, nrx]
         self.nrx = nrx
         if show:
             self.showPos()
