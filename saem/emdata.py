@@ -82,7 +82,13 @@ class EMData():
 
         self.rx = kwargs.pop("rx", np.array([0.]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
-        self.rz = kwargs.pop("rz", np.zeros_like(self.rx))
+        if isinstance(self.ry, (int, float)):
+            self.ry = np.ones_like(self.rx)*self.ry
+        if isinstance(self.rx, (int, float)):
+            self.rx = np.ones_like(self.ry)*self.rx
+        self.rz = kwargs.pop("rz", np.ones_like(self.rx)*kwargs.pop("alt", 0.))
+        if isinstance(self.rz, (int, float)):
+            self.rz = np.ones_like(self.rx)*self.rz
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
 
         if "txPos" in kwargs:
