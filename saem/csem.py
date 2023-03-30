@@ -27,6 +27,8 @@ class CSEMData(EMData):
             data file to load if not None
         basename : str [datafile without extension]
             name for data (exporting, figures etc.)
+        mode : str ['B']
+            measuring quantity ('E', 'B' or 'EB')
         txPos : array
             transmitter position as polygone
         rx/ry/rz : iterable
@@ -52,9 +54,10 @@ class CSEMData(EMData):
         if datafile is not None:
             self.loadData(datafile)
 
-        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        self.radius = np.median(dxy) * 0.5
-        self.createConfig()
+        if len(self.rx) > 1:
+            dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+            self.radius = np.median(dxy) * 0.5
+            self.createConfig()
 
     def __repr__(self):
         """String representation of the class."""
