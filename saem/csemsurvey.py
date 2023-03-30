@@ -45,6 +45,10 @@ class CSEMSurvey():
 
         return st
 
+    def __getitem__(self, i):
+        """Return patch number i."""
+        return self.patches[i]
+
     def loadNPZ(self, filename, mtdata=False, **kwargs):
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
@@ -52,9 +56,9 @@ class CSEMSurvey():
 
         a = 0
 
-        try:
+        if hasattr(ALL, "line") and hasattr(ALL["line"], "len"):
             line = ALL["line"]  # NpzFile??
-        except KeyError:
+        else:
             line = np.array([], dtype=int)
             for i in range(len(ALL["DATA"])):
                 line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
@@ -72,6 +76,8 @@ class CSEMSurvey():
             if hasattr(line, 'len') and len(line) > 0:
                 patch.line = line[a:a+len(patch.rx)]
                 a += len(patch.rx)
+            else:
+                patch.line = np.zeros_like(patch.rx)
 
     def importMareData(self, mare, flipxy=False, **kwargs):
         """Import Mare2dEM file."""
