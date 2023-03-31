@@ -447,7 +447,23 @@ class CSEMData(EMData):
 
     def showSounding(self, nrx=None, position=None, response=None,
                      **kwargs):
-        """Show amplitude and phase data."""
+        """Show amplitude and phase data.
+
+        Parameters
+        ----------
+        nrx : int
+            receiver number
+        position : [float, float]
+            position to search for the next receiver
+        ax : [Axes, Axes]
+            two matplotlib axes objects to plot into (otherwise new)
+
+
+        Returns
+        -------
+        ax : [Axes, Axes]
+            two matplotlib axes objects
+        """
         cmp = kwargs.pop("cmp", self.cmp)
         if nrx is not None or position is not None:
             self.setPos(nrx, position)
@@ -474,9 +490,9 @@ class CSEMData(EMData):
                 ax = showSounding(data, self.f, ax=ax, ls="",
                                   marker="x", **kwargs)
                 if response is not None:
-                    col = kwargs["color"]
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", color=col)
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", color=col)
+                    # col = kwargs["color"]
+                    ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
+                    ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
                     ncmp += 1
 
         for a in ax:
