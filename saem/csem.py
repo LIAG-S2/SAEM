@@ -41,10 +41,6 @@ class CSEMData(EMData):
             flight altitude
         """
         super().__init__()
-
-        self.tx = np.array([0., 0.])
-        self.ty = np.array([0., 0.])
-        self.tz = np.array([0., 0.])
         self.updateDefaults(**kwargs)
         self.createDataArray(mode)
         self.loop = kwargs.pop("loop", False)

@@ -111,6 +111,17 @@ class EMData():
                     self.tx, self.ty, self.tz = txpos
                 else:
                     raise("Dimensions not matching")
+        else:
+            self.tx = kwargs.pop("tx", np.array([0., 0.]))
+            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
+            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
+            # self.tz = kwargs.pop("tz", np.ones_like(self.rx)*kwargs.pop("txalt", 0.))
+            if isinstance(self.ty, (int, float)):
+                self.ty = np.ones_like(self.tx)*self.ty
+            if isinstance(self.tx, (int, float)):
+                self.tx = np.ones_like(self.ty)*self.tx
+            if isinstance(self.tz, (int, float)):
+                self.tz = np.ones_like(self.tx)*self.tz
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
