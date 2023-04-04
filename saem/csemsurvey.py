@@ -311,16 +311,79 @@ class CSEMSurvey():
                   inner_area_cell_size=1e4, outer_area_cell_size=None,  # m^2
                   inner_boundary_factor=.1, cell_size=1e7,  # m^3
                   invpoly=None, topo=None, useQHull=True, n_cores=60,
-                  dim=None, extend_world=10, depth=1000.,
+                  dim=None, extend_world=10, depth=1000., p_fwd=1,
                   tx_refine=50., rx_refine=30, tetgen_quality=1.3,
                   symlog_threshold=1e-4, sig_bg=0.001, **kwargs):
         """Run inversion including mesh generation etc.
 
+        Does the whole inversion including pre- and post-processing:
         * check data and errors
         * automatical boundary computation
         * setting up meshes
         * run inversion parsing keyword arguments
         * load results
+        * generate multipage pdf files showing data fit
+
+        Parameters
+        ----------
+        Geometry
+
+        depth : float [1000]
+            Depth of the inversion region. The default is 1000..
+        inner_area_cell_size : float [1e4]
+            maximum cell size of inversion surface triangles in m^2.
+        outer_area_cell_size : float [1e7]
+            cell size of outer suface triangles in m^2.
+        inner_boundary_factor : float
+            Factor to add to the innerboundary. The default is .1 (=10%).
+        cell_size : float
+            Maximum tetrahedral cell size in m^3. The default is 1e7.
+        invpoly : 2d-array, optional
+            polygone for describing the shape of inversion domain.
+        useQHull : bool [True]
+            use convex hull for outer shape.
+        topo : str
+            topography file to by read. The default is None.
+        extend_world : float
+            extend world by a factor. The default is 10.
+        tx_refine : float [30]
+            tranmitter refinement in m. The default is 50..
+        rx_refine : float [30]
+            receiver refinement in m. The default is 30.
+        tetgen_quality : float [1.3]
+            Tetgen mesh quality. The default is 1.3.
+        check : bool
+            just make geometry, show it and quit (to optimize mesh pameters)
+
+        Computation
+
+        n_cores : int [60]
+            Number of cores to use. The default is 60.
+        dim : float
+            Size of the modelling box. Auto-determined by default.
+        p_fwd : int
+            Polynomial order for forward computation. The default is 1.
+        symlog_threshold : TYPE, optional
+            Threshold for linear data transformation. The default is 1e-4.
+        sig_bg : float [0.001]
+            Background conductivity. The default is 0.001.
+        **kwargs : dict
+            Keyword arguments to be passed to inversion.
+            lam : float
+                regularization strength
+            maxIter : int
+                maximum iteration number
+            robustData : bool [False]
+                robust data fitting using an L1 norm
+            blockyModel : bool
+                enhance contrasts by using an L1 norm on roughness
+
+        Plotting
+
+        alim : (float, float) [1e-3, 1]
+            limits for shwoing real and imaginary parts
+        x : str ["y"]
+            string indicating over which coordinate lines are plotted
         """
         if outer_area_cell_size is None:
             outer_area_cell_size = inner_area_cell_size * 100
@@ -411,9 +474,11 @@ class CSEMSurvey():
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
 
+        alim = kwargs.pop("alim", [1e-3, 1])
+        xy = kwargs.pop("x", "y")
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=60, p_fwd=1, start_iter=0)
+                       n_cores=n_cores, p_fwd=p_fwd, start_iter=0)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
@@ -447,7 +512,7 @@ class CSEMSurvey():
         self.loadResults(dirname=resultdir)
         for i, p in enumerate(self.patches):
             p.generateDataPDF(resultdir+f"fit{i+1}.pdf",
-                              mode="linefreqwise", x="y", alim=[1e-3, 1])
+                              mode="linefreqwise", x=xy, alim=alim)
 
 
 if __name__ == "__main__":
