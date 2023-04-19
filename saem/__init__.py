@@ -7,4 +7,4 @@ from .maredata import Mare2dEMData
 from .csemsurvey import CSEMSurvey
 from .plotting import showSounding
 from .emdata import EMData
-from .mt import MTData
+#from .mt import MTData

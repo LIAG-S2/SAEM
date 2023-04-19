@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pygimli as pg
 from saem import Mare2dEMData
 from saem import CSEMData
+from saem.mt import MTData
 
 
 class CSEMSurvey():
@@ -45,7 +46,7 @@ class CSEMSurvey():
 
         return st
 
-    def loadNPZ(self, filename, mtdata=False, **kwargs):
+    def loadNPZ(self, filename, mtdata=False, mode=None, **kwargs):
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
@@ -55,6 +56,9 @@ class CSEMSurvey():
         try:
             line = ALL["line"]
         except KeyError:
+            line = None
+
+        if line is None or line == None:
             line = np.array([], dtype=int)
             for i in range(len(ALL["DATA"])):
                 line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
@@ -62,10 +66,13 @@ class CSEMSurvey():
 
         for i in range(len(ALL["DATA"])):
             if not mtdata:
-                patch = CSEMData()
+                if mode is None:
+                    mode = 'B'
+                patch = CSEMData(mode=mode)
             else:
-                pass
-                # patch = MTData()
+                if mode is None:
+                    mode ='ZT'
+                patch = MTData(mode=mode)
 
             patch.extractData(ALL, i)
             self.addPatch(patch)

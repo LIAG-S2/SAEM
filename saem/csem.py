@@ -40,11 +40,12 @@ class CSEMData(EMData):
         """
         super().__init__()
 
+        self.mode = mode
         self.tx = np.array([0., 0.])
         self.ty = np.array([0., 0.])
         self.tz = np.array([0., 0.])
         self.updateDefaults(**kwargs)
-        self.createDataArray(mode)
+        self.createDataArray()
         self.loop = kwargs.pop("loop", False)
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.alt = self.rz - self.txAlt
@@ -68,13 +69,13 @@ class CSEMData(EMData):
 
         return "\n".join((sdata, stx, smrx, spos))
 
-    def createDataArray(self, mode):
+    def createDataArray(self):
         """Create data array for a given model ("E", "B", or "RB")."""
-        if mode == 'EB':
+        if self.mode == 'EB':
             self.cstr = ['Ex', 'Ey', 'Ez', 'Bx', 'By', 'Bz']
-        elif mode == 'B':
+        elif self.mode == 'B':
             self.cstr = ['Bx', 'By', 'Bz']
-        elif mode == 'E':
+        elif self.mode == 'E':
             self.cstr = ['Ex', 'Ey', 'Ez']
         else:
             print('Error! Choose correct mode for CSEMData initialization.')
@@ -131,7 +132,8 @@ class CSEMData(EMData):
         data = ALL["DATA"][nr]
         rxs = data["rx"]
         self.__init__(txPos=txgeo, f=freqs,
-                      rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+                      rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2],
+                      mode=self.mode)
 
         if 'line' in ALL:
             self.line = ALL["line"]

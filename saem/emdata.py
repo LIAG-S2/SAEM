@@ -45,8 +45,8 @@ class EMData():
         alt : float
             flight altitude
         """
-        self.origin = [0, 0, 0]
-        self.angle = 0
+        self.origin = [0., 0., 0.]
+        self.angle = 0.
         self.llthres = 1e-3
         self.A = np.array([[1, 0], [0, 1]])
         self.depth = None
@@ -99,7 +99,7 @@ class EMData():
     def getIndices(self):
         """Return indices of finite data into full matrix."""
         ff = np.array([], dtype=bool)
-        for i in range(3):
+        for i in range(len(self.cstr)):
             if self.cmp[i]:
                 tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
                 ff = np.hstack((ff, np.isfinite(tmp)))
@@ -198,7 +198,7 @@ class EMData():
 
     def createConfig(self, fullTx=False):
         """Create EMPYMOD input argument configuration."""
-        self.cfg = {'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
+        self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
@@ -223,10 +223,11 @@ class EMData():
         self.origin = [0, 0, 0]
         self.angle = 0
         self.A = np.array([[1, 0], [0, 1]])
-        for i in range(len(self.f)):
-            Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
-            self.DATAX[i, :] = Bxy[0, :]
-            self.DATAY[i, :] = Bxy[1, :]
+        print('Need to fix field rotation of X/Y components')
+        # for i in range(len(self.f)):
+        #     Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
+        #     self.DATAX[i, :] = Bxy[0, :]
+        #     self.DATAY[i, :] = Bxy[1, :]
 
     def rotate(self, ang=None, line=None, origin=None):
         """Rotate positions and fields to a local coordinate system.
@@ -266,22 +267,25 @@ class EMData():
             self.tx = np.round(self.tx*10+0.001) / 10  # just in 2D case
             self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
-            for i in range(len(self.f)):
-                Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
-                                              self.DATAY[i, :])))
-                self.DATAX[i, :] = Bxy[0, :]
-                self.DATAY[i, :] = Bxy[1, :]
+
+            print('Need to fix field rotation of X/Y components')
+            # for i in range(len(self.f)):
+            #     Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
+            #                                   self.DATAY[i, :])))
+            #     self.DATAX[i, :] = Bxy[0, :]
+            #     self.DATAY[i, :] = Bxy[1, :]
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
 
-    def setOrigin(self, origin=None):
+    def setOrigin(self, origin=None, shift_back=True):
         """Set origin."""
         # first shift back to old origin
-        self.tx += self.origin[0]
-        self.ty += self.origin[1]
-        self.rx += self.origin[0]
-        self.ry += self.origin[1]
+        if shift_back:
+            self.tx += self.origin[0]
+            self.ty += self.origin[1]
+            self.rx += self.origin[0]
+            self.ry += self.origin[1]
         if origin is None:
             origin = [np.mean(self.tx), np.mean(self.ty)]
         # now shift to new origin
@@ -848,10 +852,6 @@ class EMData():
         else:
             fig = ax.flat[0].figure
 
-        for a in ax.flat:
-            a.plot(self.tx, self.ty, "wx-", lw=2)
-            a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
-
         ncmp = 0
         for ci, cid in enumerate(cmp):
             if cid:
@@ -887,6 +887,8 @@ class EMData():
         for a in ax.flat:
             a.set_aspect(1.0)
             a.plot(self.tx, self.ty, "k*-")
+            a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
+
             if background:
                 underlayBackground(ax, background, self.utm)
 
@@ -1203,7 +1205,7 @@ class EMData():
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
 
-        sizes = [sum(self.cmp), self.nF, self.nRx]
+        sizes = [len(self.cstr), self.nF, self.nRx]
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
         try:
             RESP[self.getIndices()] = response
@@ -1211,5 +1213,6 @@ class EMData():
             RESP[:] = response
 
         RESP = np.reshape(RESP, sizes)
-        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
+        self.RESP = np.ones((len(self.cstr), self.nF, self.nRx),
+                            dtype=np.complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
