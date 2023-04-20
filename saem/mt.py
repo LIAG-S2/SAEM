@@ -179,6 +179,7 @@ class MTData(EMData):
             self.f = MAT[0]["frequencies"].ravel()
             sorting = np.argsort(self.f)
             self.ry, self.rx, self.rz = MAT1["rx"]
+            self.f = self.f[sorting]
             self.DATA = MAT1["data"][:, sorting, :]
             self.ERR = MAT1["err"][:, sorting, :]
         else:
@@ -533,7 +534,7 @@ class MTData(EMData):
             if line is not None:
                 fname += "-line" + str(line)
 
-            for i in range(3):
+            for i in range(len(self.cstr)):
                 if cmp[i]:
                     fname += "B" + allcmp[i].lower()
         else:

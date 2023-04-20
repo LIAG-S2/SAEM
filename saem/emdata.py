@@ -81,8 +81,14 @@ class EMData():
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
 
         self.rx = kwargs.pop("rx", np.array([0.]))
-        self.ry = kwargs.pop("ry", np.array([0.]))
-        self.rz = kwargs.pop("rz", np.array([0.]))
+        self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
+        if isinstance(self.ry, (int, float)):
+            self.ry = np.ones_like(self.rx)*self.ry
+        if isinstance(self.rx, (int, float)):
+            self.rx = np.ones_like(self.ry)*self.rx
+        self.rz = kwargs.pop("rz", np.ones_like(self.rx)*kwargs.pop("alt", 0.))
+        if isinstance(self.rz, (int, float)):
+            self.rz = np.ones_like(self.rx)*self.rz
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
 
         if "txPos" in kwargs:
@@ -94,7 +100,28 @@ class EMData():
                     self.tx, self.ty, self.tz = np.genfromtxt(
                         txpos, unpack=True, usecols=[0, 1, 2])
             else:  # take it directly
-                self.tx, self.ty, self.tz = np.array(txpos)
+                txpos = np.array(txpos)
+                if len(txpos) > 3:
+                    txpos = txpos.T
+
+                if len(txpos) == 2:
+                    self.tx, self.ty = txpos
+                    self.tz = np.zeros_like(self.tx)
+                elif len(txpos) == 3:
+                    self.tx, self.ty, self.tz = txpos
+                else:
+                    raise("Dimensions not matching")
+        else:
+            self.tx = kwargs.pop("tx", np.array([0., 0.]))
+            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
+            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
+            # self.tz = kwargs.pop("tz", np.ones_like(self.rx)*kwargs.pop("txalt", 0.))
+            if isinstance(self.ty, (int, float)):
+                self.ty = np.ones_like(self.tx)*self.ty
+            if isinstance(self.tx, (int, float)):
+                self.tx = np.ones_like(self.ty)*self.tx
+            if isinstance(self.tz, (int, float)):
+                self.tz = np.ones_like(self.tx)*self.tz
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
@@ -189,9 +216,9 @@ class EMData():
                 print("Tx distance ", self.txDistance()[nrx])
 
         self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
-        self.dataX = self.DATAX[:, nrx]
-        self.dataY = self.DATAY[:, nrx]
-        self.dataZ = self.DATAZ[:, nrx]
+        self.dataX = self.DATA[0, :, nrx]
+        self.dataY = self.DATA[1, :, nrx]
+        self.dataZ = self.DATA[2, :, nrx]
         self.nrx = nrx
         if show:
             self.showPos()

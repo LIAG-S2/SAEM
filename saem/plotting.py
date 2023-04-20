@@ -99,7 +99,9 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
         ax.plot(x, y, ".", ms=0, zorder=-10)
 
     patches = []
-    width = np.min(np.abs(np.diff(x[:len(np.unique(y))])))
+    uy = np.unique(y)
+    maxn = len(uy) if len(uy) > 1 else len(x)
+    width = np.min(np.abs(np.diff(x[:maxn])))
 
     for xi, yi in zip(x, y):
         if numpoints == 0 and type(radius) is not str:
@@ -132,7 +134,8 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
         pc.set_array(w)
     else:
         pc.set_array(np.abs(w))
-        ax.plot(x[w<0], y[w<0], 'k_', markersize=1.)
+        ax.plot(x[w < 0], y[w < 0], 'k_', markersize=1.)
+
     ax.add_collection(pc)
     if log:
         pc.set_clim([-alim[1], alim[1]])
@@ -162,7 +165,7 @@ def underlayBackground(ax, background="BKG", utm=32):
 
 
 def makeSymlogTicks(cb, alim):
-
+    """Create symlog ticks for given colorbar."""
     i1 = int(np.log10(alim[0]))
     i2 = int(np.log10(alim[1]))
     ni = i2-i1+1
@@ -175,7 +178,6 @@ def makeSymlogTicks(cb, alim):
 
 def updatePlotKwargs(**kwargs):
     """Set default values for different plotting tools."""
-
     kwargs.setdefault("what", "data")
     log = kwargs.setdefault("log", True)
     kwargs.setdefault("color", None)
@@ -200,7 +202,7 @@ def updatePlotKwargs(**kwargs):
 
 
 def makeSubTitles(ax, ncmp, cstr, ci, what):
-
+    """Make subtitles from field type and compontents."""
     for i, ri in enumerate([r'$\Re$($', r'$\Im$($']):
         if what == 'pf':
             ax[i, ncmp].set_title(
@@ -210,7 +212,7 @@ def makeSubTitles(ax, ncmp, cstr, ci, what):
                 ri + cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
         elif what == 'sf/pf':
             ax[i, ncmp].set_title(
-                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' + 
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' +
                 cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
         else:
             ax[i, ncmp].set_title(ri + cstr[ci][0] + '_' + cstr[ci][1] + '$)')

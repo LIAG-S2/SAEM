@@ -27,6 +27,8 @@ class CSEMData(EMData):
             data file to load if not None
         basename : str [datafile without extension]
             name for data (exporting, figures etc.)
+        mode : str ['B']
+            measuring quantity ('E', 'B' or 'EB')
         txPos : array
             transmitter position as polygone
         rx/ry/rz : iterable
@@ -44,6 +46,7 @@ class CSEMData(EMData):
         self.tx = np.array([0., 0.])
         self.ty = np.array([0., 0.])
         self.tz = np.array([0., 0.])
+
         self.updateDefaults(**kwargs)
         self.createDataArray()
         self.loop = kwargs.pop("loop", False)
@@ -53,9 +56,10 @@ class CSEMData(EMData):
         if datafile is not None:
             self.loadData(datafile)
 
-        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        self.radius = np.median(dxy) * 0.5
-        self.createConfig()
+        if len(self.rx) > 1:
+            dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+            self.radius = np.median(dxy) * 0.5
+            self.createConfig()
 
     def __repr__(self):
         """String representation of the class."""
@@ -130,7 +134,7 @@ class CSEMData(EMData):
         freqs = ALL["freqs"]
         txgeo = ALL["tx"][nr][:, :3].T
         data = ALL["DATA"][nr]
-        rxs = data["rx"]
+        rxs = np.array(data["rx"])
         self.__init__(txPos=txgeo, f=freqs,
                       rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2],
                       mode=self.mode)
@@ -450,7 +454,23 @@ class CSEMData(EMData):
 
     def showSounding(self, nrx=None, position=None, response=None,
                      **kwargs):
-        """Show amplitude and phase data."""
+        """Show amplitude and phase data.
+
+        Parameters
+        ----------
+        nrx : int
+            receiver number
+        position : [float, float]
+            position to search for the next receiver
+        ax : [Axes, Axes]
+            two matplotlib axes objects to plot into (otherwise new)
+
+
+        Returns
+        -------
+        ax : [Axes, Axes]
+            two matplotlib axes objects
+        """
         cmp = kwargs.pop("cmp", self.cmp)
         if nrx is not None or position is not None:
             self.setPos(nrx, position)
@@ -477,9 +497,9 @@ class CSEMData(EMData):
                 ax = showSounding(data, self.f, ax=ax, ls="",
                                   marker="x", **kwargs)
                 if response is not None:
-                    col = kwargs["color"]
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", color=col)
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", color=col)
+                    # col = kwargs["color"]
+                    ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
+                    ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
                     ncmp += 1
 
         for a in ax:
