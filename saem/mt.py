@@ -45,11 +45,12 @@ class MTData(EMData):
         """
         super().__init__()
 
-        self.tx = [[-5e3, 5e3], [0., 0.]]
-        self.ty = [[0., 0.], [-5e3, 5e3]]
-        self.tz = [[1e6, 1e6], [1e6, 1e6]]
+        self.mode = mode
+        self.tx = [[], []]
+        self.ty = [[], []]
+        self.tz = [[], []]
         self.updateDefaults(**kwargs)
-        self.createDataArray(mode)
+        self.createDataArray()
 
         if datafile is not None:
             self.loadData(datafile)
@@ -66,17 +67,17 @@ class MTData(EMData):
 
         return "\n".join((sdata))
 
-    def createDataArray(self, mode):
+    def createDataArray(self):
         """Create data arrays according to given mode (ZT, Z, T, Zd, or Zo)."""
-        if mode == 'ZT':
+        if self.mode == 'ZT':
             self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy', 'Tx', 'Ty']
-        elif mode == 'Z':
+        elif self.mode == 'Z':
             self.cstr = ['Zxx', 'Zxy', 'Zyx', 'Zyy']
-        elif mode == 'T':
+        elif self.mode == 'T':
             self.cstr = ['Tx', 'Ty']
-        elif mode == 'Zd':
+        elif self.mode == 'Zd':
             self.cstr = ['Zxx', 'Zyy']
-        elif mode == 'Zo':
+        elif self.mode == 'Zo':
             self.cstr = ['Zxy', 'Zyx']
         else:
             print('Error! Choose correct mode for MTData initialization.')
@@ -127,14 +128,17 @@ class MTData(EMData):
     def extractData(self, ALL, nr=0):
         """Extract data from NPZ structure."""
         freqs = ALL["freqs"]
-        rxs = data["rx"]   # !!! must yield error
-        self.__init__(f=freqs, rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+        data = ALL["DATA"][nr]
+        rxs = np.array(data["rx"])
+        self.__init__(f=freqs, rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2],
+                      mode=self.mode)
 
         if 'line' in ALL:
             self.line = ALL["line"]
 
         data = ALL["DATA"][nr]
-        self.cmp = ALL["cmp"]
+        # do not overwrite cmp at this point until correct defined
+        # self.cmp = ALL["cmp"]
         self.ACTIVE = np.zeros_like(self.DATA)
         self.ERR = np.zeros_like(self.DATA)
 
@@ -172,11 +176,12 @@ class MTData(EMData):
                                                          temp[name]), axis=-1)
 
             self.line = MAT["nr"]
-            self.f = MAT[0]["frequencies"]
+            self.f = MAT[0]["frequencies"].ravel()
+            sorting = np.argsort(self.f)
             self.ry, self.rx, self.rz = MAT1["rx"]
-            self.DATA = MAT1["data"]
-            self.ERR = MAT1["err"]
-
+            self.f = self.f[sorting]
+            self.DATA = MAT1["data"][:, sorting, :]
+            self.ERR = MAT1["err"][:, sorting, :]
         else:
             self.line = MAT["nr"]
             self.f = MAT["frequencies"]
@@ -498,7 +503,7 @@ class MTData(EMData):
         errorI = np.zeros_like(dataR)
         kC = 0
         Cmp = []
-        for iC in range(3):
+        for iC in range(len(self.cstr)):
             if cmp[iC]:
                 dataR[0, kC, :, :] = self.DATA[iC][:, ind].real
                 dataI[0, kC, :, :] = self.DATA[iC][:, ind].imag
@@ -529,7 +534,7 @@ class MTData(EMData):
             if line is not None:
                 fname += "-line" + str(line)
 
-            for i in range(3):
+            for i in range(len(self.cstr)):
                 if cmp[i]:
                     fname += "B" + allcmp[i].lower()
         else:
@@ -590,39 +595,47 @@ class MTData(EMData):
             self.J = pg.load(dirname+"jacobian.bmat")
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
-    def loadResponse(self, dirname=None, response=None):
-        """Load model response file."""
-        if response is None:
-            respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
-            if len(respfiles) == 0:
-                pg.error("Could not find response file")
+    # def loadResponse(self, dirname=None, response=None):
+    #     """Load model response file."""
+    #     if response is None:
+    #         respfiles = sorted(glob(dirname+"response_iter*.npy"))
+    #         if len(respfiles) == 0:
+    #             respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
+    #         if len(respfiles) == 0:
+    #             pg.error("Could not find response file")
 
-            responseVec = np.load(respfiles[-1])
-            respR, respI = np.split(responseVec, 2)
-            response = respR + respI*1j
+    #         responseVec = np.load(respfiles[-1])
+    #         respR, respI = np.split(responseVec, 2)
+    #         response = respR + respI*1j
 
-        sizes = [sum(self.cmp), self.nF, self.nRx]
-        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
-        try:
-            RESP[self.getIndices()] = response
-        except ValueError:
-            RESP[:] = response
+    #     sizes = [len(self.cstr), self.nF, self.nRx]
+    #     RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
 
-        RESP = np.reshape(RESP, sizes)
-        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
-        self.RESP[np.nonzero(self.cmp)[0]] = RESP
+    #     print(self.getIndices(), len(response))
+    #     RESP[self.getIndices()] = response
+    #     asd
+    #     try:
+    #         RESP[self.getIndices()] = response
+    #     except ValueError:
+    #         RESP[:] = response
 
-    def getIndices(self):
-        """Return indices of finite data into full matrix."""
-        ff = np.array([], dtype=bool)
-        for i in range(3):
-            if self.cmp[i]:
-                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
-                ff = np.hstack((ff, np.isfinite(tmp)))
+    #     RESP = np.reshape(RESP, sizes)
+    #     self.RESP = np.ones((len(self.cstr), self.nF, self.nRx),
+    #                         dtype=np.complex) * np.nan
+    #     self.RESP[np.nonzero(self.cmp)[0]] = RESP
 
-        return ff
+    # def getIndices(self):
+    #     """Return indices of finite data into full matrix."""
+    #     ff = np.array([], dtype=bool)
+    #     for i in range(len(self.cstr)):
+    #         if self.cmp[i]:
+    #             tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
+    #             idx = np.argwhere(np.isnan(tmp)).ravel()
+    #             mask = np.ones(tmp.size, dtype=bool)
+    #             mask[idx] = False
+    #             ff = np.hstack((ff, mask[mask==True]))
+
+    #     return ff
 
     def nData(self):
         """Number of data (for splitting the response)."""

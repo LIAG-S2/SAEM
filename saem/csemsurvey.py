@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pygimli as pg
 from saem import Mare2dEMData
 from saem import CSEMData
+from saem.mt import MTData
 
 
 class CSEMSurvey():
@@ -58,6 +59,10 @@ class CSEMSurvey():
         self.f = ALL["freqs"]
 
         a = 0
+        try:
+            line = ALL["line"]
+        except KeyError:
+            line = None
 
         if hasattr(ALL, "line") and hasattr(ALL["line"], "len"):
             line = ALL["line"]  # NpzFile??
@@ -69,10 +74,13 @@ class CSEMSurvey():
 
         for i in range(len(ALL["DATA"])):
             if not mtdata:
-                patch = CSEMData()
+                if mode is None:
+                    mode = 'B'
+                patch = CSEMData(mode=mode)
             else:
-                pass
-                # patch = MTData()
+                if mode is None:
+                    mode ='ZT'
+                patch = MTData(mode=mode)
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
