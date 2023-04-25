@@ -1,3 +1,4 @@
+"""Controlled-source electromagnetic (CSEM) survey (patch collection) data."""
 import os.path
 from glob import glob
 import numpy as np
@@ -5,115 +6,138 @@ import matplotlib.pyplot as plt
 import pygimli as pg
 from saem import Mare2dEMData
 from saem import CSEMData
+from saem.mt import MTData
 
 
 class CSEMSurvey():
     """Class for (multi-patch/transmitter) CSEM data."""
 
     def __init__(self, arg=None, **kwargs):
-        """Initialize class with either data filename or patch instances.
-
+        """Initialize class with either data filename or patch instance.
 
         Parameters
         ----------
         **kwargs : TYPE
             DESCRIPTION.
-
-        Returns
-        -------
-        None.
-
-
         """
         self.patches = []
         self.origin = [0, 0, 0]
         self.angle = 0.
         self.basename = "new"
-        self.cmp = [1, 1, 1]
         if arg is not None:
             if isinstance(arg, str):
                 if arg.endswith(".emdata"):  # obviously a Mare2d File
                     self.importMareData(arg, **kwargs)
                 elif arg.endswith(".npz"):
                     self.loadNPZ(arg, **kwargs)
+            elif hasattr(arg, "__iter__"):
+                for a in arg:
+                    self.addPatch(a)
+            elif isinstance(arg, CSEMData):
+                self.addPatch(arg)
+            else:
+                raise TypeError("Cannot use type")
 
     def __repr__(self):
+        """String representation."""
         st = "CSEMSurvey class with {:d} patches".format(len(self.patches))
         for i, p in enumerate(self.patches):
             st = "\n".join([st, p.__repr__()])
 
         return st
 
-    def loadNPZ(self, filename, **kwargs):
+    def __getitem__(self, i):
+        """Return property (str) or patch number (int)."""
+        if isinstance(i, int):
+            return self.patches[i]
+        elif isinstance(i, str):
+            return getattr(self, i)
+
+    def loadNPZ(self, filename, mtdata=False, **kwargs):
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
 
         a = 0
-        line = ALL["line"]
+        try:
+            line = ALL["line"]
+        except KeyError:
+            line = None
+
+        if hasattr(ALL, "line") and hasattr(ALL["line"], "len"):
+            line = ALL["line"]  # NpzFile??
+        else:
+            line = np.array([], dtype=int)
+            for i in range(len(ALL["DATA"])):
+                line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
+                                               dtype=int))
+
         for i in range(len(ALL["DATA"])):
-            patch = CSEMData()
+            if not mtdata:
+                if mode is None:
+                    mode = 'B'
+                patch = CSEMData(mode=mode)
+            else:
+                if mode is None:
+                    mode ='ZT'
+                patch = MTData(mode=mode)
+
             patch.extractData(ALL, i)
             self.addPatch(patch)
-            patch.line = line[a:a+len(patch.rx)]
-            a += len(patch.rx)
+            if hasattr(line, 'len') and len(line) > 0:
+                patch.line = line[a:a+len(patch.rx)]
+                a += len(patch.rx)
+            else:
+                patch.line = np.zeros_like(patch.rx)
+                patch.detectLines()
 
     def importMareData(self, mare, flipxy=False, **kwargs):
-        """Import Mare2dEM file format."""
-
+        """Import Mare2dEM file."""
         if isinstance(mare, str):
             self.basename = mare.replace(".emdata", "")
             mare = Mare2dEMData(mare, flipxy=flipxy)
 
         tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
-        for i in tI:
-            part = mare.getPart(tx=i+1, typ="B", clean=True)
-            txl = mare.txpos[i, 3]
-            txpos = [[mare.txpos[i, 0], mare.txpos[i, 0]],
-                     mare.txpos[i, 1] + np.array([-1/2, 1/2])*txl]
-            fak = 1e9
-            mats = [part.getDataMatrix(field="Bx") * txl * fak,
-                    part.getDataMatrix(field="By") * txl * fak,
-                    -part.getDataMatrix(field="Bz") * txl * fak]
-            errs = [part.getDataMatrix(field="Bx", column="StdErr"),
-                    part.getDataMatrix(field="By", column="StdErr"),
-                    part.getDataMatrix(field="Bz", column="StdErr")]
-            udt = np.unique(mare.DATA["Type"])
-            # make convention: either Real/Imag 1-6,1-6
-            if max(udt) < 20:  # real imag
-                for i in range(3):
-                    errs[i] = errs[i].real*np.abs(mats[i].real) + \
-                        errs[i].imag*np.abs(mats[i].imag) * 1j
-            else:
-                if 31 in udt or 33 in udt or 35 in udt:  # no log
-                    for i in range(3):
-                        errs[i] = np.abs(errs[i]) * (
-                            np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
-                else:
-                    for i in range(3):
-                        errs[i] = np.log10(np.abs(errs[i])) * (
-                            np.abs(mats[i].real) + np.abs(mats[i].imag) * 1j)
+        for typ in ["E", "B"]:
+            for i in tI:
+                part = mare.getPart(tx=i+1, typ=typ, clean=True)
+                if len(part.DATA) == 0:  # no data
+                    break
 
-            rx, ry, rz = part.rxpos.T
-            cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
-                          txPos=txpos)
-            cs.cmp = [1, 1, 1]
-            cs.basename = "patch{:d}".format(i+1)
-            for i, mat in enumerate(mats):
-                if mat.shape[0] == 0:
-                    cs.cmp[i] = 0
-                    mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
-                    errs[i] = np.zeros_like(mats[i])
+                txl = mare.txpos[i, 3]
+                # azimuth and dip need to be used as well !!!
+                txpos = np.array([[mare.txpos[i, 0], mare.txpos[i, 0]],
+                                  mare.txpos[i, 1] + np.array([-1/2, 1/2])*txl,
+                                  [0, 0]])
 
-            cs.DATA = np.stack(mats)
-            cs.ERR = np.stack(errs)
-            cs.chooseData()
-            self.addPatch(cs)
+                if "txs" in kwargs:
+                    txpos = kwargs["txs"][i].T
 
-        if "txs" in kwargs:
-            txs = kwargs["txs"]
-            for i, p in enumerate(self.patches):
-                p.tx, p.ty = txs[tI[i]].T[:2]
+                fak = 1e9 if typ == "B" else 1
+                mats = [part.getDataMatrix(field=typ+"x") * txl * fak,
+                        part.getDataMatrix(field=typ+"y") * txl * fak,
+                        -part.getDataMatrix(field=typ+"z") * txl * fak]
+                errs = [part.getDataMatrix(field=typ+"x",
+                                           column="StdErr") * txl * fak,
+                        part.getDataMatrix(field=typ+"y",
+                                           column="StdErr") * txl * fak,
+                        part.getDataMatrix(field=typ+"z",
+                                           column="StdErr") * txl * fak]
+
+                rx, ry, rz = part.rxpos.T
+                cs = CSEMData(f=np.array(mare.f), rx=rx, ry=ry, rz=rz,
+                              txPos=txpos, mode=typ)
+                cs.basename = "patch{:d}".format(i+1)
+                for i, mat in enumerate(mats):
+                    if mat.shape[0] == 0:
+                        cs.cmp[i] = 0
+                        mats[i] = np.zeros((len(part.f), part.rxpos.shape[0]))
+                        errs[i] = np.zeros_like(mats[i])
+
+                cs.DATA = np.stack(mats)
+                cs.ERR = np.stack(errs)
+                cs.chooseActive()
+                self.addPatch(cs)
 
     def addPatch(self, patch, name=None):
         """Add a new patch to the file.
@@ -123,7 +147,6 @@ class CSEMSurvey():
         patch : CSEMData | str
             CSEMData instance or string to load into that
         """
-
         if isinstance(patch, str):
             patch = CSEMData(patch)
             if name is not None:
@@ -132,6 +155,8 @@ class CSEMSurvey():
         if len(self.patches) == 0:
             self.angle = patch.angle
             self.origin = patch.origin
+            self.cmp = patch.cmp
+            print('  -  copy *angle*, *origin* and *cmp* from first patch  -')
         else:
             assert self.angle == patch.angle, "angle not matching"
             assert np.allclose(self.origin, patch.origin), "origin not equal"
@@ -145,15 +170,16 @@ class CSEMSurvey():
         self.patches.append(patch)
 
     def add(self, *args, **kwargs):
-        """Alias for addPatch."""
+        """Alias for addPatch."""  # maybe do it the other way round
         self.addPatch(*args, **kwargs)
 
-    def showPositions(self):
+    def showPositions(self, **kwargs):
         """Show all positions."""
         fig, ax = plt.subplots()
-        ma = ["x", "+"]
+        ma = ["x", "+", "^", "v"]
         for i, p in enumerate(self.patches):
-            p.showPos(ax=ax, color="C{:d}".format(i), marker=ma[i % 2])
+            p.showPos(ax=ax, color="C{:d}".format(i),
+                      marker=ma[i % len(ma)], **kwargs)
 
         return fig, ax
 
@@ -161,6 +187,21 @@ class CSEMSurvey():
         """."""
         for i, p in enumerate(self.patches):
             p.showData(**kwargs)
+
+    def setOrigin(self, *args, **kwargs):
+        """Set the same origin for all patches (reshifting if existing)."""
+        for p in self.patches:
+            p.setOrigin(*args, **kwargs)
+
+    def filter(self, *args, **kwargs):
+        """Filter."""
+        for p in self.patches:
+            p.filter(*args, **kwargs)
+
+    def estimateError(self, *args, **kwargs):
+        """Estimate error model."""
+        for p in self.patches:
+            p.estimateError(*args, **kwargs)
 
     def getData(self, line=None, **kwargs):
         """Gather data from individual patches."""
@@ -174,33 +215,17 @@ class CSEMSurvey():
 
         return DATA, lines
 
-    def setOrigin(self, *args, **kwargs):
-        """Set the same origin for all patches (reshifting if existing)."""
-        for p in self.patches:
-            p.setOrigin(*args, **kwargs)
-
-    def filter(self, *args, **kwargs):
-        """Filter."""
-        for p in self.patches:
-            p.filter(*args, **kwargs)
-
-    def estimateError(self, *args, **kwargs):
-        """estimate error model."""
-        for p in self.patches:
-            p.estimateError(*args, **kwargs)
-
     def saveData(self, fname=None, line=None, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.setdefault("cmp", self.patches[0].cmp)
-        allcmp = ['X', 'Y', 'Z']
         if fname is None:
             fname = self.basename
             if line is not None:
                 fname += "-line" + str(line)
 
-            for i in range(3):
-                if cmp[i]:
-                    fname += "B" + allcmp[i].lower()
+            for ci, cid in enumerate(cmp):
+                if cid:
+                    fname += self.patches[0].cstr[ci]
         else:
             if fname.startswith("+"):
                 fname = self.basename + "-" + fname
@@ -212,16 +237,17 @@ class CSEMSurvey():
                  freqs=self.patches[0].f,
                  DATA=DATA,
                  line=lines,
-                 cmp=cmp,
+                 cmp=[patch["cmp"] for patch in DATA],
                  origin=self.origin,  # global coordinates with altitude
                  rotation=self.angle)
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
+        if not dirname.endswith('/'):
+            dirname += '/'
+
         if response is None:
             respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
             if len(respfiles) == 0:
                 pg.error("Could not find response file")
 
@@ -293,16 +319,79 @@ class CSEMSurvey():
                   inner_area_cell_size=1e4, outer_area_cell_size=None,  # m^2
                   inner_boundary_factor=.1, cell_size=1e7,  # m^3
                   invpoly=None, topo=None, useQHull=True, n_cores=60,
-                  dim=None, extend_world=10, depth=1000.,
+                  dim=None, extend_world=10, depth=1000., p_fwd=1,
                   tx_refine=50., rx_refine=30, tetgen_quality=1.3,
                   symlog_threshold=1e-4, sig_bg=0.001, **kwargs):
         """Run inversion including mesh generation etc.
 
+        Does the whole inversion including pre- and post-processing:
         * check data and errors
         * automatical boundary computation
         * setting up meshes
         * run inversion parsing keyword arguments
         * load results
+        * generate multipage pdf files showing data fit
+
+        Parameters
+        ----------
+        Geometry
+
+        depth : float [1000]
+            Depth of the inversion region. The default is 1000..
+        inner_area_cell_size : float [1e4]
+            maximum cell size of inversion surface triangles in m^2.
+        outer_area_cell_size : float [1e7]
+            cell size of outer suface triangles in m^2.
+        inner_boundary_factor : float
+            Factor to add to the innerboundary. The default is .1 (=10%).
+        cell_size : float
+            Maximum tetrahedral cell size in m^3. The default is 1e7.
+        invpoly : 2d-array, optional
+            polygone for describing the shape of inversion domain.
+        useQHull : bool [True]
+            use convex hull for outer shape.
+        topo : str
+            topography file to by read. The default is None.
+        extend_world : float
+            extend world by a factor. The default is 10.
+        tx_refine : float [30]
+            tranmitter refinement in m. The default is 50..
+        rx_refine : float [30]
+            receiver refinement in m. The default is 30.
+        tetgen_quality : float [1.3]
+            Tetgen mesh quality. The default is 1.3.
+        check : bool
+            just make geometry, show it and quit (to optimize mesh pameters)
+
+        Computation
+
+        n_cores : int [60]
+            Number of cores to use. The default is 60.
+        dim : float
+            Size of the modelling box. Auto-determined by default.
+        p_fwd : int
+            Polynomial order for forward computation. The default is 1.
+        symlog_threshold : TYPE, optional
+            Threshold for linear data transformation. The default is 1e-4.
+        sig_bg : float [0.001]
+            Background conductivity. The default is 0.001.
+        **kwargs : dict
+            Keyword arguments to be passed to inversion.
+            lam : float
+                regularization strength
+            maxIter : int
+                maximum iteration number
+            robustData : bool [False]
+                robust data fitting using an L1 norm
+            blockyModel : bool
+                enhance contrasts by using an L1 norm on roughness
+
+        Plotting
+
+        alim : (float, float) [1e-3, 1]
+            limits for shwoing real and imaginary parts
+        x : str ["y"]
+            string indicating over which coordinate lines are plotted
         """
         if outer_area_cell_size is None:
             outer_area_cell_size = inner_area_cell_size * 100
@@ -363,6 +452,8 @@ class CSEMSurvey():
         from custEM.meshgen import meshgen_utils as mu
         from custEM.inv.inv_utils import MultiFWD
 
+        # extx = max(pg.x()
+        # dim = dim or max()
         M = BlankWorld(name=invmesh,
                        x_dim=[x0-dim, x0+dim],
                        y_dim=[y0-dim, y0+dim],
@@ -393,9 +484,11 @@ class CSEMSurvey():
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
 
+        alim = kwargs.pop("alim", [1e-3, 1])
+        xy = kwargs.pop("x", "y")
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=60, p_fwd=1, start_iter=0)
+                       n_cores=n_cores, p_fwd=p_fwd, start_iter=0)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
@@ -414,9 +507,14 @@ class CSEMSurvey():
         pgmesh['sigma'] = invmodel
         pgmesh['res'] = 1. / invmodel
         cov = np.zeros(fop._jac.cols())
+        mT = inv.modelTrans
         for i in range(fop._jac.rows()):
-            cov += np.abs(fop._jac.row(i))
-        cov *= invmodel / pgmesh.cellSizes()
+            cov += np.abs(fop._jac.row(i) * dT.deriv(inv.response) /
+                          dT.error(inv.response, fop.errors))
+
+        cov /= mT.deriv(invmodel)  # previous * invmodel
+        cov /= pgmesh.cellSizes()
+
         np.save(fop.inv_dir + invmod + '_coverage.npy', cov)
         pgmesh['coverageLog10'] = np.log10(cov)
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
@@ -424,7 +522,7 @@ class CSEMSurvey():
         self.loadResults(dirname=resultdir)
         for i, p in enumerate(self.patches):
             p.generateDataPDF(resultdir+f"fit{i+1}.pdf",
-                              mode="linefreqwise", x="y", alim=[1e-3, 1])
+                              mode="linefreqwise", x=xy, alim=alim)
 
 
 if __name__ == "__main__":

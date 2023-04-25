@@ -1,7 +1,6 @@
+"""EMData base class for any type of electromagnetic data."""
 from glob import glob
-import os.path
 import numpy as np
-from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -10,15 +9,16 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pyproj
 
 import pygimli as pg
-from pygimli.viewer.mpl import drawModel1D
-from pygimli.viewer.mpl import showStitchedModels
-from pygimli.core.math import symlog
+# from pygimli.viewer.mpl import drawModel1D
+# from pygimli.viewer.mpl import showStitchedModels
+# from pygimli.core.math import symlog
 from matplotlib.colors import LogNorm, SymLogNorm
 
-from .plotting import plotSymbols, showSounding, updatePlotKwargs
-from .plotting import underlayBackground, makeSymlogTicks, dMap
-from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
+# from .plotting import showSounding, dMap
+from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
+from .plotting import makeSubTitles, updatePlotKwargs
+# from .modelling import fopSAEM, bipole
+from .tools import readCoordsFromKML, detectLinesAlongAxis  # , distToTx
 from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
 
 
@@ -26,7 +26,7 @@ class EMData():
     """Class for EM frequency-domain data."""
 
     def __init__(self, datafile=None, **kwargs):
-        """Initialize CSEM data class
+        """Initialize CSEM data class.
 
         Parameters
         ----------
@@ -45,11 +45,14 @@ class EMData():
         alt : float
             flight altitude
         """
-
-        self.updateData(**kwargs)
-        self.origin = [0, 0, 0]
-        self.angle = 0
+        self.origin = [0., 0., 0.]
+        self.angle = 0.
         self.llthres = 1e-3
+        self.A = np.array([[1, 0], [0, 1]])
+        self.depth = None
+        self.PRIM = None
+        self.RESP = None
+        self.ERR = None
 
     def __repr__(self):
         """String representation of the class."""
@@ -68,34 +71,138 @@ class EMData():
         """Number of frequencies."""
         return len(self.f)
 
-    def updateData(self, **kwargs):
-
+    def updateDefaults(self, **kwargs):
+        """Update default keyword arguments."""
         self.f = kwargs.pop("f", [])
         self.basename = "noname"
         self.basename = kwargs.pop("basename", self.basename)
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
-        self.cmp = kwargs.pop("cmp", [1, 1, 1])  # active components
 
         self.rx = kwargs.pop("rx", np.array([0.]))
-        self.ry = kwargs.pop("ry", np.array([0.]))
-        self.rz = kwargs.pop("rz", np.array([0.]))
-        dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
-        self.radius = np.median(dxy) * 0.5
+        self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
+        if isinstance(self.ry, (int, float)):
+            self.ry = np.ones_like(self.rx)*self.ry
+        if isinstance(self.rx, (int, float)):
+            self.rx = np.ones_like(self.ry)*self.rx
+        self.rz = kwargs.pop("rz", np.ones_like(self.rx)*kwargs.pop("alt", 0.))
+        if isinstance(self.rz, (int, float)):
+            self.rz = np.ones_like(self.rx)*self.rz
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
 
-        self.tx, self.ty = np.array([0., 0.]), np.array([0., 0.])
         if "txPos" in kwargs:
             txpos = kwargs["txPos"]
             if isinstance(txpos, str):
                 if txpos.lower().find(".kml") > 0:
-                    self.tx, self.ty, *_ = readCoordsFromKML(txpos)
+                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos)
                 else:
-                    self.tx, self.ty = np.genfromtxt(txpos, unpack=True,
-                                                     usecols=[0, 1])
+                    self.tx, self.ty, self.tz = np.genfromtxt(
+                        txpos, unpack=True, usecols=[0, 1, 2])
             else:  # take it directly
-                self.tx, self.ty, *_ = np.array(txpos)
+                txpos = np.array(txpos)
+                if len(txpos) > 3:
+                    txpos = txpos.T
+
+                if len(txpos) == 2:
+                    self.tx, self.ty = txpos
+                    self.tz = np.zeros_like(self.tx)
+                elif len(txpos) == 3:
+                    self.tx, self.ty, self.tz = txpos
+                else:
+                    raise("Dimensions not matching")
+        else:
+            self.tx = kwargs.pop("tx", np.array([0., 0.]))
+            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
+            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
+            # self.tz = kwargs.pop("tz", np.ones_like(self.rx)*kwargs.pop("txalt", 0.))
+            if isinstance(self.ty, (int, float)):
+                self.ty = np.ones_like(self.tx)*self.ty
+            if isinstance(self.tx, (int, float)):
+                self.tx = np.ones_like(self.ty)*self.tx
+            if isinstance(self.tz, (int, float)):
+                self.tz = np.ones_like(self.tx)*self.tz
+
+    def getIndices(self):
+        """Return indices of finite data into full matrix."""
+        ff = np.array([], dtype=bool)
+        for i in range(len(self.cstr)):
+            if self.cmp[i]:
+                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
+                ff = np.hstack((ff, np.isfinite(tmp)))
+
+        return ff
+
+    def nData(self):
+        """Number of data (for splitting the response)."""
+        return sum(self.getIndices())
+
+    def chooseActive(self, what="data"):
+        """Choose activate data for visualization.
+
+        If what is an array of correct shape instead of a str, individual data
+        arrays can be passed to the visualization methods.
+
+
+        Parameters
+        ----------
+        what : str
+            property name or matrix to choose / show
+                data - measured data
+                resp - forward response
+                aerr - absolute data error
+                rerr - relative data error
+                amisfit - absolute misfit between data and response
+                rmisfit - relative misfit between data and response
+                wmisfit - error-weighted misfit
+                pf - primary fields
+                sf - measured secondary data divided by primary fields
+        """
+        if isinstance(what, str):
+            if what.lower() == "data":
+                return self.DATA[:]
+            elif what.lower() == "resp" or what.lower() == "response":
+                return self.RESP[:]
+            elif what.lower() == "aerr" or what.lower() == "abserror":
+                return self.ERR[:]
+            elif what.lower() == "rerr" or what.lower() == "relerror":
+                rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
+                ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+                return rr + ii * 1j
+            elif what.lower() == "amisfit":
+                return self.DATA[:] - self.RESP[:]
+            elif what.lower() == "rmisfit":
+                tmp = np.zeros_like(self.DATA)
+                for i in range(len(self.DATA)):
+                    rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
+                    ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
+                    tmp[i, :] = rr + ii * 1j
+                return tmp
+            elif what.lower() == "wmisfit":
+                mis = self.DATA - self.RESP
+                wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+                return wmis
+            elif what.lower() == "pf":
+                return self.PRIM[:]
+            elif what.lower() == "sf":
+                return self.DATA - self.PRIM
+            elif what.lower() == "sf/pf":
+                tmp = np.zeros_like(self.DATA)
+                for i in range(len(self.DATA)):
+                    rr = ((self.DATA[i].real - self.PRIM[i].real) /
+                          self.PRIM[i].real)
+
+                    ii = ((self.DATA[i].imag - self.PRIM[i].imag) /
+                          self.PRIM[i].imag)
+                    tmp[i, :] = rr + ii * 1j
+                return tmp
+            else:
+                print('Error! Wrong argument chosen to specify active data. '
+                      'Aborting  ...')
+                raise SystemExit
+        else:
+            print('  -  choosing provided argument as data array  -  ')
+            return what
 
     def setPos(self, nrx=0, position=None, show=False):
         """Set the position of the current sounding to be shown or inverted."""
@@ -109,16 +216,16 @@ class EMData():
                 print("Tx distance ", self.txDistance()[nrx])
 
         self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
-        self.dataX = self.DATAX[:, nrx]
-        self.dataY = self.DATAY[:, nrx]
-        self.dataZ = self.DATAZ[:, nrx]
+        self.dataX = self.DATA[0, :, nrx]
+        self.dataY = self.DATA[1, :, nrx]
+        self.dataZ = self.DATA[2, :, nrx]
         self.nrx = nrx
         if show:
             self.showPos()
 
     def createConfig(self, fullTx=False):
         """Create EMPYMOD input argument configuration."""
-        self.cfg = {'rec': [self.rx[0], self.ry[0], self.alt[0], 0, 90],
+        self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
@@ -143,10 +250,11 @@ class EMData():
         self.origin = [0, 0, 0]
         self.angle = 0
         self.A = np.array([[1, 0], [0, 1]])
-        for i in range(len(self.f)):
-            Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
-            self.DATAX[i, :] = Bxy[0, :]
-            self.DATAY[i, :] = Bxy[1, :]
+        print('Need to fix field rotation of X/Y components')
+        # for i in range(len(self.f)):
+        #     Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
+        #     self.DATAX[i, :] = Bxy[0, :]
+        #     self.DATAY[i, :] = Bxy[1, :]
 
     def rotate(self, ang=None, line=None, origin=None):
         """Rotate positions and fields to a local coordinate system.
@@ -186,22 +294,25 @@ class EMData():
             self.tx = np.round(self.tx*10+0.001) / 10  # just in 2D case
             self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
-            for i in range(len(self.f)):
-                Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
-                                              self.DATAY[i, :])))
-                self.DATAX[i, :] = Bxy[0, :]
-                self.DATAY[i, :] = Bxy[1, :]
+
+            print('Need to fix field rotation of X/Y components')
+            # for i in range(len(self.f)):
+            #     Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
+            #                                   self.DATAY[i, :])))
+            #     self.DATAX[i, :] = Bxy[0, :]
+            #     self.DATAY[i, :] = Bxy[1, :]
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
 
-    def setOrigin(self, origin=None):
+    def setOrigin(self, origin=None, shift_back=True):
         """Set origin."""
         # first shift back to old origin
-        self.tx += self.origin[0]
-        self.ty += self.origin[1]
-        self.rx += self.origin[0]
-        self.ry += self.origin[1]
+        if shift_back:
+            self.tx += self.origin[0]
+            self.ty += self.origin[1]
+            self.rx += self.origin[0]
+            self.ry += self.origin[1]
         if origin is None:
             origin = [np.mean(self.tx), np.mean(self.ty)]
         # now shift to new origin
@@ -219,7 +330,6 @@ class EMData():
             spacing vector: by given spacing
             float: minimum distance
         """
-
         if isinstance(mode, (str)):
             self.line = detectLinesAlongAxis(self.rx, self.ry, axis=mode)
         elif hasattr(mode, "__iter__"):
@@ -280,9 +390,9 @@ class EMData():
         if np.any(self.ERR):
             self.ERR = self.ERR[:, fInd, :]
 
-        if np.any(self.prim):
+        if np.any(self.PRIM):
             for i in range(3):
-                self.prim[i] = self.prim[i][fInd, :]
+                self.PRIM[i] = self.PRIM[i][fInd, :]
 
         # part 2: receiver axis
         if nInd is None:
@@ -308,23 +418,21 @@ class EMData():
                 self.ERR = self.ERR[:, :, nInd]
             if np.any(self.RESP):
                 self.RESP = self.RESP[:, :, nInd]
-            if np.any(self.prim):
+            if np.any(self.PRIM):
                 for i in range(3):
-                    self.prim[i] = self.prim[i][:, nInd]
+                    self.PRIM[i] = self.PRIM[i][:, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
-            if self.prim is not None:
+            if self.PRIM is not None:
                 for i in range(3):
-                    self.prim[i] = self.prim[i][:, nInd]
-
-        self.chooseData("data")  # make sure DATAX/Y/Z have correct size
+                    self.PRIM[i] = self.PRIM[i][:, nInd]
 
     def mask(self, **kwargs):
         """Masking out data according to several properties."""
         pass  # not yet implemented
 
     def showPos(self, ax=None, line=None, background=None, org=False,
-                color=None, marker=None):
+                color=None, marker=None, **kwargs):
         """Show positions."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -333,11 +441,12 @@ class EMData():
             # rxy = np.column_stack((self.rx, self.ry))
             pass
 
+        kwargs.setdefault("markersize", 5)
         ma = marker or "."
         ax.plot(self.rx, self.ry, ma, markersize=2, color=color or "blue")
         ax.plot(self.tx, self.ty, "-", markersize=4, color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "ko", markersize=5)
+            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "k", **kwargs)
 
         if line is not None:
             ax.plot(self.rx[self.line == line],
@@ -440,70 +549,61 @@ class EMData():
         log : bool|float
             use logarithmic scale
         """
-        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
-        label = kwargs.pop("label", kw["what"])
-        lw = kwargs.pop("lw", 0.5)
-        self.chooseData(kw["what"], kw["llthres"])
-        nn = np.arange(len(self.rx))
-        if line is not None:
-            nn = np.nonzero(self.line == line)[0]
+        kw = updatePlotKwargs(**kwargs)
+        label = kwargs.setdefault("label", kw["what"])
+        lw = kwargs.setdefault("lw", 0.5)
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        axis = kwargs.setdefault("axis", "x")
+        nn, x = self.sortAlongAxis(line, axis)
+        DATA = self.chooseActive(kw["what"])
 
         if ax is None:
-            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
+            fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
                                    squeeze=False, sharex=True,
                                    sharey=not kw["amphi"],
-                                   figsize=kwargs.pop("figsize", (10, 6)))
+                                   figsize=kwargs.pop("figsize", (12, 8)))
         else:
             fig = ax.flat[0].figure
 
-        ncmp = 0
-        allcmp = ['x', 'y', 'z']
-
-        kwargs.setdefault("x", "x")
-        if kwargs["x"] == "x":
-            x = np.sort(self.rx[nn])
-            si = np.argsort(self.rx[nn])
-        elif kwargs["x"] == "y":
-            x = np.sort(self.ry[nn])
-            si = np.argsort(self.ry[nn])
-        elif kwargs["x"] == "d":
-            # need to eval line direction first, otherwise bugged
-            x = np.sort(np.sqrt((np.mean(self.tx) - self.rx[nn])**2 +
-                                (np.mean(self.ty) - self.ry[nn])**2))
-
-        nn = nn[si]
         errbar = None
-        if kw["what"] == 'data' and np.any(self.ERR):
+        if kw["what"].lower() == 'data' and np.any(self.ERR):
             errbar = self.ERR[:, nf, nn]
 
-        for i in range(3):
-            if kw["cmp"][i] > 0:
-                data = getattr(self, "DATA"+allcmp[i].upper())[nf, nn]
+        ncmp = 0
+        for ci, cid in enumerate(cmp):
+            if cid:
+                subset = DATA[ci, nf, nn]
                 if kw["amphi"]:  # amplitude and phase
-                    ax[0, ncmp].plot(x, np.abs(data), label=label)
-                    ax[1, ncmp].plot(x, np.angle(data, deg=True), label=label)
+                    ax[0, ncmp].plot(x, np.abs(subset), label=label)
+                    ax[1, ncmp].plot(x, np.angle(subset, deg=True),
+                                     label=label)
                     if kw["log"]:
                         ax[0, ncmp].set_yscale('log')
                         ax[0, ncmp].set_ylim(kw["alim"])
                         ax[1, ncmp].set_ylim(kw["plim"])
+                    ax[0, ncmp].set_title(r'|| (' + self.cstr[ci] + ') ||')
+                    ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
+                    print('Warning! No error bars and response comparison '
+                          'implemented yet for amplitude and phase plots with '
+                          'the linefreq method. Continuing  ...')
                 else:  # real and imaginary part
                     if kw["what"] == 'data' and errbar is not None:
                         ax[0, ncmp].errorbar(
-                            x, np.real(data),
-                            yerr=[errbar[i].real, errbar[i].real],
+                            x, np.real(subset),
+                            yerr=[errbar[ci].real, errbar[ci].real],
                             marker='o', lw=0., barsabove=True,
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                         ax[1, ncmp].errorbar(
-                            x, np.imag(data),
-                            yerr=[errbar[i].imag, errbar[i].imag],
+                            x, np.imag(subset),
+                            yerr=[errbar[ci].imag, errbar[ci].imag],
                             marker='o', lw=0., barsabove=True,
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        ax[0, ncmp].plot(x, np.real(data), '--', lw=lw,
+                        ax[0, ncmp].plot(x, np.real(subset), '--', lw=lw,
                                          color=kw["color"], label=label)
-                        ax[1, ncmp].plot(x, np.imag(data), '--', lw=lw,
+                        ax[1, ncmp].plot(x, np.imag(subset), '--', lw=lw,
                                          color=kw["color"], label=label)
                     if kw["log"]:
                         ax[0, ncmp].set_yscale('symlog',
@@ -514,48 +614,34 @@ class EMData():
                         ax[1, ncmp].set_ylim([-kw["alim"][1], kw["alim"][1]])
                     else:
                         pass
-
-                ax[0, ncmp].set_title("B"+allcmp[i])
+                    ax[0, ncmp].set_title(r'$\Re$(' + self.cstr[ci] + ')')
+                    ax[1, ncmp].set_title(r'$\Im$(' + self.cstr[ci] + ')')
                 ncmp += 1
+
         if kw["amphi"]:
             ax[0, 0].set_ylabel("Amplitude (nT/A)")
             ax[1, 0].set_ylabel("Phase (°)")
         else:
             if kw["field"] == 'B':
-                ax[0, 0].set_ylabel(r"$\Re$(B) (nT/A)")
-                ax[1, 0].set_ylabel(r"$\Im$(B) (nT/A)")
+                ax[0, 0].set_ylabel("(nT/A)")
+                ax[1, 0].set_ylabel("(nT/A)")
             elif kw["field"] == 'E':
-                ax[0, 0].set_ylabel(r"$\Re$(E) (V/m)")
-                ax[1, 0].set_ylabel(r"$\Im$(E) (V/m)")
-
-        # if "x" not in kwargs:
-        #     xt = np.round(np.linspace(0, len(nn)-1, 7))
-        #     xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
-        #     for aa in ax[-1, :]:
-        #         if xtl[0] > xtl[-1]:
-        #             aa.set_xlim([xt[1], xt[0]])
-
-        #         aa.set_xticks(xt)
-        #         aa.set_xticklabels(xtl)
-        #         aa.set_xlabel("x (m)")
+                ax[0, 0].set_ylabel("(V/m)")
+                ax[1, 0].set_ylabel("(V/m)")
 
         for a in ax[-1, :]:
-            if kwargs["x"] == "x":
+            if axis == "x":
                 a.set_xlim([np.min(self.rx), np.max(self.rx)])
-            elif kwargs["x"] == "y":
+            elif axis == "y":
                 a.set_xlim([np.min(self.ry), np.max(self.ry)])
-            elif kwargs["x"] == "d":
-                print('need to adjust xlim for *x* = *d* option')
-            a.set_xlabel("x (m)")
+            elif axis == "d":
+                print('Warning! Need to adjust xlim for *x* = *d* option')
+            a.set_xlabel(axis + ' (m)')
 
         for a in ax.flat:
             a.set_aspect('auto')
             a.grid(True)
 
-        if "what" in kwargs:
-            self.chooseData("data", kw["llthres"])
-
-        # plt.legend(["data", "response"])
         ax.flat[0].legend()
 
         name = kwargs.pop("name", self.basename)
@@ -563,15 +649,93 @@ class EMData():
             name += " " + kwargs["what"]
 
         fig.suptitle(name)
-
         return fig, ax
 
-    def showDataFit(self, line=1, nf=0):
-        """Show data and model response for single line/freq."""
-        fig, ax = self.showLineFreq(line=line, nf=nf)
-        self.showLineFreq(line=line, nf=nf, ax=ax, what="response")
-
     def showLineData(self, line=None, ax=None, **kwargs):
+        """Show alternative line plot."""
+        kw = updatePlotKwargs(**kwargs)
+        kw.setdefault("radius", "rect")
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        axis = kwargs.setdefault("axis", "x")
+        nn, _ = self.sortAlongAxis(line, axis)
+        DATA = self.chooseActive(kw["what"])
+
+        if ax is None:
+            fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
+                                   squeeze=False, sharex=True, sharey=True,
+                                   figsize=kwargs.pop("figsize", (12, 8)))
+        else:
+            fig = ax.flat[0].figure
+
+        if axis == "x":
+            x = np.tile(self.rx[nn], len(self.f))
+        elif axis == "y":
+            x = np.tile(self.ry[nn], len(self.f))
+        elif axis == "d":
+            print('need to implement *d* option')
+            # need to eval line direction first, otherwise bugged
+            # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
+            #             (self.ry[nn]-self.ry[0])**2)
+            # x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
+            #             (np.mean(self.ty)-self.ry[nn])**2)
+        y = np.repeat(np.arange(len(self.f)), len(nn))
+
+        ncmp = 0
+        for ci, cid in enumerate(cmp):
+            if cid:
+                subset = DATA[ci, :, nn].T.ravel()
+                if kw["amphi"]:
+                    kw["cmap"] = 'viridis'
+                    plotSymbols(x, y, np.abs(subset), ax=ax[0, ncmp],
+                                mode="amp", **kw)
+                    plotSymbols(x, y, np.angle(subset, deg=1), ax=ax[1, ncmp],
+                                mode="phase", **kw)
+                    ax[0, ncmp].set_title(r'|| (' + self.cstr[ci] + ') ||')
+                    ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
+                else:
+                    _, cb1 = plotSymbols(x, y, np.real(subset),
+                                         ax=ax[0, ncmp], **kw)
+                    _, cb2 = plotSymbols(x, y, np.imag(subset),
+                                         ax=ax[1, ncmp], **kw)
+
+                    for cb in [cb1, cb2]:
+                        if ncmp + 1 == sum(cmp) and kw["log"]:
+                            makeSymlogTicks(cb, kw["alim"])
+                        elif ncmp + 1 == sum(cmp) and not kw["log"]:
+                            pass
+                        else:
+                            cb.set_ticks([])
+                    ax[0, ncmp].set_title(r'$\Re$(' + self.cstr[ci] + ')')
+                    ax[1, ncmp].set_title(r'$\Im$(' + self.cstr[ci] + ')')
+                ncmp += 1
+
+        ax[0, 0].set_ylim([0., len(self.f)])
+        for a in ax[-1, :]:
+            if axis == "x":
+                a.set_xlim([np.min(self.rx), np.max(self.rx)])
+            elif axis == "y":
+                a.set_xlim([np.min(self.ry), np.max(self.ry)])
+            elif axis == "d":
+                print('need to adjust xlim for *x* = *d* option')
+            a.set_xlabel("x (m)")
+        yt = np.arange(0, len(self.f), 2)
+        ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
+        for aa in ax[:, 0]:
+            aa.set_yticks(yt)
+            aa.set_yticklabels(ytl)
+            aa.set_ylabel("f (Hz)")
+
+        for a in ax.flat:
+            a.set_aspect('auto')
+
+        name = kwargs.pop("name", self.basename)
+        if "what" in kwargs:
+            name += " " + kwargs["what"]
+
+        fig.suptitle(name)
+        return fig, ax
+
+    def showLineDataMat(self, line=None, ax=None, **kwargs):
         """Show data of a line as pcolor.
 
         Parameters
@@ -589,77 +753,72 @@ class EMData():
         log : bool|float
             use logarithmic scale
         """
-        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
-        self.chooseData(kw["what"], kw["llthres"])
-        nn = np.arange(len(self.rx))
-        if line is not None:
-            nn = np.nonzero(self.line == line)[0]
+        kw = updatePlotKwargs(**kwargs)
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        axis = kwargs.setdefault("axis", "x")
+        nn, _ = self.sortAlongAxis(line, axis)
+        DATA = self.chooseActive(kw["what"])
 
         if ax is None:
-            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
+            fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
                                    squeeze=False, sharex=True, sharey=True,
-                                   figsize=kwargs.pop("figsize", (10, 6)))
+                                   figsize=kwargs.pop("figsize", (12, 8)))
         else:
             fig = ax.flat[0].figure
 
         ncmp = 0
-        allcmp = ['x', 'y', 'z']
-
-        for i in range(3):
-            if kw["cmp"][i] > 0:
-                data = getattr(self, "DATA"+allcmp[i].upper())[:, nn]
-                print(data.shape)
+        for ci, cid in enumerate(cmp):
+            if cid:
+                subset = DATA[ci, :, nn].T
                 if kw["amphi"]:  # amplitude and phase
-                    # pc1 = ax[0, ncmp].matshow(np.log10(np.abs(data)),
-                    #                           cmap="Spectral_r")
                     norm = LogNorm(vmin=kw["alim"][0], vmax=kw["alim"][1])
-                    pc1 = ax[0, ncmp].matshow(np.abs(data), norm=norm,
-                                              cmap="Spectral_r")
+                    pc1 = ax[0, ncmp].matshow(np.abs(subset), norm=norm,
+                                              cmap="viridis")
                     if kw["alim"] is not None:
                         pc1.set_clim(kw["alim"])
-                    pc2 = ax[1, ncmp].matshow(np.angle(data, deg=True),
+                    pc2 = ax[1, ncmp].matshow(np.angle(subset, deg=True),
                                               cmap="hsv")
                     pc2.set_clim(kw["plim"])
+                    ax[0, ncmp].set_title(r'|| (' + self.cstr[ci] + ') ||')
+                    ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
                 else:  # real and imaginary part
                     if kw["log"]:
                         pc1 = ax[0, ncmp].matshow(
-                            np.real(data),
+                            np.real(subset),
                             norm=SymLogNorm(linthresh=kw["alim"][0],
                                             vmin=-kw["alim"][1],
                                             vmax=kw["alim"][1]),
                             cmap=kw["cmap"])
                         pc2 = ax[1, ncmp].matshow(
-                            np.imag(data),
+                            np.imag(subset),
                             norm=SymLogNorm(linthresh=kw["alim"][0],
                                             vmin=-kw["alim"][1],
                                             vmax=kw["alim"][1]),
                             cmap=kw["cmap"])
                     else:
-                        pc1 = ax[0, ncmp].matshow(np.real(data),
+                        pc1 = ax[0, ncmp].matshow(np.real(subset),
                                                   cmap=kw["cmap"])
                         if kw["alim"] is not None:
                             pc1.set_clim([kw["alim"][0], kw["alim"][1]])
-                        pc2 = ax[1, ncmp].matshow(np.imag(data),
+                        pc2 = ax[1, ncmp].matshow(np.imag(subset),
                                                   cmap=kw["cmap"])
                         if kw["alim"] is not None:
                             pc2.set_clim([kw["alim"][0], kw["alim"][1]])
+
+                        ax[0, ncmp].set_title(r'$\Re$(' + self.cstr[ci] + ')')
+                        ax[1, ncmp].set_title(r'$\Im$(' + self.cstr[ci] + ')')
 
                 for j, pc in enumerate([pc1, pc2]):
                     divider = make_axes_locatable(ax[j, ncmp])
                     cax = divider.append_axes("right", size="5%", pad=0.15)
                     cb = plt.colorbar(pc, cax=cax, orientation="vertical")
                     if not kw["amphi"]:
-                        if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
+                        if ncmp + 1 == sum(cmp) and kw["log"]:
                             makeSymlogTicks(cb, kw["alim"])
-                        elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
+                        elif ncmp + 1 == sum(cmp) and not kw["log"]:
                             pass
                         else:
                             cb.set_ticks([])
-                    else:
-                        tit = "log10(B) in nT/A" if j == 0 else "phi in °"
-                        cb.ax.set_title(tit)
-
-                ax[0, ncmp].set_title("B"+allcmp[i])
                 ncmp += 1
 
         ax[0, 0].set_ylim([-0.5, len(self.f)-0.5])
@@ -670,32 +829,33 @@ class EMData():
             aa.set_yticklabels(ytl)
             aa.set_ylabel("f (Hz)")
 
-        xt = np.round(np.linspace(0, len(nn)-1, 7))
-        xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+        if axis == "x":
+            xt = np.round(np.linspace(0, len(nn)-1, 7))
+            xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+        elif axis == "y":
+            xt = np.round(np.linspace(0, len(nn)-1, 7))
+            xtl = ["{:.0f}".format(self.ry[nn[int(xx)]]) for xx in xt]
+        elif axis == "d":
+            print('Warning! Need to adjust xlim for *x* = *d* option')
 
         for aa in ax[-1, :]:
             if xtl[0] > xtl[-1]:
                 aa.set_xlim([xt[1], xt[0]])
             aa.set_xticks(xt)
             aa.set_xticklabels(xtl)
-            aa.set_xlabel("x (m)")
+            aa.set_xlabel(kwargs['axis'] + ' (m)')
 
         for a in ax.flat:
             a.set_aspect('auto')
-
-        if "what" in kwargs:
-            self.chooseData("data", kw["llthres"])
 
         name = kwargs.pop("name", self.basename)
         if "what" in kwargs:
             name += " " + kwargs["what"]
 
         fig.suptitle(name)
-
         return fig, ax
 
-    def showPatchData(self, nf=0, ax=None, figsize=(12, 6),
-                      scale=0, background=None, **kwargs):
+    def showPatchData(self, nf=0, ax=None, background=None, **kwargs):
         """Show all three components as amp/phi or real/imag plots.
 
         Parameters
@@ -703,73 +863,59 @@ class EMData():
         nf : int | float
             frequency index (int) or value (float) to plot
         """
-        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
+        kw = updatePlotKwargs(**kwargs)
         kw.setdefault("numpoints", 0)
         kw.setdefault("radius", self.radius)
-        self.chooseData(kw["what"], kw["llthres"])
-        amap = dMap("Spectral")  # mirrored
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        DATA = self.chooseActive(kw["what"])
 
         if isinstance(nf, float):
             nf = np.argmin(np.abs(self.f - nf))
-            if self.verbose:
-                print("Chose no f({:d})={:.0f} Hz".format(nf, self.f[nf]))
+
+        if ax is None:
+            fig, ax = plt.subplots(ncols=sum(cmp), nrows=2, squeeze=False,
+                                   sharex=True, sharey=True,
+                                   figsize=kwargs.pop("figsize", (12, 8)))
+        else:
+            fig = ax.flat[0].figure
+
+        ncmp = 0
+        for ci, cid in enumerate(cmp):
+            if cid:
+                subset = DATA[ci, nf, :]
+                if kw["amphi"]:
+                    kw["cmap"] = 'viridis'
+                    plotSymbols(self.rx, self.ry, np.abs(subset),
+                                ax=ax[0, ncmp], mode="amp", **kw)
+                    plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),
+                                ax=ax[1, ncmp], mode="phase", **kw)
+                    ax[0, ncmp].set_title(r'|| (' + self.cstr[ci] + ') ||')
+                    ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
+                else:
+                    _, cb1 = plotSymbols(self.rx, self.ry, np.real(subset),
+                                         ax=ax[0, ncmp], **kw)
+                    _, cb2 = plotSymbols(self.rx, self.ry, np.imag(subset),
+                                         ax=ax[1, ncmp], **kw)
+
+                    makeSubTitles(ax, ncmp, self.cstr, ci, kw["what"])
+                    for cb in [cb1, cb2]:
+                        if ncmp + 1 == sum(cmp) and kw["log"]:
+                            if kw["symlog"]:
+                                makeSymlogTicks(cb, kw["alim"])
+                        elif ncmp + 1 == sum(cmp) and not kw["log"]:
+                            pass
+                        else:
+                            cb.set_ticks([])
+                ncmp += 1
 
         if background is not None and kwargs.pop("overlay", False):  # bwc
             background = "BKG"
 
-        allcmp = np.take(["x", "y", "z"], np.nonzero(kw["cmp"])[0])
-        # modify allcmp to show only subset
-        if ax is None:
-            fig, ax = plt.subplots(ncols=len(allcmp), nrows=2, squeeze=False,
-                                   sharex=True, sharey=True, figsize=figsize)
-        else:
-            fig = ax.flat[0].figure
-
-        for a in ax.flat:
-            a.plot(self.tx, self.ty, "wx-", lw=2)
-            a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
-
-        ncmp = 0
-        alim = kw.pop("alim", [1e-3, 1])
-        plim = kw.pop("plim", [-180, 180])
-        for j, cc in enumerate(allcmp):
-            data = getattr(self, "DATA"+cc.upper()).copy()
-            if scale:
-                data /= self.prim[j]
-            if kw["amphi"]:
-                kw.pop("cmap", None)
-                kw.pop("log", None)
-                plotSymbols(self.rx, self.ry, np.abs(data[nf]),
-                            ax=ax[0, j],  colorBar=(j == len(allcmp)-1),
-                            **kw,
-                            cmap=amap, log=True, alim=alim)
-                plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
-                            ax=ax[1, j],  colorBar=(j == len(allcmp)-1),
-                            **kw,
-                            cmap="hsv", log=False, alim=plim)
-                ax[0, j].set_title("log10 T"+cc+" [pT/A]")
-                ax[1, j].set_title(r"$\phi$"+cc+" [°]")
-            else:
-                _, cb1 = plotSymbols(self.rx, self.ry, np.real(data[nf]),
-                                     ax=ax[0, j], alim=alim, **kw)
-                _, cb2 = plotSymbols(self.rx, self.ry, np.imag(data[nf]),
-                                     ax=ax[1, j], alim=alim, **kw)
-
-                ax[0, j].set_title("real T"+cc+" [nT/A]")
-                ax[1, j].set_title("imag T"+cc+" [nT/A]")
-
-                for cb in [cb1, cb2]:
-                    if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
-                        makeSymlogTicks(cb, alim)
-                    elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
-                        pass
-                    else:
-                        cb.set_ticks([])
-            ncmp += 1
-
         for a in ax.flat:
             a.set_aspect(1.0)
             a.plot(self.tx, self.ty, "k*-")
+            a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
+
             if background:
                 underlayBackground(ax, background, self.utm)
 
@@ -778,109 +924,9 @@ class EMData():
             basename += " " + kwargs["what"]
 
         fig.suptitle(basename+"  f="+str(self.f[nf])+"Hz")
-
-        # self.chooseData(kw.get("what", "data"), kw["llthres"])
-        if "what" in kwargs:
-            self.chooseData("data", kw["llthres"])
-
         return fig, ax
 
-    def showLineData2(self, line=None, ax=None, **kwargs):
-        """Show alternative line plot."""
-        kw = updatePlotKwargs(kwargs.pop("cmp", self.cmp), **kwargs)
-        self.chooseData(kw["what"], kw["llthres"])
-        kw.setdefault("radius", "rect")
-        kwx = kw.pop('x', "x")
-        nn = np.arange(len(self.rx))
-        if line is not None:
-            nn = np.nonzero(self.line == line)[0]
-
-        if ax is None:
-            fig, ax = plt.subplots(ncols=sum(kw["cmp"]), nrows=2,
-                                   squeeze=False, sharex=True, sharey=True,
-                                   figsize=kwargs.pop("figsize", (10, 6)))
-        else:
-            fig = ax.flat[0].figure
-
-        ncmp = 0
-        allcmp = ['x', 'y', 'z']
-
-        if kwx == "x":
-            x = np.tile(self.rx[nn], len(self.f))
-        elif kwx == "y":
-            x = np.tile(self.ry[nn], len(self.f))
-        elif kwx == "d":
-            print('need to implement *d* option')
-            # need to eval line direction first, otherwise bugged
-            # x = np.sqrt((self.rx[nn]-self.rx[0])**2+
-            #             (self.ry[nn]-self.ry[0])**2)
-            # x = np.sqrt((np.mean(self.tx)-self.rx[nn])**2+
-            #             (np.mean(self.ty)-self.ry[nn])**2)
-        y = np.repeat(np.arange(len(self.f)), len(nn))
-
-        for i in range(3):
-            if kw["cmp"][i] > 0:
-                data = getattr(self, "DATA"+allcmp[i].upper())[:, nn].ravel()
-                if kw["amphi"]:
-                    print('need to implement amphi')
-                    # kwargs.pop("cmap", None)
-                    # kwargs.pop("log", None)
-                    # kwargs.pop("alim", None)
-                    # plotSymbols(self.rx, self.ry, np.abs(data[nf]),
-                    #             ax=ax[0, j], colorBar=(j == len(allcmp)-1), **kw,
-                    #             cmap="Spectral_r", log=True, alim=kw["alim"])
-                    # plotSymbols(self.rx, self.ry, np.angle(data[nf], deg=1),
-                    #             ax=ax[1, j], colorBar=(j == len(allcmp)-1), **kw,
-                    #             cmap="hsv", log=False, alim=kw["plim"])
-                    # ax[0, j].set_title("log10 T"+cc+" [pT/A]")
-                    # ax[1, j].set_title(r"$\phi$"+cc+" [°]")
-                else:
-                    _, cb1 = plotSymbols(x, y, np.real(data),
-                                         ax=ax[0, ncmp], **kw)
-                    _, cb2 = plotSymbols(x, y, np.imag(data),
-                                         ax=ax[1, ncmp], **kw)
-
-                    for cb in [cb1, cb2]:
-                        if ncmp + 1 == sum(kw["cmp"]) and kw["log"]:
-                            makeSymlogTicks(cb, kw["alim"])
-                        elif ncmp + 1 == sum(kw["cmp"]) and not kw["log"]:
-                            pass
-                        else:
-                            cb.set_ticks([])
-                ax[0, ncmp].set_title("B"+allcmp[i])
-                ncmp += 1
-
-        ax[0, 0].set_ylim([0., len(self.f)])
-        for a in ax[-1, :]:
-            if kwx == "x":
-                a.set_xlim([np.min(self.rx), np.max(self.rx)])
-            elif kwx == "y":
-                a.set_xlim([np.min(self.ry), np.max(self.ry)])
-            elif kwx == "d":
-                print('need to adjust xlim for *x* = *d* option')
-            a.set_xlabel("x (m)")
-        yt = np.arange(0, len(self.f), 2)
-        ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
-        for aa in ax[:, 0]:
-            aa.set_yticks(yt)
-            aa.set_yticklabels(ytl)
-            aa.set_ylabel("f (Hz)")
-
-        for a in ax.flat:
-            a.set_aspect('auto')
-
-        # if "what" in kwargs:
-            # self.chooseData("data", kw["llthres"])
-
-        name = kwargs.pop("name", self.basename)
-        if "what" in kwargs:
-            name += " " + kwargs["what"]
-
-        fig.suptitle(name)
-
-        return fig, ax
-
-    def showData(self, *args, **kwargs):
+    def showData(self, mat=True, *args, **kwargs):
         """Generic show function.
 
         Upon keyword arguments given, directs to
@@ -892,28 +938,132 @@ class EMData():
             if "nf" in kwargs:
                 return self.showLineFreq(*args, **kwargs)
             else:
-                if kwargs.get("amphi", False):
-                    return self.showLineData(*args, **kwargs)
+                if mat:
+                    return self.showLineDataMat(*args, **kwargs)
                 else:
-                    return self.showLineData2(*args, **kwargs)
+                    return self.showLineData(*args, **kwargs)
         else:
             return self.showPatchData(*args, **kwargs)
+
+    def showDataFit(self, line=1, nf=0):
+        """Show data and model response for single line/freq."""
+        fig, ax = self.showLineFreq(line=line, nf=nf)
+        self.showLineFreq(line=line, nf=nf, ax=ax, what="response")
+
+    def sortAlongAxis(self, line, axis):
+        """Dort points along a given axis (x, y or d)."""
+        nn = np.arange(len(self.rx))
+        if line is not None:
+            nn = np.nonzero(self.line == line)[0]
+
+        if axis == "x":
+            x = np.sort(self.rx[nn])
+            si = np.argsort(self.rx[nn])
+        elif axis == "y":
+            x = np.sort(self.ry[nn])
+            si = np.argsort(self.ry[nn])
+        elif axis == "d":
+            # need to eval line direction first, otherwise bugged
+            x = np.sort(np.sqrt((np.mean(self.tx) - self.rx[nn])**2 +
+                                (np.mean(self.ty) - self.ry[nn])**2))
+        else:
+            print('Error, "axis" must be "x", "y", or "d". Aborting  ...')
+            raise SystemExit
+        return(nn[si], x)
+
+    def getData(self, line=None, **kwargs):
+        """Save data in numpy format for 2D/3D inversion."""
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        if np.shape(self.ERR) != np.shape(self.DATA):
+            self.estimateError(**kwargs)
+
+        if line is None:  # take all existing (nonzero) lines
+            nn = np.nonzero(self.line > 0)[0]
+        else:
+            nn = np.nonzero(self.line == line)[0]
+
+        ypos = np.round((self.ry[nn])*10)/10  # get to straight line
+        rxpos = np.round(np.column_stack((self.rx[nn], ypos,
+                                          self.rz[nn]-self.txAlt))*10)/10
+
+        dataR = np.zeros((1, sum(cmp), self.nF, len(nn)))
+        dataI = np.zeros_like(dataR)
+        errorR = np.zeros_like(dataR)
+        errorI = np.zeros_like(dataR)
+
+        cstr = []
+        ncmp = 0
+        for ic, cid in enumerate(cmp):
+            if cid:
+                dataR[0, ncmp, :, :] = self.DATA[ic][:, nn].real
+                dataI[0, ncmp, :, :] = self.DATA[ic][:, nn].imag
+                errorR[0, ncmp, :, :] = self.ERR[ic][:, nn].real
+                errorI[0, ncmp, :, :] = self.ERR[ic][:, nn].imag
+                cstr.append(self.cstr[ic])
+                ncmp += 1
+
+        # error estimation
+        data = dict(dataR=dataR, dataI=dataI,
+                    errorR=errorR, errorI=errorI,
+                    rx=rxpos, cmp=cstr)
+
+        return data
+
+    def saveData(self, fname=None, line=None, txdir=1, **kwargs):
+        """Save data in numpy format for 2D/3D inversion."""
+        if "cmp" in kwargs and kwargs["cmp"] == "all":
+            for cmp in [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 0, 1],
+                        [0, 1, 1], [1, 1, 1]]:
+                kwargs["cmp"] = cmp
+                self.saveData(fname=fname, line=line, txdir=txdir, **kwargs)
+
+        cmp = kwargs.setdefault("cmp", self.cmp)
+        if fname is None:
+            fname = self.basename
+            if line is not None:
+                fname += "_line" + str(line)
+
+            for ci, cid in enumerate(cmp):
+                if cid:
+                    fname += self.cstr[ci]
+        else:
+            if fname.startswith("+"):
+                fname = self.basename + "-" + fname
+
+        if line == "all":
+            line = np.arange(1, max(self.line)+1)
+
+        if hasattr(line, "__iter__"):
+            for i in line:
+                self.saveData(line=i)
+            return
+
+        data = self.getData(line=line, **kwargs)
+        data["tx_ids"] = [0]
+        DATA = [data]
+        np.savez(fname+".npz",
+                 tx=[np.column_stack((np.array(self.tx)[::txdir],
+                                      np.array(self.ty)[::txdir],
+                                      np.array(self.tz)[::txdir]))],
+                 freqs=self.f,
+                 DATA=DATA,
+                 line=self.line,
+                 origin=np.array(self.origin),  # global coordinates w altitude
+                 rotation=self.angle)
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', **kwargs):
         """Generate a multi-page pdf file containing all data."""
         what = kwargs.setdefault('what', 'data')
-        llthres = kwargs.pop('llthres', self.llthres)
-        self.chooseData(what, llthres)
 
         if mode == 'patchwise':
-            pdffile = pdffile or self.basename + "-" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_" + what + ".pdf"
         elif mode == 'linewise':
-            pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
-        elif mode == 'linewise2':
-            pdffile = pdffile or self.basename + "-line-" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_line_" + what + ".pdf"
+        elif mode == 'linewisemat':
+            pdffile = pdffile or self.basename + "_linemat_" + what + ".pdf"
         elif mode == 'linefreqwise':
-            pdffile = pdffile or self.basename + "-linefreqs-" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_linefreqs_" + what + ".pdf"
         else:
             print('Error, wrong *mode* chosen. Aborting ...')
             raise SystemExit
@@ -933,7 +1083,7 @@ class EMData():
                             kwargs["what"] = "data"
                             fig, ax = self.showLineFreq(li, fi,
                                                         **kwargs)
-                            kwargs["what"] = "response"
+                            kwargs["what"] = "resp"
                             fig, ax = self.showLineFreq(li, fi, ax=ax,
                                                         **kwargs)
                             fig.suptitle('line = {:.0f}, '
@@ -941,7 +1091,7 @@ class EMData():
                             fig.savefig(pdf, format='pdf')
                             plt.close(fig)
 
-            elif mode == 'linewise':
+            elif mode == 'linewise' or mode == 'linewisemat':
                 fig, ax = plt.subplots(figsize=figsize)
                 self.showField(self.line, ax=ax)
                 ax.figure.savefig(pdf, format="pdf")
@@ -951,21 +1101,10 @@ class EMData():
                 for li in ul[ul > 0]:
                     nn = np.nonzero(self.line == li)[0]
                     if np.isfinite(li) and len(nn) > 3:
-                        fig, ax = self.showLineData(li, **kwargs)
-                        fig.suptitle('line = {:.0f}'.format(li))
-                        fig.savefig(pdf, format='pdf')
-                        plt.close(fig)
-            elif mode == 'linewise2':
-                fig, ax = plt.subplots(figsize=figsize)
-                self.showField(self.line, ax=ax)
-                ax.figure.savefig(pdf, format="pdf")
-
-                ul = np.unique(self.line)
-                plt.close(fig)
-                for li in ul[ul > 0]:
-                    nn = np.nonzero(self.line == li)[0]
-                    if np.isfinite(li) and len(nn) > 3:
-                        fig, ax = self.showLineData2(li, **kwargs)
+                        if mode == 'linewise':
+                            fig, ax = self.showLineData(li, **kwargs)
+                        else:
+                            fig, ax = self.showLineDataMat(li, **kwargs)
                         fig.suptitle('line = {:.0f}'.format(li))
                         fig.savefig(pdf, format='pdf')
                         plt.close(fig)
@@ -1038,7 +1177,7 @@ class EMData():
 
             if ignoreErr:
                 self.ERR[cmp, freq, :] = 0 + 0j
-                #np.zeros_like(self.DATA[cmp, freq, :]) + (0+0j)
+                # np.zeros_like(self.DATA[cmp, freq, :]) + (0+0j)
 
         elif ri == "real":
             aErr = np.zeros_like(self.DATA, dtype=complex)
@@ -1082,17 +1221,25 @@ class EMData():
             self.DATA[np.abs(rr) > rErr] = np.nan + 1j * np.nan
             self.DATA[np.abs(ii) > rErr] = np.nan + 1j * np.nan
 
+    def loadResponse(self, dirname=None, response=None):
+        """Load model response file."""
+        if response is None:
+            respfiles = sorted(glob(dirname+"response_iter*.npy"))
+            if len(respfiles) == 0:
+                pg.error("Could not find response file")
 
-if __name__ == "__main__":
-    txpos = np.array([[559497.46, 5784467.953],
-                      [559026.532, 5784301.022]]).T
-    self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-    print(self)
-    # self.generateDataPDF()
-    self.showData(nf=1)
-    # self.showField("alt", background="BKG")
-    # self.invertSounding(nrx=20)
-    # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    self.showSounding(nrx=20)
-    # self.showData(nf=1)
-    # self.generateDataPDF()
+            responseVec = np.load(respfiles[-1])
+            respR, respI = np.split(responseVec, 2)
+            response = respR + respI*1j
+
+        sizes = [len(self.cstr), self.nF, self.nRx]
+        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
+        try:
+            RESP[self.getIndices()] = response
+        except ValueError:
+            RESP[:] = response
+
+        RESP = np.reshape(RESP, sizes)
+        self.RESP = np.ones((len(self.cstr), self.nF, self.nRx),
+                            dtype=np.complex) * np.nan
+        self.RESP[np.nonzero(self.cmp)[0]] = RESP

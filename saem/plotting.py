@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib import collections
 from matplotlib.patches import Circle, RegularPolygon
 from matplotlib.patches import Rectangle
-from matplotlib.colors import SymLogNorm, Normalize, LinearSegmentedColormap
+from matplotlib.colors import SymLogNorm, LogNorm
+from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pygimli.viewer.mpl import underlayMap, underlayBKGMap
@@ -61,7 +62,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     return ax
 
 
-def plotSymbols(x, y, w, ax=None, **kwargs):
+def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     """Plot circles or rectangles for each point in a map.
 
     Parameters
@@ -90,6 +91,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
     numpoints = kwargs.pop("numpoints", 0)
     radius = kwargs.pop("radius", 10.)
     label = kwargs.pop("label", False)
+    symlog = kwargs.setdefault("symlog", True)
 
     assert len(x) == len(y) == len(w), "Vector lengths have to match!"
     if ax is None:
@@ -97,32 +99,48 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         ax.plot(x, y, ".", ms=0, zorder=-10)
 
     patches = []
-    width = np.min(np.abs(np.diff(x[:len(np.unique(y))])))
+    uy = np.unique(y)
+    maxn = len(uy) if len(uy) > 1 else len(x)
+    width = np.min(np.abs(np.diff(x[:maxn])))
 
     for xi, yi in zip(x, y):
         if numpoints == 0 and type(radius) is not str:
             rect = Circle((xi, yi), radius, ec=None)
         elif radius == 'rect':
-            rect = Rectangle((xi-width*0.49, yi), width*0.98, 1.,ec=None)
+            rect = Rectangle((xi-width*0.5, yi), width, 1., ec=None)
         else:
             rect = RegularPolygon((xi, yi), numpoints, radius=radius, ec=None)
 
         patches.append(rect)
 
     norm = None
-    alim = kwargs.pop("alim", [min(w), max(w)])
-    log = kwargs.pop("log", False)
+    if mode == "phase":
+        alim = kwargs.setdefault("plim", [-180., 180.])
+        cmap = "hsv"
+        log = False
+    else:
+        alim = kwargs.setdefault("alim", [min(w), max(w)])
+        log = kwargs.setdefault("log", False)
     if log:
         norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
+        if not symlog:
+            norm = LogNorm(vmin=alim[0], vmax=alim[1])
     else:
         norm = Normalize(vmin=alim[0], vmax=alim[1])
 
     pc = collections.PatchCollection(patches, cmap=cmap, linewidths=0)
     pc.set_norm(norm)
-    pc.set_array(w)
+    if symlog:
+        pc.set_array(w)
+    else:
+        pc.set_array(np.abs(w))
+        ax.plot(x[w < 0], y[w < 0], 'k_', markersize=1.)
+
     ax.add_collection(pc)
     if log:
         pc.set_clim([-alim[1], alim[1]])
+        if mode == "amp" or not symlog:
+            pc.set_clim(alim[0], alim[1])
     else:
         pc.set_clim([alim[0], alim[1]])
 
@@ -131,7 +149,7 @@ def plotSymbols(x, y, w, ax=None, **kwargs):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cb = plt.colorbar(pc, cax=cax)
-    
+
         if label:
             cb.set_label(label)
 
@@ -147,7 +165,7 @@ def underlayBackground(ax, background="BKG", utm=32):
 
 
 def makeSymlogTicks(cb, alim):
-
+    """Create symlog ticks for given colorbar."""
     i1 = int(np.log10(alim[0]))
     i2 = int(np.log10(alim[1]))
     ni = i2-i1+1
@@ -158,22 +176,21 @@ def makeSymlogTicks(cb, alim):
     cb.set_ticklabels(['{:.0e}'.format(tick) for tick in ticks])
 
 
-def updatePlotKwargs(cmp, **kwargs):
+def updatePlotKwargs(**kwargs):
     """Set default values for different plotting tools."""
-    cmp = kwargs.setdefault("cmp", cmp)
     kwargs.setdefault("what", "data")
     log = kwargs.setdefault("log", True)
     kwargs.setdefault("color", None)
     kwargs.setdefault("field", 'B')
+    kwargs.setdefault("symlog", True)
     if log:
         kwargs.setdefault("cmap", "PuOr_r")
-        alim = kwargs.setdefault("alim", [1e-3, 1e1])
+        alim = kwargs.setdefault("alim", [1e-3, 1e0])
     else:
         kwargs.setdefault("cmap", "seismic")
         alim = kwargs.setdefault("alim", [-10., 10.])
 
     kwargs.setdefault("amphi", False)
-
     kwargs.setdefault("plim", [-180., 180.])
     llthres = kwargs.setdefault("llthres", alim[0])
 
@@ -182,3 +199,20 @@ def updatePlotKwargs(cmp, **kwargs):
               "usually not reasonbale. Continuing ...")
 
     return kwargs
+
+
+def makeSubTitles(ax, ncmp, cstr, ci, what):
+    """Make subtitles from field type and compontents."""
+    for i, ri in enumerate([r'$\Re$($', r'$\Im$($']):
+        if what == 'pf':
+            ax[i, ncmp].set_title(
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '$)')
+        elif what == 'sf':
+            ax[i, ncmp].set_title(
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
+        elif what == 'sf/pf':
+            ax[i, ncmp].set_title(
+                ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' +
+                cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
+        else:
+            ax[i, ncmp].set_title(ri + cstr[ci][0] + '_' + cstr[ci][1] + '$)')
