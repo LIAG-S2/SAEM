@@ -444,6 +444,8 @@ class CSEMSurvey():
         from custEM.meshgen import meshgen_utils as mu
         from custEM.inv.inv_utils import MultiFWD
 
+        # extx = max(pg.x()
+        # dim = dim or max()
         M = BlankWorld(name=invmesh,
                        x_dim=[x0-dim, x0+dim],
                        y_dim=[y0-dim, y0+dim],
