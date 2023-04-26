@@ -53,7 +53,7 @@ class CSEMSurvey():
         elif isinstance(i, str):
             return getattr(self, i)
 
-    def loadNPZ(self, filename, mtdata=False, **kwargs):
+    def loadNPZ(self, filename, mtdata=False, mode=None, **kwargs):
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
@@ -79,7 +79,8 @@ class CSEMSurvey():
                 patch = CSEMData(mode=mode)
             else:
                 if mode is None:
-                    mode ='ZT'
+                    mode = 'ZT'
+
                 patch = MTData(mode=mode)
 
             patch.extractData(ALL, i)
