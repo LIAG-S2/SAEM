@@ -442,6 +442,10 @@ class CSEMSurvey():
                                     [xmax+dx, ymax+dy, 0.],
                                     [xmin-dy, ymax+dy, 0.]])
 
+        ext = max(max(invpoly[:, 0]) - min(invpoly[:, 0]),
+                  max(invpoly[:, 1]) - min(invpoly[:, 1]))
+        dim = dim or ext*5
+
         if kwargs.pop("check", False):
             _, ax = self.showPositions()
             ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
@@ -453,7 +457,6 @@ class CSEMSurvey():
         from custEM.meshgen import meshgen_utils as mu
         from custEM.inv.inv_utils import MultiFWD
 
-        dim = dim or max()
         M = BlankWorld(name=invmesh,
                        x_dim=[x0-dim, x0+dim],
                        y_dim=[y0-dim, y0+dim],
