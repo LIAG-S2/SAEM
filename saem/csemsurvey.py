@@ -157,7 +157,7 @@ class CSEMSurvey():
             self.angle = patch.angle
             self.origin = patch.origin
             self.cmp = patch.cmp
-            print('  -  copy *angle*, *origin* and *cmp* from first patch  -')
+            # print('  - copy *angle*, *origin* and *cmp* from first patch  -')
         else:
             assert self.angle == patch.angle, "angle not matching"
             assert np.allclose(self.origin, patch.origin), "origin not equal"
@@ -453,8 +453,7 @@ class CSEMSurvey():
         from custEM.meshgen import meshgen_utils as mu
         from custEM.inv.inv_utils import MultiFWD
 
-        # extx = max(pg.x()
-        # dim = dim or max()
+        dim = dim or max()
         M = BlankWorld(name=invmesh,
                        x_dim=[x0-dim, x0+dim],
                        y_dim=[y0-dim, y0+dim],
