@@ -176,13 +176,16 @@ class CSEMSurvey():
 
     def showPositions(self, **kwargs):
         """Show all positions."""
-        fig, ax = plt.subplots()
+        ax = kwargs.pop("ax", None)
+        if ax is None:
+            _, ax = plt.subplots()
+
         ma = ["x", "+", "^", "v"]
         for i, p in enumerate(self.patches):
             p.showPos(ax=ax, color="C{:d}".format(i),
                       marker=ma[i % len(ma)], **kwargs)
 
-        return fig, ax
+        return ax
 
     def showData(self, **kwargs):
         """."""
@@ -336,7 +339,7 @@ class CSEMSurvey():
         Parameters
         ----------
         Geometry
-
+        ........
         depth : float [1000]
             Depth of the inversion region. The default is 1000..
         inner_area_cell_size : float [1e4]
@@ -365,7 +368,7 @@ class CSEMSurvey():
             just make geometry, show it and quit (to optimize mesh pameters)
 
         Computation
-
+        ...........
         n_cores : int [60]
             Number of cores to use. The default is 60.
         dim : float
@@ -388,7 +391,7 @@ class CSEMSurvey():
                 enhance contrasts by using an L1 norm on roughness
 
         Plotting
-
+        ........
         alim : (float, float) [1e-3, 1]
             limits for shwoing real and imaginary parts
         x : str ["y"]
@@ -445,9 +448,11 @@ class CSEMSurvey():
         ext = max(max(invpoly[:, 0]) - min(invpoly[:, 0]),
                   max(invpoly[:, 1]) - min(invpoly[:, 1]))
         dim = dim or ext*5
+        print("xdim: ", [x0-dim, x0+dim])
+        print("ydim: ", [y0-dim, y0+dim])
 
         if kwargs.pop("check", False):
-            _, ax = self.showPositions()
+            ax = self.showPositions()
             ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
             ax.plot(invpoly[::invpoly.shape[0]-1, 0],
                     invpoly[::invpoly.shape[0]-1, 1], "k-")
@@ -456,7 +461,6 @@ class CSEMSurvey():
         from custEM.meshgen.meshgen_tools import BlankWorld
         from custEM.meshgen import meshgen_utils as mu
         from custEM.inv.inv_utils import MultiFWD
-
         M = BlankWorld(name=invmesh,
                        x_dim=[x0-dim, x0+dim],
                        y_dim=[y0-dim, y0+dim],
