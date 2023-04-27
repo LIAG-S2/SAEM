@@ -515,9 +515,10 @@ class CSEMSurvey():
         pgmesh['res'] = 1. / invmodel
         cov = np.zeros(fop._jac.cols())
         mT = inv.modelTrans
+        dataScale = dT.deriv(inv.response) / \
+            dT.error(inv.response, fop.errors)
         for i in range(fop._jac.rows()):
-            cov += np.abs(fop._jac.row(i) * dT.deriv(inv.response) /
-                          dT.error(inv.response, fop.errors))
+            cov += np.abs(fop._jac.row(i) * dataScale[i])
 
         cov /= mT.deriv(invmodel)  # previous * invmodel
         cov /= pgmesh.cellSizes()
