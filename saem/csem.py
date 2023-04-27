@@ -1,33 +1,25 @@
+"""Controlled-source electromagnetic (CSEM) data class."""
 from glob import glob
-import os.path
 import numpy as np
 from scipy.io import loadmat
 
 import matplotlib.pyplot as plt
-# from matplotlib.backends.backend_pdf import PdfPages
-# from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-# import pyproj
-
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
 from pygimli.core.math import symlog
-# from matplotlib.colors import LogNorm, SymLogNorm
 
-# from .plotting import plotSymbols, showSounding, updatePlotKwargs
 from .plotting import showSounding
 from .emdata import EMData
 from .modelling import fopSAEM, bipole
-# from .tools import readCoordsFromKML, distToTx, detectLinesAlongAxis
 from .tools import distToTx
 
 
 class CSEMData(EMData):
     """Class for CSEM frequency-domain data patch (single Tx)."""
 
-    def __init__(self, datafile=None, **kwargs):
-        """Initialize CSEM data class
+    def __init__(self, datafile=None, mode='B', **kwargs):
+        """Initialize CSEM data class.
 
         Parameters
         ----------
@@ -35,6 +27,8 @@ class CSEMData(EMData):
             data file to load if not None
         basename : str [datafile without extension]
             name for data (exporting, figures etc.)
+        mode : str ['B']
+            measuring quantity ('E', 'B' or 'EB')
         txPos : array
             transmitter position as polygone
         rx/ry/rz : iterable
@@ -46,25 +40,26 @@ class CSEMData(EMData):
         alt : float
             flight altitude
         """
-
         super().__init__()
 
-        self.updateData(**kwargs)
-        self.isLoop = False
+        self.mode = mode
+        self.tx = np.array([0., 0.])
+        self.ty = np.array([0., 0.])
+        self.tz = np.array([0., 0.])
+
+        self.updateDefaults(**kwargs)
+        self.createDataArray()
+        self.loop = kwargs.pop("loop", False)
         self.txAlt = kwargs.pop("txalt", 0.0)
-        self.depth = None
         self.alt = self.rz - self.txAlt
-        self.prim = None
-        self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
-        self.RESP = None
-        self.ERR = None
-        self.A = np.array([[1, 0], [0, 1]])
 
         if datafile is not None:
             self.loadData(datafile)
 
-        self.chooseData()
-        self.createConfig()
+        if len(self.rx) > 1:
+            dxy = np.sqrt(np.diff(self.rx)**2 + np.diff(self.ry)**2)
+            self.radius = np.median(dxy) * 0.5
+            self.createConfig()
 
     def __repr__(self):
         """String representation of the class."""
@@ -77,6 +72,21 @@ class CSEMData(EMData):
         spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])
 
         return "\n".join((sdata, stx, smrx, spos))
+
+    def createDataArray(self):
+        """Create data array for a given model ("E", "B", or "RB")."""
+        if self.mode == 'EB':
+            self.cstr = ['Ex', 'Ey', 'Ez', 'Bx', 'By', 'Bz']
+        elif self.mode == 'B':
+            self.cstr = ['Bx', 'By', 'Bz']
+        elif self.mode == 'E':
+            self.cstr = ['Ex', 'Ey', 'Ez']
+        else:
+            print('Error! Choose correct mode for CSEMData initialization.')
+            raise SystemExit
+        self.DATA = np.zeros((len(self.cstr), self.nF, self.nRx),
+                             dtype=complex)
+        self.cmp = np.ones(len(self.cstr), dtype=bool)
 
     def loadData(self, filename, detectLines=False):
         """Load any data format."""
@@ -104,7 +114,7 @@ class CSEMData(EMData):
         if new.f is not None:
             assert np.allclose(self.f, new.f)
         for attr in ["rx", "ry", "rz", "line", "alt",
-                     'DATA', 'ERR', 'RESP', 'prim']:
+                     'DATA', 'ERR', 'RESP', 'PRIM']:
             one = getattr(self, attr)
             two = getattr(new, attr)
             if np.any(one) and np.any(two):
@@ -122,11 +132,12 @@ class CSEMData(EMData):
     def extractData(self, ALL, nr=0):
         """Extract data from NPZ structure."""
         freqs = ALL["freqs"]
-        txgeo = ALL["tx"][nr][:, :2].T
+        txgeo = ALL["tx"][nr][:, :3].T
         data = ALL["DATA"][nr]
-        rxs = data["rx"]
+        rxs = np.array(data["rx"])
         self.__init__(txPos=txgeo, f=freqs,
-                      rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2])
+                      rx=rxs[:, 0], ry=rxs[:, 1], rz=rxs[:, 2],
+                      mode=self.mode)
 
         if 'line' in ALL:
             self.line = ALL["line"]
@@ -135,9 +146,17 @@ class CSEMData(EMData):
         self.DATAY = np.zeros_like(self.DATAX)
         self.DATAZ = np.zeros_like(self.DATAX)
         try:
-            self.cmp = ALL["cmp"]
+            cmp = ALL["DATA"][nr]["cmp"]
+            for cstr in cmp:
+                try:
+                    idx = self.cstr.index(cstr)
+                    self.cmp[idx] = 1
+                except ValueError:
+                    self.cmp[idx] = 0
+
         except Exception:
             print('CMP detect change exception, using old way')
+            print(Exception)
             self.cmp = [np.any(getattr(self, "DATA"+cc))
                         for cc in ["X", "Y", "Z"]]
 
@@ -222,9 +241,9 @@ class CSEMData(EMData):
 
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
         self.ry, self.rx = MAT["xy"]
-        if "topo" in MAT.dtype.names:
-            self.rz = MAT["topo"][0]
-        elif "lla" in MAT.dtype.names:
+        # if "topo" in MAT.dtype.names:
+        #     self.rz = MAT["topo"][0]
+        if "lla" in MAT.dtype.names:
             self.rz = MAT["lla"][2]
         else:
             raise Exception("Could not determine altitude!")
@@ -315,7 +334,7 @@ class CSEMData(EMData):
         pfy = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [0, 90]  # z
         pfz = bipole(**cfg).real * fak
-        self.prim = np.stack([pfx, pfy, pfz])
+        self.PRIM = np.stack([pfx, pfy, pfz])
 
     def txDistance(self, seg=True):
         """Distance to transmitter."""
@@ -435,7 +454,23 @@ class CSEMData(EMData):
 
     def showSounding(self, nrx=None, position=None, response=None,
                      **kwargs):
-        """Show amplitude and phase data."""
+        """Show amplitude and phase data.
+
+        Parameters
+        ----------
+        nrx : int
+            receiver number
+        position : [float, float]
+            position to search for the next receiver
+        ax : [Axes, Axes]
+            two matplotlib axes objects to plot into (otherwise new)
+
+
+        Returns
+        -------
+        ax : [Axes, Axes]
+            two matplotlib axes objects
+        """
         cmp = kwargs.pop("cmp", self.cmp)
         if nrx is not None or position is not None:
             self.setPos(nrx, position)
@@ -462,230 +497,15 @@ class CSEMData(EMData):
                 ax = showSounding(data, self.f, ax=ax, ls="",
                                   marker="x", **kwargs)
                 if response is not None:
-                    col = kwargs["color"]
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", color=col)
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", color=col)
+                    # col = kwargs["color"]
+                    ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
+                    ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
                     ncmp += 1
 
         for a in ax:
             a.legend()
 
         return ax
-
-    def chooseData(self, what="data", llthres=None):
-        """Choose data to show by showData or showLineData.
-
-        Parameters
-        ----------
-        what : str
-            property name or matrix to choose / show
-                data - measured data
-                prim - primary fields
-                secdata - measured secondary data divided by primary fields
-                response - forward response
-                error - absolute data error
-                relerror - relative data error
-                misfit - absolute misfit between data and response
-                rmisfit - relative misfit between data and response
-                wmisfit - error-weighted misfit
-        """
-        llthres = llthres or self.llthres
-        if isinstance(what, str):
-            if what.lower() == "data":
-                self.DATAX, self.DATAY, self.DATAZ = self.DATA
-            elif what.lower() == "prim":
-                if self.prim is None:
-                    self.computePrimaryFields()
-
-                self.DATAX, self.DATAY, self.DATAZ = self.prim
-            elif what.lower() == "secdata":
-                if self.prim is None:
-                    self.computePrimaryFields()
-
-                primabs = np.sqrt(np.sum(self.prim**2, axis=0))
-                self.DATAX, self.DATAY, self.DATAZ = self.DATA / primabs - 1.0
-            elif what.lower() == "response":
-                self.DATAX, self.DATAY, self.DATAZ = self.RESP
-            elif what.lower() == "error":
-                self.DATAX, self.DATAY, self.DATAZ = self.ERR
-            elif what.lower() == "relerror":
-                rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-                ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
-                self.DATAX, self.DATAY, self.DATAZ = rr + ii * 1j
-            elif what.lower() == "misfit":
-                self.DATAX, self.DATAY, self.DATAZ = self.DATA - self.RESP
-            elif what.lower() == "rmisfit":
-                for i in range(3):
-                    rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
-                    ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
-                    if i == 0:
-                        self.DATAX = rr + ii * 1j
-                    elif i == 1:
-                        self.DATAY = rr + ii * 1j
-                    elif i == 2:
-                        self.DATAZ = rr + ii * 1j
-            elif what.lower() == "wmisfit":
-                mis = self.DATA - self.RESP
-                wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
-                self.DATAX, self.DATAY, self.DATAZ = wmis
-        else:  # try using the argument
-            self.DATAX, self.DATAY, self.DATAZ = what
-
-    def getData(self, line=None, **kwargs):
-        """Save data in numpy format for 2D/3D inversion."""
-        cmp = kwargs.pop("cmp", self.cmp)
-        if np.shape(self.ERR) != np.shape(self.DATA):
-            self.estimateError(**kwargs)
-
-        if line is None:  # take all existing (nonzero) lines
-            ind = np.nonzero(self.line > 0)[0]
-        else:
-            ind = np.nonzero(self.line == line)[0]
-
-        allcmp = ['X', 'Y', 'Z']
-        meany = 0  # np.median(self.ry[ind]) # needed anymore?
-        ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
-        rxpos = np.round(np.column_stack((self.rx[ind], ypos,
-                                          self.rz[ind]-self.txAlt))*10)/10
-        nF = len(self.f)
-        nT = 1
-        nR = len(ind)  # rxpos.shape[0]
-        nC = sum(cmp)
-        dataR = np.zeros([nT, nC, nF, nR])
-        dataI = np.zeros_like(dataR)
-        errorR = np.zeros_like(dataR)
-        errorI = np.zeros_like(dataR)
-        kC = 0
-        Cmp = []
-        for iC in range(3):
-            if cmp[iC]:
-                dataR[0, kC, :, :] = self.DATA[iC][:, ind].real
-                dataI[0, kC, :, :] = self.DATA[iC][:, ind].imag
-                errorR[0, kC, :, :] = self.ERR[iC][:, ind].real
-                errorI[0, kC, :, :] = self.ERR[iC][:, ind].imag
-                Cmp.append('B'+allcmp[iC].lower())
-                kC += 1
-
-        # error estimation
-        data = dict(dataR=dataR, dataI=dataI,
-                    errorR=errorR, errorI=errorI,
-                    rx=rxpos, cmp=Cmp)
-
-        return data
-
-    def saveData(self, fname=None, line=None, txdir=1, **kwargs):
-        """Save data in numpy format for 2D/3D inversion."""
-        if "cmp" in kwargs and kwargs["cmp"] == "all":
-            for cmp in [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 0, 1],
-                        [0, 1, 1], [1, 1, 1]]:
-                kwargs["cmp"] = cmp
-                self.saveData(fname=fname, line=line, txdir=txdir, **kwargs)
-
-        cmp = kwargs.setdefault("cmp", self.cmp)
-        allcmp = ['X', 'Y', 'Z']
-        if fname is None:
-            fname = self.basename
-            if line is not None:
-                fname += "-line" + str(line)
-
-            for i in range(3):
-                if cmp[i]:
-                    fname += "B" + allcmp[i].lower()
-        else:
-            if fname.startswith("+"):
-                fname = self.basename + "-" + fname
-
-        if line == "all":
-            line = np.arange(1, max(self.line)+1)
-
-        if hasattr(line, "__iter__"):
-            for i in line:
-                self.saveData(line=i)
-            return
-
-        data = self.getData(line=line, **kwargs)
-        data["tx_ids"] = [0]
-        DATA = [data]
-        meany = 0  # np.median(self.ry[ind]) # needed anymore?
-        np.savez(fname+".npz",
-                 tx=[np.column_stack((np.array(self.tx)[::txdir],
-                                      np.array(self.ty)[::txdir]-meany,
-                                      np.array(self.tx)*0))],
-                 freqs=self.f,
-                 cmp=cmp,
-                 DATA=DATA,
-                 line=self.line,
-                 origin=np.array(self.origin),  # global coordinates w altitude
-                 rotation=self.angle)
-
-    def loadResults(self, datafile=None, invmesh="Prisms", dirname=None,
-                    jacobian=None):
-        """Load inversion results from directory."""
-        datafile = datafile or self.basename
-        if dirname is None:
-            dirname = datafile + "_" + invmesh + "/"
-        if dirname[-1] != "/":
-            dirname += "/"
-
-        if os.path.exists(dirname + "inv_model.npy"):
-            self.model = np.load(dirname + "inv_model.npy")
-        else:
-            self.model = np.load(sorted(glob(dirname+"sig_iter_*.npy"))[0])
-
-        self.chi2s = np.loadtxt(dirname + "chi2.dat", usecols=3)
-        self.loadResponse(dirname)
-        self.J = None
-        if os.path.exists(dirname+"invmesh.vtk"):
-            self.mesh = pg.load(dirname+"invmesh.vtk")
-        else:
-            self.mesh = pg.load(dirname + datafile + "_final_invmodel.vtk")
-
-        jacobian = jacobian or datafile+"_jacobian.bmat"
-        jname = dirname + jacobian
-        if os.path.exists(jname):
-            self.J = pg.load(jname)
-            print("Loaded jacobian: "+jname, self.J.rows(), self.J.cols())
-        elif os.path.exists(dirname+"jacobian.bmat"):
-            self.J = pg.load(dirname+"jacobian.bmat")
-            print("Loaded jacobian: ", self.J.rows(), self.J.cols())
-
-    def loadResponse(self, dirname=None, response=None):
-        """Load model response file."""
-        if response is None:
-            respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                respfiles = sorted(glob(dirname+"reponse_iter*.npy"))  # TYPO
-            if len(respfiles) == 0:
-                pg.error("Could not find response file")
-
-            responseVec = np.load(respfiles[-1])
-            respR, respI = np.split(responseVec, 2)
-            response = respR + respI*1j
-
-        sizes = [sum(self.cmp), self.nF, self.nRx]
-        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
-        try:
-            RESP[self.getIndices()] = response
-        except ValueError:
-            RESP[:] = response
-
-        RESP = np.reshape(RESP, sizes)
-        self.RESP = np.ones((3, self.nF, self.nRx), dtype=np.complex) * np.nan
-        self.RESP[np.nonzero(self.cmp)[0]] = RESP
-
-    def getIndices(self):
-        """Return indices of finite data into full matrix."""
-        ff = np.array([], dtype=bool)
-        for i in range(3):
-            if self.cmp[i]:
-                tmp = self.DATA[i].ravel() * self.ERR[i].ravel()
-                ff = np.hstack((ff, np.isfinite(tmp)))
-
-        return ff
-
-    def nData(self):
-        """Number of data (for splitting the response)."""
-        return sum(self.getIndices())
 
     def showResult(self, **kwargs):
         """Show inversion result."""
