@@ -482,7 +482,7 @@ class CSEMSurvey():
         # add receiver locations to parameter file for all receiver patches
         reducedrx = mu.resolve_rx_overlaps(
             [data["rx"] for data in saemdata["DATA"]], rx_refine)
-        rx_tri = mu.refine_rx(reducedrx, rx_refine, 60.)
+        rx_tri = mu.refine_rx(reducedrx, rx_refine, 30.)
         M.add_paths(rx_tri)
         for rx in [data["rx"] for data in saemdata["DATA"]]:
             M.add_rx(rx)
@@ -495,7 +495,7 @@ class CSEMSurvey():
         xy = kwargs.pop("x", "y")
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=n_cores, p_fwd=p_fwd, start_iter=0)
+                       n_cores=n_cores, p_fwd=p_fwd)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
