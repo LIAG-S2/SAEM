@@ -294,7 +294,6 @@ class EMData():
             self.tx = np.round(self.tx*10+0.001) / 10  # just in 2D case
             self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
-
             print('Need to fix field rotation of X/Y components')
             # for i in range(len(self.f)):
             #     Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
@@ -1232,7 +1231,7 @@ class EMData():
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
 
-        sizes = [len(self.cstr), self.nF, self.nRx]
+        sizes = [sum(self.cmp), self.nF, self.nRx]
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
         try:
             RESP[self.getIndices()] = response
