@@ -53,7 +53,8 @@ class CSEMSurvey():
         elif isinstance(i, str):
             return getattr(self, i)
 
-    def loadNPZ(self, filename, mode='B', **kwargs):
+    def loadNPZ(self, filename, mtdata=False, mode=None, **kwargs):
+
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
@@ -71,6 +72,12 @@ class CSEMSurvey():
             for i in range(len(ALL["DATA"])):
                 line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
                                                dtype=int))
+
+        if mode is None:
+            if not mtdata: 
+                mode = 'B'
+            else:
+                mode = 'T'
 
         for i in range(len(ALL["DATA"])):
             if 'E' in mode or 'B' in mode:
@@ -152,7 +159,7 @@ class CSEMSurvey():
             self.angle = patch.angle
             self.origin = patch.origin
             self.cmp = patch.cmp
-            print('  -  copy *angle*, *origin* and *cmp* from first patch  -')
+            # print('  - copy *angle*, *origin* and *cmp* from first patch  -')
         else:
             assert self.angle == patch.angle, "angle not matching"
             assert np.allclose(self.origin, patch.origin), "origin not equal"
@@ -171,13 +178,16 @@ class CSEMSurvey():
 
     def showPositions(self, **kwargs):
         """Show all positions."""
-        fig, ax = plt.subplots()
+        ax = kwargs.pop("ax", None)
+        if ax is None:
+            _, ax = plt.subplots()
+
         ma = ["x", "+", "^", "v"]
         for i, p in enumerate(self.patches):
             p.showPos(ax=ax, color="C{:d}".format(i),
                       marker=ma[i % len(ma)], **kwargs)
 
-        return fig, ax
+        return ax
 
     def showData(self, **kwargs):
         """."""
@@ -331,7 +341,7 @@ class CSEMSurvey():
         Parameters
         ----------
         Geometry
-
+        ........
         depth : float [1000]
             Depth of the inversion region. The default is 1000..
         inner_area_cell_size : float [1e4]
@@ -360,7 +370,7 @@ class CSEMSurvey():
             just make geometry, show it and quit (to optimize mesh pameters)
 
         Computation
-
+        ...........
         n_cores : int [60]
             Number of cores to use. The default is 60.
         dim : float
@@ -383,7 +393,7 @@ class CSEMSurvey():
                 enhance contrasts by using an L1 norm on roughness
 
         Plotting
-
+        ........
         alim : (float, float) [1e-3, 1]
             limits for shwoing real and imaginary parts
         x : str ["y"]
@@ -437,8 +447,14 @@ class CSEMSurvey():
                                     [xmax+dx, ymax+dy, 0.],
                                     [xmin-dy, ymax+dy, 0.]])
 
+        ext = max(max(invpoly[:, 0]) - min(invpoly[:, 0]),
+                  max(invpoly[:, 1]) - min(invpoly[:, 1]))
+        dim = dim or ext*5
+        print("xdim: ", [x0-dim, x0+dim])
+        print("ydim: ", [y0-dim, y0+dim])
+
         if kwargs.pop("check", False):
-            _, ax = self.showPositions()
+            ax = self.showPositions()
             ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
             ax.plot(invpoly[::invpoly.shape[0]-1, 0],
                     invpoly[::invpoly.shape[0]-1, 1], "k-")
@@ -447,7 +463,6 @@ class CSEMSurvey():
         from custEM.meshgen.meshgen_tools import BlankWorld
         from custEM.meshgen import meshgen_utils as mu
         from custEM.inv.inv_utils import MultiFWD
-
         M = BlankWorld(name=invmesh,
                        x_dim=[x0-dim, x0+dim],
                        y_dim=[y0-dim, y0+dim],
@@ -469,7 +484,7 @@ class CSEMSurvey():
         # add receiver locations to parameter file for all receiver patches
         reducedrx = mu.resolve_rx_overlaps(
             [data["rx"] for data in saemdata["DATA"]], rx_refine)
-        rx_tri = mu.refine_rx(reducedrx, rx_refine, 60.)
+        rx_tri = mu.refine_rx(reducedrx, rx_refine, 30.)
         M.add_paths(rx_tri)
         for rx in [data["rx"] for data in saemdata["DATA"]]:
             M.add_rx(rx)
@@ -482,7 +497,7 @@ class CSEMSurvey():
         xy = kwargs.pop("x", "y")
         # setup fop
         fop = MultiFWD(invmod, invmesh, saem_data=saemdata, sig_bg=sig_bg,
-                       n_cores=n_cores, p_fwd=p_fwd, start_iter=0)
+                       n_cores=n_cores, p_fwd=p_fwd)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
@@ -502,9 +517,10 @@ class CSEMSurvey():
         pgmesh['res'] = 1. / invmodel
         cov = np.zeros(fop._jac.cols())
         mT = inv.modelTrans
+        dataScale = dT.deriv(inv.response) / \
+            dT.error(inv.response, fop.errors)
         for i in range(fop._jac.rows()):
-            cov += np.abs(fop._jac.row(i) * dT.deriv(inv.response) /
-                          dT.error(inv.response, fop.errors))
+            cov += np.abs(fop._jac.row(i) * dataScale[i])
 
         cov /= mT.deriv(invmodel)  # previous * invmodel
         cov /= pgmesh.cellSizes()

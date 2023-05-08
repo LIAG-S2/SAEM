@@ -436,20 +436,24 @@ class EMData():
         if ax is None:
             fig, ax = plt.subplots()
 
+        rxy = np.column_stack((self.rx, self.ry))
+        txy = np.column_stack((self.tx, self.ty))
         if org:
-            # rxy = np.column_stack((self.rx, self.ry))
-            pass
+            rxy += self.origin[:2]
+            txy += self.origin[:2]
 
         kwargs.setdefault("markersize", 5)
         ma = marker or "."
-        ax.plot(self.rx, self.ry, ma, markersize=2, color=color or "blue")
-        ax.plot(self.tx, self.ty, "-", markersize=4, color=color or "orange")
+        ax.plot(rxy[:, 0], rxy[:, 1], ma, markersize=2,
+                color=color or "blue")
+        ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
+                color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(self.rx[self.nrx], self.ry[self.nrx], "k", **kwargs)
+            ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "k", **kwargs)
 
         if line is not None:
-            ax.plot(self.rx[self.line == line],
-                    self.ry[self.line == line], "-")
+            ax.plot(rxy[self.line == line, 0],
+                    rxy[self.line == line, 1], "-")
 
         ax.set_aspect(1.0)
         ax.grid(True)
