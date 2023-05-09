@@ -1235,7 +1235,7 @@ class EMData():
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
 
-        sizes = [len(self.cstr), self.nF, self.nRx]
+        sizes = [sum(self.cmp), self.nF, self.nRx]
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
         try:
             RESP[self.getIndices()] = response
