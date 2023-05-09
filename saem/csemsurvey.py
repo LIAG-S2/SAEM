@@ -423,12 +423,11 @@ class CSEMSurvey():
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
             alltx = np.vstack(saemdata["tx"])[:, :2]
-            allrx = np.vstack([allrx, alltx])
+            points = np.vstack([allrx, alltx])
             x0 = np.median(allrx[:, 0])
             y0 = np.median(allrx[:, 1])
             if useQHull:
                 from scipy.spatial import ConvexHull
-                points = allrx
                 points -= [x0, y0]
                 ch = ConvexHull(points)
                 invpoly = np.array([[*points[v, :], 0.]
@@ -436,8 +435,8 @@ class CSEMSurvey():
                     (inner_boundary_factor + 1.0)
                 invpoly += [x0, y0, 0.]
             else:
-                xmin, xmax = min(allrx[:, 0]), max(allrx[:, 0])
-                ymin, ymax = min(allrx[:, 1]), max(allrx[:, 1])
+                xmin, xmax = min(points[:, 0]), max(points[:, 0])
+                ymin, ymax = min(points[:, 1]), max(points[:, 1])
                 dx = (xmax - xmin) * inner_boundary_factor
                 dy = (ymax - ymin) * inner_boundary_factor
                 invpoly = np.array([[xmin-dx, ymin-dy, 0.],
