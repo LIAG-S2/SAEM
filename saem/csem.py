@@ -351,6 +351,12 @@ class CSEMData(EMData):
                                      self.ry-np.mean(self.ty)]))
             return np.abs(rx)
 
+    def switchTx(self):
+        """Switch orientation of transmitter."""
+        self.tx = self.tx[::-1]
+        self.ty = self.ty[::-1]
+        self.tz = self.tz[::-1]
+
     def invertSounding(self, nrx=None, show=True, check=False, depth=None,
                        relError=0.03, absError=0.001, **kwargs):
         """Invert a single sounding."""
