@@ -250,11 +250,16 @@ class EMData():
         self.origin = [0, 0, 0]
         self.angle = 0
         self.A = np.array([[1, 0], [0, 1]])
-        print('Need to fix field rotation of X/Y components')
-        # for i in range(len(self.f)):
-        #     Bxy = self.A.dot(np.vstack((self.DATAX[i, :], self.DATAY[i, :])))
-        #     self.DATAX[i, :] = Bxy[0, :]
-        #     self.DATAY[i, :] = Bxy[1, :]
+        for i in range(len(self.f)):
+            Bxy = self.A.T.dot(np.vstack((self.DATA[0, i, :],
+                                          self.DATA[1, i, :])))
+            self.DATA[0, i, :] = Bxy[0, :]
+            self.DATA[1, i, :] = Bxy[1, :]
+            "Need to correct Error rotation!"
+            # Errxy = self.A.T.dot(np.vstack((self.ERR[0, i, :],
+            #                                 self.ERR[1, i, :])))
+            # self.ERR[0, i, :] = Bxy[0, :]
+            # self.ERR[1, i, :] = Bxy[1, :]
 
     def rotate(self, ang=None, line=None, origin=None):
         """Rotate positions and fields to a local coordinate system.
@@ -274,8 +279,9 @@ class EMData():
         origin : [float, float]
             origin of coordinate system, if not given, center of Tx
         """
-        self.rotateBack()  # always go back to original system
-        self.setOrigin(origin)
+
+        if origin:
+            self.setOrigin()
         if ang is None:
             if line is not None:  # use Tx orientation so that Tx points to y
                 rx = self.rx[self.line == line]
@@ -294,19 +300,27 @@ class EMData():
             self.tx = np.round(self.tx*10+0.001) / 10  # just in 2D case
             self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
-            print('Need to fix field rotation of X/Y components')
-            # for i in range(len(self.f)):
-            #     Bxy = self.A.T.dot(np.vstack((self.DATAX[i, :],
-            #                                   self.DATAY[i, :])))
-            #     self.DATAX[i, :] = Bxy[0, :]
-            #     self.DATAY[i, :] = Bxy[1, :]
+            # print('Need to fix field rotation of X/Y components')
+            for i in range(len(self.f)):
+                Bxy = self.A.dot(np.vstack((self.DATA[0, i, :],
+                                            self.DATA[1, i, :])))
+                self.DATA[0, i, :] = Bxy[0, :]
+                self.DATA[1, i, :] = Bxy[1, :]
+                "Need to correct Error rotation!"
+                # Errxy = self.A.dot(np.vstack((self.ERR[0, i, :],
+                #                               self.ERR[1, i, :])))
+                # self.ERR[0, i, :] = Errxy[0, :]
+                # self.ERR[1, i, :] = Errxy[1, :]
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
+        if origin:
+            self.setOrigin(shift_back=True)
 
     def setOrigin(self, origin=None, shift_back=True):
         """Set origin."""
         # first shift back to old origin
+        origin = origin or self.origin
         if shift_back:
             self.tx += self.origin[0]
             self.ty += self.origin[1]
@@ -348,7 +362,7 @@ class EMData():
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
-    def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None,
+    def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None, rInd=None,
                minTxDist=None, maxTxDist=None, every=None, line=None):
         """Filter data according to frequency and and receiver properties.
 
@@ -408,6 +422,9 @@ class EMData():
             if isinstance(every, int):
                 nInd = nInd[::every]
 
+        if rInd is not None:
+            nInd = np.delete(np.arange(len(self.rx)), rInd)
+
         if nInd is not None:
             for tok in ['alt', 'rx', 'ry', 'rz', 'line']:
                 setattr(self, tok, getattr(self, tok)[nInd])
@@ -430,9 +447,20 @@ class EMData():
         """Masking out data according to several properties."""
         pass  # not yet implemented
 
+    def skinDepths(self, rho=30):
+        """Compute skin depth based on a medium resistivity."""
+        return np.sqrt(rho/self.f) * 500
+
+    def createDepthVector(self, rho=30, nl=15):
+        """Create depth vector."""
+        sd = self.skinDepths(rho=rho)
+        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
+                                                   n=nl, log=True)))
+
     def showPos(self, ax=None, line=None, background=None, org=False,
                 color=None, marker=None, **kwargs):
         """Show positions."""
+        print(ax)
         if ax is None:
             fig, ax = plt.subplots()
 
@@ -463,16 +491,6 @@ class EMData():
             underlayBackground(ax, background, self.utm)
 
         return ax
-
-    def skinDepths(self, rho=30):
-        """Compute skin depth based on a medium resistivity."""
-        return np.sqrt(rho/self.f) * 500
-
-    def createDepthVector(self, rho=30, nl=15):
-        """Create depth vector."""
-        sd = self.skinDepths(rho=rho)
-        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
-                                                   n=nl, log=True)))
 
     def showField(self, field, **kwargs):
         """Show any receiver-related field as color-coded rectangles/circles.

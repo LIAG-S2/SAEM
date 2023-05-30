@@ -175,20 +175,20 @@ class MTData(EMData):
                             MAT1[name] = np.concatenate((MAT1[name],
                                                          temp[name]), axis=-1)
 
-            self.line = MAT["nr"]
             self.f = MAT[0]["frequencies"].ravel()
             sorting = np.argsort(self.f)
-            self.ry, self.rx, self.rz = MAT1["rx"]
+            self.rx, self.ry, self.rz = MAT1["rx"]
             self.f = self.f[sorting]
             self.DATA = MAT1["data"][:, sorting, :]
             self.ERR = MAT1["err"][:, sorting, :]
         else:
-            self.line = MAT["nr"]
+
             self.f = MAT["frequencies"]
-            self.ry, self.rx, self.rz = MAT["rx"]
+            self.rx, self.ry, self.rz = MAT["rx"]
             self.DATA = MAT["data"]
             self.ERR = MAT["err"]
 
+        self.line = MAT["nr"]
         self.alt = self.rz
 
     def loadWWUMatFile(self, filename):

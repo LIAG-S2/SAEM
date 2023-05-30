@@ -151,7 +151,11 @@ def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
     X, Y, Z = [], [], []
     for line in root.iter("*"):
         if line.tag.find("coordinates"):
-            lin = line.text.replace("\n", "").replace("\t", "")
+            try:
+                lin = line.text.replace("\n", "").replace("\t", "")
+            except AttributeError:
+                lin = root[0][4][2][1].text.replace("\n", "").replace("\t",
+                                                                       "")
             for col in lin.split(" "):
                 if col.find(",") > 0:
                     vals = np.array(col.split(","), dtype=float)

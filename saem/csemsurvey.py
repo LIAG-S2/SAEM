@@ -194,10 +194,27 @@ class CSEMSurvey():
         for i, p in enumerate(self.patches):
             p.showData(**kwargs)
 
+    def showPos(self, *args, **kwargs):
+        """Show Tx and Rx positions of complete Survey in one figure"""
+
+        ax = self.patches[0].showPos(**kwargs)
+        for i, p in enumerate(self.patches[1:]):
+            p.showPos(ax=ax, **kwargs)
+
     def setOrigin(self, *args, **kwargs):
         """Set the same origin for all patches (reshifting if existing)."""
         for p in self.patches:
             p.setOrigin(*args, **kwargs)
+
+    def rotate(self, *args, **kwargs):
+        """SRotate all patches."""
+        for p in self.patches:
+            p.rotate(*args, **kwargs)
+
+    def detectLines(self, *args, **kwargs):
+        """SRotate all patches."""
+        for p in self.patches:
+            p.detectLines(*args, **kwargs)
 
     def filter(self, *args, **kwargs):
         """Filter."""

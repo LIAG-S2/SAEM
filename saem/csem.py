@@ -238,9 +238,11 @@ class CSEMData(EMData):
                 else:
                     MAT[name] = np.concatenate((MAT[name], MAT1[name]),
                                                axis=-1)
+        self.MAT = MAT
 
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
         self.ry, self.rx = MAT["xy"]
+
         # if "topo" in MAT.dtype.names:
         #     self.rz = MAT["topo"][0]
         if "lla" in MAT.dtype.names:
