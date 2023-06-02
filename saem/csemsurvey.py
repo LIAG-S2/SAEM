@@ -60,13 +60,9 @@ class CSEMSurvey():
         self.f = ALL["freqs"]
 
         a = 0
-        try:
-            line = ALL["line"]
-        except KeyError:
-            line = None
 
-        if hasattr(ALL, "line") and hasattr(ALL["line"], "len"):
-            line = ALL["line"]  # NpzFile??
+        if "line" in list(ALL.keys()):
+            line = ALL["line"]
         else:
             line = np.array([], dtype=int)
             for i in range(len(ALL["DATA"])):
@@ -87,7 +83,7 @@ class CSEMSurvey():
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
-            if hasattr(line, 'len') and len(line) > 0:
+            if len(line) > 0:
                 patch.line = line[a:a+len(patch.rx)]
                 a += len(patch.rx)
             else:
@@ -255,6 +251,7 @@ class CSEMSurvey():
 
         txs = [np.column_stack((p.tx, p.ty, p.ty*0)) for p in self.patches]
         DATA, lines = self.getData(line=line, **kwargs)
+        print(lines)
         np.savez(fname+".npz",
                  tx=txs,
                  freqs=self.patches[0].f,

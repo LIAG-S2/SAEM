@@ -1198,7 +1198,6 @@ class EMData():
 
             if ignoreErr:
                 self.ERR[cmp, freq, :] = 0 + 0j
-                # np.zeros_like(self.DATA[cmp, freq, :]) + (0+0j)
 
         elif ri == "real":
             aErr = np.zeros_like(self.DATA, dtype=complex)
@@ -1222,9 +1221,12 @@ class EMData():
 
         # decide upon adding or maximizing errors
         if useMax:
-            self.ERR[cmp, freq, :] = np.maximum(np.maximum(
-                self.ERR[cmp, freq, :], aErr[cmp, freq, :]),
-                rErr[cmp, freq, :])
+            self.ERR[cmp, freq, :].real = np.maximum(np.maximum(
+                self.ERR[cmp, freq, :].real, aErr[cmp, freq, :].real),
+                rErr[cmp, freq, :].real)
+            # self.ERR[cmp, freq, :].imag = np.maximum(np.maximum(
+            #     self.ERR[cmp, freq, :].imag, aErr[cmp, freq, :].imag),
+            #     rErr[cmp, freq, :].imag)
         else:
             self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
                 aErr[cmp, freq, :] + rErr[cmp, freq, :]
