@@ -497,12 +497,15 @@ class CSEMData(EMData):
                 respIm = np.reshape(respIm, (sum(cmp), -1))
 
         ncmp = 0
+        bl = kwargs.pop("baselabel", "")
+        noc = "color" not in kwargs
         for i in range(3):
             if cmp[i] > 0:
                 # data = getattr(self, "data"+allcmp[i].upper())
                 data = self.DATA[i, :, self.nrx]
-                kwargs["color"] = "C" + str(i)
-                kwargs["label"] = "B" + allcmp[i]
+                if noc:
+                    kwargs["color"] = "C" + str(i)
+                kwargs["label"] = bl + " B" + allcmp[i]
                 kwargs["ls"] = "None"
                 kwargs["marker"] = "x"
                 ax = showSounding(data, self.f, ax=ax, **kwargs)
