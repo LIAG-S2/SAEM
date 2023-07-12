@@ -399,7 +399,7 @@ class CSEMData(EMData):
             fig, ax = plt.subplots()
             drawModel1D(ax, np.diff(self.depth), self.model, color="blue",
                         plot='semilogx', label="inverted")
-            ax = self.showSounding(amphi=False,
+            ax = self.showSounding(#amphi=False,
                                    response=self.response1d)
 
         return self.model
@@ -499,15 +499,21 @@ class CSEMData(EMData):
         ncmp = 0
         for i in range(3):
             if cmp[i] > 0:
-                data = getattr(self, "data"+allcmp[i].upper())
-                kwargs.setdefault("color", "C" + str(i))
-                kwargs.setdefault("label", "B" + allcmp[i])
-                ax = showSounding(data, self.f, ax=ax, ls="",
-                                  marker="x", **kwargs)
+                # data = getattr(self, "data"+allcmp[i].upper())
+                data = self.DATA[i, :, self.nrx]
+                kwargs["color"] = "C" + str(i)
+                kwargs["label"] = "B" + allcmp[i]
+                kwargs["ls"] = "None"
+                kwargs["marker"] = "x"
+                ax = showSounding(data, self.f, ax=ax, **kwargs)
                 if response is not None:
                     # col = kwargs["color"]
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
+                    kwargs["ls"] = "-"
+                    kwargs["marker"] = ""
+                    tmp = respRe[ncmp] + respIm[ncmp] * 1j
+                    showSounding(tmp, self.f, ax=ax, **kwargs)
+                    # ax[0].plot(respRe[ncmp], self.f, **kwargs)
+                    # ax[1].plot(respIm[ncmp], self.f, **kwargs)
                     ncmp += 1
 
         for a in ax:
