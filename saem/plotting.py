@@ -38,6 +38,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
 
     if snddata.dtype == np.float:
         snddata = snddata[:len(snddata)//2] + snddata[len(snddata)//2:] * 1j
+        # print(len(freqs), len(data))
 
     if amphi:
         ax[0].loglog(np.abs(snddata), freqs, **kwargs)
@@ -54,6 +55,9 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
 
     for a in ax:
         a.grid(True)
+
+    # if response is not None:
+        # showSounding(response, "-", ax=ax, amphi=amphi, **kwargs)
 
     return ax
 
