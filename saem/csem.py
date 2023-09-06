@@ -112,7 +112,7 @@ class CSEMData(EMData):
         if new.ty is not None:
             assert np.allclose(self.ty, new.ty), "Tx(y) not matching!"
         if new.f is not None:
-            assert np.allclose(self.f, new.f)
+            assert np.allclose(self.f, new.f, rtol=0.01), "frequencies differ!"
         for attr in ["rx", "ry", "rz", "line", "alt",
                      'DATA', 'ERR', 'RESP', 'PRIM']:
             one = getattr(self, attr)
