@@ -58,6 +58,7 @@ class CSEMSurvey():
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
+        self.origin = ALL["origin"]
 
         a = 0
 
@@ -417,7 +418,8 @@ class CSEMSurvey():
             outer_area_cell_size = inner_area_cell_size * 100
 
         invmod = self.basename
-        invmesh = 'invmesh_' + invmod
+        invmesh=kwargs.pop('invmesh','invmesh_' + invmod)
+        # invmesh = 'invmesh_' + invmod
         dataname = self.basename or "mydata"
 
         if "npzfile" in kwargs:
@@ -521,8 +523,9 @@ class CSEMSurvey():
         # run inversion
         kwargs.setdefault("lam", 10)
         kwargs.setdefault("maxIter", 21)
+        kwargs.setdefault('startModel', fop.sig_0)
         invmodel = inv.run(fop.measured, fop.errors, verbose=True,
-                           startModel=fop.sig_0, **kwargs)
+                           **kwargs)
         # post-processing
         np.save(fop.inv_dir + 'inv_model.npy', invmodel)
         pgmesh = fop.mesh()
