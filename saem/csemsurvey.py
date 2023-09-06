@@ -64,10 +64,13 @@ class CSEMSurvey():
         if "line" in list(ALL.keys()):
             line = ALL["line"]
         else:
-            line = np.array([], dtype=int)
-            for i in range(len(ALL["DATA"])):
-                line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
-                                               dtype=int))
+            pass
+        line = np.array([], dtype=int)
+        for i in range(len(ALL["DATA"])):
+            line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
+                                           dtype=int))
+
+        
 
         if mode is None:
             if not mtdata: 
@@ -83,6 +86,7 @@ class CSEMSurvey():
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
+            
             if len(line) > 0:
                 patch.line = line[a:a+len(patch.rx)]
                 a += len(patch.rx)
@@ -138,7 +142,7 @@ class CSEMSurvey():
                 cs.chooseActive()
                 self.addPatch(cs)
 
-    def addPatch(self, patch, name=None):
+    def addPatch(self, patch, name=None, **kwargs):
         """Add a new patch to the file.
 
         Parameters
@@ -147,7 +151,7 @@ class CSEMSurvey():
             CSEMData instance or string to load into that
         """
         if isinstance(patch, str):
-            patch = CSEMData(patch)
+            patch = CSEMData(patch, **kwargs)
             if name is not None:
                 patch.basename = name
 
@@ -251,7 +255,6 @@ class CSEMSurvey():
 
         txs = [np.column_stack((p.tx, p.ty, p.ty*0)) for p in self.patches]
         DATA, lines = self.getData(line=line, **kwargs)
-        print(lines)
         np.savez(fname+".npz",
                  tx=txs,
                  freqs=self.patches[0].f,
@@ -270,10 +273,12 @@ class CSEMSurvey():
             respfiles = sorted(glob(dirname+"response_iter*.npy"))
             if len(respfiles) == 0:
                 pg.error("Could not find response file")
-
-            responseVec = np.load(respfiles[-1])
-            respR, respI = np.split(responseVec, 2)
-            response = respR + respI*1j
+        else:
+            respfiles = [dirname + "response_iter_" + str(response) + ".npy"]
+    
+        responseVec = np.load(respfiles[-1])
+        respR, respI = np.split(responseVec, 2)
+        response = respR + respI*1j
 
         ind = np.hstack((0, np.cumsum([p.nData() for p in self.patches])))
         for i, p in enumerate(self.patches):

@@ -52,6 +52,11 @@ class MTData(EMData):
         self.updateDefaults(**kwargs)
         self.createDataArray()
 
+        if 'debugImport' in kwargs:
+            self.firstonly = True
+        else:
+            self.firstonly = False
+
         if datafile is not None:
             self.loadData(datafile)
 
@@ -166,7 +171,7 @@ class MTData(EMData):
                 for name in MAT.dtype.names:
                     if name == "nr":
                         temp[name] = np.ones(temp["rx"].shape[-1],
-                                             dtype=int) * temp["nr"][0][0]
+                                              dtype=int) * temp["nr"][0][0]
 
                     if name != "frequencies":
                         if i == 0:
@@ -174,6 +179,8 @@ class MTData(EMData):
                         else:
                             MAT1[name] = np.concatenate((MAT1[name],
                                                          temp[name]), axis=-1)
+                if self.firstonly:
+                    break
 
             self.f = MAT[0]["frequencies"].ravel()
             sorting = np.argsort(self.f)

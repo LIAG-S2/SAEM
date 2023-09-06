@@ -320,12 +320,12 @@ class EMData():
     def setOrigin(self, origin=None, shift_back=True):
         """Set origin."""
         # first shift back to old origin
-        origin = origin or self.origin
-        if shift_back:
-            self.tx += self.origin[0]
-            self.ty += self.origin[1]
-            self.rx += self.origin[0]
-            self.ry += self.origin[1]
+        # origin = origin or self.origin
+        # if shift_back:
+        #     self.tx += self.origin[0]
+        #     self.ty += self.origin[1]
+        #     self.rx += self.origin[0]
+        #     self.ry += self.origin[1]
         if origin is None:
             origin = [np.mean(self.tx), np.mean(self.ty)]
         # now shift to new origin
@@ -474,8 +474,9 @@ class EMData():
         ma = marker or "."
         ax.plot(rxy[:, 0], rxy[:, 1], ma, markersize=2,
                 color=color or "blue")
-        ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
-                color=color or "orange")
+        if txy.shape[1] > 0:
+            ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
+                    color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
             ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "k", **kwargs)
 
@@ -622,9 +623,9 @@ class EMData():
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        ax[0, ncmp].plot(x, np.real(subset), '--', lw=lw,
+                        ax[0, ncmp].plot(x, np.real(subset), 'x-', lw=lw,
                                          color=kw["color"], label=label)
-                        ax[1, ncmp].plot(x, np.imag(subset), '--', lw=lw,
+                        ax[1, ncmp].plot(x, np.imag(subset), 'x-', lw=lw,
                                          color=kw["color"], label=label)
                     if kw["log"]:
                         ax[0, ncmp].set_yscale('symlog',
@@ -1246,17 +1247,22 @@ class EMData():
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
-        if response is None:
-            respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                pg.error("Could not find response file")
-
+        if response is None or type(response) is int:
+            if type(response) is int:
+                respfiles = [dirname + "response_iter_" +
+                             str(response) + ".npy"]
+            else:
+                respfiles = sorted(glob(dirname+"response_iter*.npy"))
+                if len(respfiles) == 0:
+                    pg.error("Could not find response file")
+    
             responseVec = np.load(respfiles[-1])
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
 
         sizes = [sum(self.cmp), self.nF, self.nRx]
         RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
+
         try:
             RESP[self.getIndices()] = response
         except ValueError:
