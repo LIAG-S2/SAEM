@@ -18,7 +18,7 @@ from .tools import distToTx
 class CSEMData(EMData):
     """Class for CSEM frequency-domain data patch (single Tx)."""
 
-    def __init__(self, datafile=None, mode='B', **kwargs):
+    def __init__(self, datafile=None, **kwargs):
         """Initialize CSEM data class.
 
         Parameters
@@ -33,6 +33,8 @@ class CSEMData(EMData):
             transmitter position as polygone
         rx/ry/rz : iterable
             receiver positions
+        tx/ty/tz : iterable
+            transmitter positions
         f : iterable
             frequencies
         cmp : [int, int, int]
@@ -40,14 +42,8 @@ class CSEMData(EMData):
         alt : float
             flight altitude
         """
-        super().__init__()
-
-        self.mode = mode
-        self.tx = np.array([0., 0.])
-        self.ty = np.array([0., 0.])
-        self.tz = np.array([0., 0.])
-
-        self.updateDefaults(**kwargs)
+        super().__init__(**kwargs)
+        self.mode = kwargs.pop("mode", "B")
         self.createDataArray()
         self.loop = kwargs.pop("loop", False)
         self.txAlt = kwargs.pop("txalt", 0.0)
@@ -591,13 +587,13 @@ class CSEMData(EMData):
 if __name__ == "__main__":
     txpos = np.array([[559497.46, 5784467.953],
                       [559026.532, 5784301.022]]).T
-    self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-    print(self)
+    data = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
+    print(data)
     # self.generateDataPDF()
-    self.showData(nf=1)
+    data.showData(nf=1)
     # self.showField("alt", background="BKG")
     # self.invertSounding(nrx=20)
     # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    self.showSounding(nrx=20)
+    data.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()

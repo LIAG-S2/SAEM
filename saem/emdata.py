@@ -25,13 +25,11 @@ from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
 class EMData():
     """Class for EM frequency-domain data."""
 
-    def __init__(self, datafile=None, **kwargs):
+    def __init__(self, **kwargs):
         """Initialize CSEM data class.
 
         Parameters
         ----------
-        datafile : str
-            data file to load if not None
         basename : str [datafile without extension]
             name for data (exporting, figures etc.)
         txPos : array
@@ -47,35 +45,15 @@ class EMData():
         """
         self.origin = [0., 0., 0.]
         self.angle = 0.
-        self.llthres = 1e-3
+        self.llthres = kwargs.pop("llthres", 1e-3)
         self.A = np.array([[1, 0], [0, 1]])
         self.depth = None
         self.PRIM = None
         self.RESP = None
         self.ERR = None
-
-    def __repr__(self):
-        """String representation of the class."""
-        sdata = "EM data with {:d} stations and {:d} frequencies".format(
-            len(self.rx), len(self.f))
-
-        return "\n".join((sdata))
-
-    @property
-    def nRx(self):
-        """Number of receiver positions."""
-        return len(self.rx)
-
-    @property
-    def nF(self):
-        """Number of frequencies."""
-        return len(self.f)
-
-    def updateDefaults(self, **kwargs):
-        """Update default keyword arguments."""
+        self.mode = None  # needs to be done in derived classes
         self.f = kwargs.pop("f", [])
-        self.basename = "noname"
-        self.basename = kwargs.pop("basename", self.basename)
+        self.basename = kwargs.pop("basename", "noname")
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
@@ -115,13 +93,30 @@ class EMData():
             self.tx = kwargs.pop("tx", np.array([0., 0.]))
             self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
             self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
-            # self.tz = kwargs.pop("tz", np.ones_like(self.rx)*kwargs.pop("txalt", 0.))
             if isinstance(self.ty, (int, float)):
                 self.ty = np.ones_like(self.tx)*self.ty
             if isinstance(self.tx, (int, float)):
                 self.tx = np.ones_like(self.ty)*self.tx
             if isinstance(self.tz, (int, float)):
                 self.tz = np.ones_like(self.tx)*self.tz
+
+
+    def __repr__(self):
+        """String representation of the class."""
+        sdata = "EM data with {:d} stations and {:d} frequencies".format(
+            len(self.rx), len(self.f))
+
+        return "\n".join((sdata))
+
+    @property
+    def nRx(self):
+        """Number of receiver positions."""
+        return len(self.rx)
+
+    @property
+    def nF(self):
+        """Number of frequencies."""
+        return len(self.f)
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
