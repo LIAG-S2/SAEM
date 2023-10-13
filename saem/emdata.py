@@ -477,7 +477,7 @@ class EMData():
         ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
                 color=color or "orange")
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "k", **kwargs)
+            ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "ro", **kwargs)
 
         if line is not None:
             ax.plot(rxy[self.line == line, 0],
