@@ -493,18 +493,25 @@ class CSEMData(EMData):
                 respIm = np.reshape(respIm, (sum(cmp), -1))
 
         ncmp = 0
+        amphi = kwargs.pop("amphi", True)
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
                 kwargs.setdefault("color", "C" + str(i))
                 kwargs.setdefault("label", "B" + allcmp[i])
                 ax = showSounding(data, self.f, ax=ax, ls="",
-                                  marker="x", **kwargs)
+                                  marker="x", amphi=amphi, **kwargs)
                 if response is not None:
                     # col = kwargs["color"]
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
-                    ncmp += 1
+                    if amphi:
+                        snddata = respRe[ncmp] + respIm[ncmp] * 1j
+                        ax[0].plot(np.abs(snddata), self.f, ls="-", **kwargs)
+                        ax[1].plot(np.angle(snddata)*180/np.pi, self.f, ls="-", **kwargs)
+                    else:
+                        ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
+                        ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
+
+            ncmp += 1
 
         for a in ax:
             a.legend()
