@@ -321,12 +321,12 @@ class CSEMData(EMData):
         """Compute primary fields."""
         cfg = dict(self.cfg)
         fak = 4e-7 * np.pi * 1e9  # H->B and T in nT
+        self.alt = self.rz - np.mean(self.tz)
         cfg["rec"] = [self.rx, self.ry, self.alt, 0, 0]  # x
         cfg["freqtime"] = self.f
         cfg["xdirect"] = True
         cfg["res"] = [2e14]
         cfg["depth"] = []
-        print(cfg)
         pfx = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [90, 0]  # y
         pfy = bipole(**cfg).real * fak
