@@ -1072,15 +1072,15 @@ class EMData():
                         mode='patchwise', **kwargs):
         """Generate a multi-page pdf file containing all data."""
         what = kwargs.setdefault('what', 'data')
-
+        sw = what.replace("/", "_")
         if mode == 'patchwise':
-            pdffile = pdffile or self.basename + "_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_" + sw + ".pdf"
         elif mode == 'linewise':
-            pdffile = pdffile or self.basename + "_line_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_line_" + sw + ".pdf"
         elif mode == 'linewisemat':
-            pdffile = pdffile or self.basename + "_linemat_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_linemat_" + sw + ".pdf"
         elif mode == 'linefreqwise':
-            pdffile = pdffile or self.basename + "_linefreqs_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_linefreqs_" + sw + ".pdf"
         else:
             print('Error, wrong *mode* chosen. Aborting ...')
             raise SystemExit
@@ -1250,7 +1250,7 @@ class EMData():
                 respfiles = sorted(glob(dirname+"response_iter*.npy"))
                 if len(respfiles) == 0:
                     pg.error("Could not find response file")
-    
+
             responseVec = np.load(respfiles[-1])
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
