@@ -7,6 +7,7 @@ import pygimli as pg
 from saem import Mare2dEMData
 from saem import CSEMData
 from saem.mt import MTData
+from saem.tools import coverage
 
 
 class CSEMSurvey():
@@ -240,7 +241,11 @@ class CSEMSurvey():
         return DATA, lines
 
     def saveData(self, fname=None, line=None, **kwargs):
-        """Save data in numpy format for 2D/3D inversion."""
+        """Ensure that old scripts with the old method name work."""
+        self.createDataDict(fname=fname, save=True, line=line, **kwargs)
+
+    def createDataDict(self, fname=None, save=False, line=None, **kwargs):
+        """Create saemdata Dict and save data in numpy format for inversion."""
         cmp = kwargs.setdefault("cmp", self.patches[0].cmp)
         if fname is None:
             fname = self.basename
@@ -256,14 +261,22 @@ class CSEMSurvey():
 
         txs = [np.column_stack((p.tx, p.ty, p.ty*0)) for p in self.patches]
         DATA, lines = self.getData(line=line, **kwargs)
-        np.savez(fname+".npz",
-                 tx=txs,
-                 freqs=self.patches[0].f,
-                 DATA=DATA,
-                 line=lines,
-                 cmp=[patch["cmp"] for patch in DATA],
-                 origin=self.origin,  # global coordinates with altitude
-                 rotation=self.angle)
+        self.DDict = {'tx' : txs,
+                      'freqs' : self.patches[0].f,
+                      'DATA' : DATA,
+                      'line' : lines,
+                      'cmp' : [patch["cmp"] for patch in DATA],
+                      'origin' : self.origin,  
+                      'rotation' : self.angle}
+        if save:
+            np.savez(fname+".npz",
+                     tx=txs,
+                     freqs=self.patches[0].f,
+                     DATA=DATA,
+                     line=lines,
+                     cmp=[patch["cmp"] for patch in DATA],
+                     origin=self.origin,  # global coordinates with altitude
+                     rotation=self.angle)
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
@@ -431,7 +444,6 @@ class CSEMSurvey():
             npzfile = kwargs.pop("npzfile", 'data/' + dataname + ".npz")
             saemdata = np.load(npzfile, allow_pickle=True)
         else:
-            # %%
             saemdata = {}
             saemdata["DATA"], saemdata["line"] = self.getData(**kwargs)
             saemdata["tx"] = [np.column_stack([p.tx, p.ty, p.ty*0])
@@ -441,7 +453,7 @@ class CSEMSurvey():
             saemdata["freqs"] = self.patches[0].f
             # cmp should not be needed as it is inside DATA
             saemdata["cmp"] = kwargs.setdefault("cmp", self.patches[0].cmp)
-            # %%
+            
         x0, y0 = 0, 0
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
@@ -500,7 +512,7 @@ class CSEMSurvey():
         M.build_surface(insert_line_tx=txs)
         M.add_inv_domains(-depth, invpoly, cell_size=cell_size)
         M.build_halfspace_mesh()
-        # %%
+
         # add receiver locations to parameter file for all receiver patches
         reducedrx = mu.resolve_rx_overlaps(
             [data["rx"] for data in saemdata["DATA"]], rx_refine)
@@ -554,6 +566,213 @@ class CSEMSurvey():
         for i, p in enumerate(self.patches):
             p.generateDataPDF(resultdir+f"fit{i+1}.pdf",
                               mode="linefreqwise", x=xy, alim=alim)
+
+    def buildInvMesh(self,
+                invmesh=None, depth=1000., surface_cz=1e4,
+                inner_boundary_factor=0.1, inv_cz=1e7,
+                invpoly='Qhull', topo=None, check_pos=True,
+                extend_world=10., tx_refine=10., rx_refine=10, 
+                tetgen_quality=1.3, **kwargs):
+        """Run mesh generation
+
+        Does the whole inversion including pre- and post-processing:
+        * check data and errors
+        * automatical boundary computation
+        * setting up meshes
+        * run inversion parsing keyword arguments
+        * load results
+        * generate multipage pdf files showing data fit
+
+        Parameters
+        ----------
+        Geometry
+        ........
+        depth : float [1000]
+            Depth of the inversion region. The default is 1000
+        surface_cz : float [1e4]
+            Maximum cell size of inversion surface triangles in m^2
+        inner_boundary_factor : float
+            Factor to add to the innerboundary. The default is .1 (=10%)
+        inv_cz : float
+            Maximum tetrahedral cell size in m^3. The default is 1e7
+        invpoly : str [Qhull] or 2d-array specifying polygone
+            Polygone for describing the shape of inversion domain
+        topo : str
+            Topography file to by read. The default is None
+        check_pos: bool [True]
+            Show Rx and Tx postions before calling TetGen
+        extend_world : float
+            Extend world by a factor. The default is 10
+        tx_refine : float [10]
+            Tranmitter refinement in m. The default is 50
+        rx_refine : float [10]
+            Receiver refinement in m. The default is 30
+        tetgen_quality : float [1.3]
+            Tetgen mesh quality. The default is 1.3
+        **kwargs : dict
+            Other keyword arguments that can be passed to set meshing options
+        """
+
+        if not hasattr(self, 'Ddict'):
+            self.createDataDict()
+
+        if invmesh is None:
+            invmesh = self.basename + '_mesh'
+
+        x0, y0 = 0, 0
+        if type(invpoly) is str:
+            allrx = np.vstack([d["rx"][:, :2] for d in self.DDict["DATA"]])
+            alltx = np.vstack(self.DDict["tx"])[:, :2]
+            points = np.vstack([allrx, alltx])
+            x0 = np.median(allrx[:, 0])
+            y0 = np.median(allrx[:, 1])
+            if invpoly == 'Qhull':
+                from scipy.spatial import ConvexHull
+                points -= [x0, y0]
+                ch = ConvexHull(points)
+                invpoly = np.array([[*points[v, :], 0.]
+                                    for v in ch.vertices]) * \
+                    (inner_boundary_factor + 1.0)
+                invpoly += [x0, y0, 0.]
+            else:
+                xmin, xmax = min(points[:, 0]), max(points[:, 0])
+                ymin, ymax = min(points[:, 1]), max(points[:, 1])
+                dx = (xmax - xmin) * inner_boundary_factor
+                dy = (ymax - ymin) * inner_boundary_factor
+                invpoly = np.array([[xmin-dx, ymin-dy, 0.],
+                                    [xmax+dx, ymin-dy, 0.],
+                                    [xmax+dx, ymax+dy, 0.],
+                                    [xmin-dy, ymax+dy, 0.]])
+
+        if check_pos:
+            ax = self.showPositions()
+            ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
+            ax.plot(invpoly[::invpoly.shape[0]-1, 0],
+                    invpoly[::invpoly.shape[0]-1, 1], "k-")
+
+        # generate npz structure as in saveData
+        from custEM.meshgen.meshgen_tools import BlankWorld
+        from custEM.meshgen import meshgen_utils as mu
+
+        M = BlankWorld(name=invmesh,
+                       preserve_edges=True,
+                       topo=topo,
+                       inner_area_cell_size=surface_cz,
+                       easting_shift=-self.DDict['origin'][0],
+                       northing_shift=-self.DDict['origin'][1],
+                       rotation=float(self.DDict['rotation'])*180/np.pi,
+                       **kwargs,
+                       )
+        txs = [mu.refine_path(tx, length=tx_refine) for tx in self.DDict['tx']]
+        M.build_surface(insert_line_tx=txs)
+        M.add_inv_domains(-depth, invpoly, cell_size=inv_cz)
+        M.build_halfspace_mesh()
+        
+        # add receiver locations to parameter file for all receiver patches
+        rxs = mu.resolve_rx_overlaps(
+            [data["rx"] for data in self.DDict["DATA"]], rx_refine)
+        rx_tri = mu.refine_rx(rxs, rx_refine, 30.)
+        M.add_paths(rx_tri)
+        for rx in [data["rx"] for data in self.DDict["DATA"]]:
+            M.add_rx(rx)
+
+        M.extend_world(extend_world, extend_world, extend_world)
+        M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
+                      print_infos=False)
+
+    def runInv(self, invmesh, 
+               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None, 
+               make_plots=True,
+               lam=1., lamFactor=0.8, maxIter=21, robustData=False,
+               blockyModel=False, **kwargs):
+
+        """Run inversion
+
+        Does inversion includingpost-processing:
+        * run inversion
+        * load results
+        * generate multipage pdf files showing data fit
+
+        Parameters
+        ----------
+        Computation
+        ...........
+        n_cores : int [60]
+            Number of cores to use. The default is 60.
+        p_fwd : int [1]
+            Polynomial order for forward computation. The default is 1.
+        symlog_threshold : float [None]
+            If specified, a symlog data transformation will be used with the
+            given threshold for the linear scale.
+        sig_bg : float [0.001]
+            Background conductivity. The default is 0.001.
+        make_plots : bool [True]
+            Make plots automatically after successful inversion run
+        lam : float
+            Regularization strength
+        lamFactor : float
+            Factor for decreasing lambda in each iteration
+        maxIter : int
+            Maximum iteration number
+        robustData : bool [False]
+            Robust data fitting using an L1 norm
+        blockyModel : bool
+            Enhance contrasts by using an L1 norm on roughness
+        **kwargs : dict
+            Other keyword arguments that can be passed to the inversion call
+
+        Plotting
+        ........
+        alim : (float, float) [1e-3, 1]
+            limits for shwoing real and imaginary parts
+        x : str ["y"]
+            string indicating over which coordinate lines are plotted
+        """
+
+        # usually, this should not be reuiqred here, maybe replace with a more
+        # elaborate check if mesh exists or something
+        if not hasattr(self, 'Ddict'):
+            self.createDataDict()
+            
+        invmod = kwargs.pop("invmod", self.basename)
+
+        # setup fop
+        from custEM.inv.inv_utils import MultiFWD
+        fop = MultiFWD(invmod, invmesh, saem_data=self.DDict, sig_bg=sig_bg,
+                       n_cores=n_cores, p_fwd=p_fwd)
+        # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
+        # set up inversion operator
+        inv = pg.Inversion(fop=fop)
+        inv.setRegularization(limits=kwargs.pop("limits", [1e-4, 1.0]))
+        inv.setPostStep(fop.analyze)
+        if symlog_threshold is not None:
+            dT = pg.trans.TransSymLog(symlog_threshold)
+            inv.dataTrans = dT
+
+        # run inversion
+        invmodel = inv.run(fop.measured, fop.errors, verbose=True, lam=lam,
+                           lamFactor=lamFactor, maxIter=maxIter, 
+                           robustData=robustData, blockModel=blockyModel,
+                           **kwargs)
+        # post-processing
+        np.save(fop.inv_dir + 'inv_model.npy', invmodel)
+        pgmesh = fop.mesh()
+        pgmesh['sigma'] = invmodel
+        pgmesh['res'] = 1. / invmodel
+        pgmesh['coverage'] = coverage(inv, invmodel)
+        pgmesh['coverageLog10'] = np.log10(coverage)
+        pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
+        
+        # plotting
+        if make_plots:
+            self.loadResults(dirname=fop.inv_dir)
+            alim = kwargs.pop("alim", [1e-3, 1])
+            xy = kwargs.pop("x", "y")
+            for i, p in enumerate(self.patches):
+                p.generateDataPDF(fop.inv_dir+f"fit{i+1}.pdf",
+                                  mode="linefreqwise", x=xy, alim=alim)
+                p.generateDataPDF(fop.inv_dir+f"wmisfit{i+1}.pdf",
+                                  mode="patchwise", log=False)
 
 
 if __name__ == "__main__":
