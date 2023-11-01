@@ -43,13 +43,12 @@ class MTData(EMData):
             *Zo* for off-diagonal of impedance tensor (Zxy, Zyx)
             *T* for tipper (Tx, Ty)
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.mode = mode
         self.tx = [[], []]
         self.ty = [[], []]
         self.tz = [[], []]
-        self.updateDefaults(**kwargs)
         self.createDataArray()
 
         if 'debugImport' in kwargs:

@@ -18,7 +18,7 @@ from .tools import distToTx
 class CSEMData(EMData):
     """Class for CSEM frequency-domain data patch (single Tx)."""
 
-    def __init__(self, datafile=None, mode='B', **kwargs):
+    def __init__(self, datafile=None, **kwargs):
         """Initialize CSEM data class.
 
         Parameters
@@ -33,6 +33,8 @@ class CSEMData(EMData):
             transmitter position as polygone
         rx/ry/rz : iterable
             receiver positions
+        tx/ty/tz : iterable
+            transmitter positions
         f : iterable
             frequencies
         cmp : [int, int, int]
@@ -40,14 +42,8 @@ class CSEMData(EMData):
         alt : float
             flight altitude
         """
-        super().__init__()
-
-        self.mode = mode
-        self.tx = np.array([0., 0.])
-        self.ty = np.array([0., 0.])
-        self.tz = np.array([0., 0.])
-
-        self.updateDefaults(**kwargs)
+        super().__init__(**kwargs)
+        self.mode = kwargs.pop("mode", "B")
         self.createDataArray()
         self.loop = kwargs.pop("loop", False)
         self.txAlt = kwargs.pop("txalt", 0.0)
@@ -325,12 +321,12 @@ class CSEMData(EMData):
         """Compute primary fields."""
         cfg = dict(self.cfg)
         fak = 4e-7 * np.pi * 1e9  # H->B and T in nT
+        self.alt = self.rz - np.mean(self.tz)
         cfg["rec"] = [self.rx, self.ry, self.alt, 0, 0]  # x
         cfg["freqtime"] = self.f
         cfg["xdirect"] = True
         cfg["res"] = [2e14]
         cfg["depth"] = []
-        print(cfg)
         pfx = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [90, 0]  # y
         pfy = bipole(**cfg).real * fak
@@ -497,18 +493,25 @@ class CSEMData(EMData):
                 respIm = np.reshape(respIm, (sum(cmp), -1))
 
         ncmp = 0
+        amphi = kwargs.pop("amphi", True)
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
                 kwargs.setdefault("color", "C" + str(i))
                 kwargs.setdefault("label", "B" + allcmp[i])
                 ax = showSounding(data, self.f, ax=ax, ls="",
-                                  marker="x", **kwargs)
+                                  marker="x", amphi=amphi, **kwargs)
                 if response is not None:
                     # col = kwargs["color"]
-                    ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
-                    ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
-                    ncmp += 1
+                    if amphi:
+                        snddata = respRe[ncmp] + respIm[ncmp] * 1j
+                        ax[0].plot(np.abs(snddata), self.f, ls="-", **kwargs)
+                        ax[1].plot(np.angle(snddata)*180/np.pi, self.f, ls="-", **kwargs)
+                    else:
+                        ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
+                        ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
+
+            ncmp += 1
 
         for a in ax:
             a.legend()
@@ -591,13 +594,13 @@ class CSEMData(EMData):
 if __name__ == "__main__":
     txpos = np.array([[559497.46, 5784467.953],
                       [559026.532, 5784301.022]]).T
-    self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-    print(self)
+    data = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
+    print(data)
     # self.generateDataPDF()
-    self.showData(nf=1)
+    data.showData(nf=1)
     # self.showField("alt", background="BKG")
     # self.invertSounding(nrx=20)
     # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    self.showSounding(nrx=20)
+    data.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()
