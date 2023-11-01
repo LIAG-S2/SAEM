@@ -154,9 +154,7 @@ def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
             try:
                 lin = line.text.replace("\n", "").replace("\t", "")
             except AttributeError:
-                lin = root[0][4][2][1].text.replace("\n", "").replace("\t",
-                                                                       "")
-            lins = lin.split(" ")
+                lin = root[0][4][2][1].text.replace("\n", "").replace("\t", "")
             for col in lin.split(" "):
                 if col.find(",") > 0:
                     vals = np.array(col.split(","), dtype=float)
@@ -166,3 +164,31 @@ def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
                         Z.append(vals[2])
 
     return np.vstack((*utm(X, Y), Z))
+
+
+def coverage(inv, invmodel):
+    """ Calculate coverage of inversion results. """
+  
+    if hasattr(inv.fop, '_jac'):
+        # for single forward operator
+        cov = np.zeros(inv.fop._jac.cols())
+        
+        dataScale = inv.dataTrans.deriv(inv.fop.last_response) / \
+            inv.dataTrans.error(inv.fop.last_response, inv.fop.errors)
+        for i in range(inv.fop._jac.rows()):
+            cov += np.abs(inv.fop._jac.row(i) * dataScale[i])
+        cov /= inv.modelTrans.deriv(invmodel) # previous * invmodel
+        cov /= inv.fop.mesh().cellSizes()
+    else:
+        # for joint modelling
+        cov = np.zeros(inv.fop.fops[0]._jac.cols())
+        for n in range(len(inv.fop.fops)):
+            dataScale = inv.dataTrans.deriv(inv.fop.fops[n].last_response) / \
+                inv.dataTrans.error(inv.fop.fops[n].last_response,
+                                    inv.fop.fops[n].errors)
+            for i in range(inv.fop.fops[n]._jac.rows()):
+                cov += np.abs(inv.fop.fops[n]._jac.row(i) * dataScale[i])
+        cov /= inv.modelTrans.deriv(invmodel) # previous * invmodel
+        cov /= inv.fop.fops[0].mesh().cellSizes()
+    
+    return cov

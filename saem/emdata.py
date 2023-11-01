@@ -159,6 +159,7 @@ class EMData():
                 sf - measured secondary data divided by primary fields
         """
         if isinstance(what, str):
+            self.cb_label='[nT/A]'
             if what.lower() == "data":
                 return self.DATA[:]
             elif what.lower() == "resp" or what.lower() == "response":
@@ -177,10 +178,12 @@ class EMData():
                     rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
                     ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
                     tmp[i, :] = rr + ii * 1j
+                    self.cb_label='[%]'
                 return tmp
             elif what.lower() == "wmisfit":
                 mis = self.DATA - self.RESP
                 wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+                self.cb_label=''
                 return wmis
             elif what.lower() == "pf":
                 return self.PRIM[:]
@@ -907,12 +910,14 @@ class EMData():
                 subset = DATA[ci, nf, :]
                 if kw["amphi"]:
                     kw["cmap"] = 'viridis'
-                    plotSymbols(self.rx, self.ry, np.abs(subset),
+                    _, cb1 = plotSymbols(self.rx, self.ry, np.abs(subset),
                                 ax=ax[0, ncmp], mode="amp", **kw)
-                    plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),
+                    _, cb2 = plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),
                                 ax=ax[1, ncmp], mode="phase", **kw)
                     ax[0, ncmp].set_title(r'|| (' + self.cstr[ci] + ') ||')
                     ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
+                    cb1.ax.set_title(self.cb_label)
+                    cb2.ax.set_title('[°]')
                 else:
                     _, cb1 = plotSymbols(self.rx, self.ry, np.real(subset),
                                          ax=ax[0, ncmp], **kw)
@@ -928,6 +933,7 @@ class EMData():
                             pass
                         else:
                             cb.set_ticks([])
+                        cb.ax.set_title(self.cb_label)
                 ncmp += 1
 
         if background is not None and kwargs.pop("overlay", False):  # bwc
@@ -940,6 +946,11 @@ class EMData():
 
             if background:
                 underlayBackground(ax, background, self.utm)
+                
+        for i in range(2):
+            ax[i, 0].set_ylabel('[m]')
+        for i in range(ncmp):
+            ax[1, i].set_xlabel('[m]')
 
         basename = kwargs.pop("name", self.basename)
         if "what" in kwargs and isinstance(kwargs["what"], str):
