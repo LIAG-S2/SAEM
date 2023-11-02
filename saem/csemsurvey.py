@@ -72,8 +72,6 @@ class CSEMSurvey():
             line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
                                            dtype=int))
 
-        
-
         if mode is None:
             if not mtdata: 
                 mode = 'B'
@@ -88,7 +86,7 @@ class CSEMSurvey():
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
-            
+
             if len(line) > 0:
                 patch.line = line[a:a+len(patch.rx)]
                 a += len(patch.rx)
@@ -289,7 +287,7 @@ class CSEMSurvey():
                 pg.error("Could not find response file")
         else:
             respfiles = [dirname + "response_iter_" + str(response) + ".npy"]
-    
+
         responseVec = np.load(respfiles[-1])
         respR, respI = np.split(responseVec, 2)
         response = respR + respI*1j
@@ -453,7 +451,7 @@ class CSEMSurvey():
             saemdata["freqs"] = self.patches[0].f
             # cmp should not be needed as it is inside DATA
             saemdata["cmp"] = kwargs.setdefault("cmp", self.patches[0].cmp)
-            
+
         x0, y0 = 0, 0
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
@@ -569,7 +567,7 @@ class CSEMSurvey():
 
     def buildInvMesh(self,
                 invmesh=None, depth=1000., surface_cz=1e4,
-                inner_boundary_factor=0.1, inv_cz=1e7,
+                inner_boundary_factor=0.1, inv_cz=1e7, dim=None,
                 invpoly='Qhull', topo=None, check_pos=True,
                 extend_world=10., tx_refine=10., rx_refine=10, 
                 tetgen_quality=1.3, **kwargs):
@@ -643,7 +641,12 @@ class CSEMSurvey():
                                     [xmax+dx, ymin-dy, 0.],
                                     [xmax+dx, ymax+dy, 0.],
                                     [xmin-dy, ymax+dy, 0.]])
-
+        ext = max(max(invpoly[:, 0]) - min(invpoly[:, 0]),
+                  max(invpoly[:, 1]) - min(invpoly[:, 1]))
+        dim = dim or ext*5
+        kwargs.setdefault("x_dim", [x0-dim, x0+dim])
+        kwargs.setdefault("y_dim", [y0-dim, y0+dim])
+        kwargs.setdefault("z_dim", [-dim, dim])
         if check_pos:
             ax = self.showPositions()
             ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
@@ -667,7 +670,7 @@ class CSEMSurvey():
         M.build_surface(insert_line_tx=txs)
         M.add_inv_domains(-depth, invpoly, cell_size=inv_cz)
         M.build_halfspace_mesh()
-        
+
         # add receiver locations to parameter file for all receiver patches
         rxs = mu.resolve_rx_overlaps(
             [data["rx"] for data in self.DDict["DATA"]], rx_refine)
@@ -680,8 +683,8 @@ class CSEMSurvey():
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
 
-    def runInv(self, invmesh, 
-               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None, 
+    def runInv(self, invmesh=None,
+               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None,
                make_plots=True, saem_data=None, invmod=None,
                lam=1., lamFactor=0.8, maxIter=21, robustData=False,
                blockyModel=False, **kwargs):
@@ -735,11 +738,13 @@ class CSEMSurvey():
 
         # usually, this should not be reuiqred here, maybe replace with a more
         # elaborate check if mesh exists or something
+        if invmesh is None:
+            invmesh = self.basename + '_mesh'
         if not hasattr(self, 'Ddict'):
             self.createDataDict()
         if saem_data is None:
             saem_data = self.DDict
-        if invmod is None:    
+        if invmod is None:
             invmod = self.basename
 
         # setup fop
@@ -756,7 +761,8 @@ class CSEMSurvey():
             inv.dataTrans = dT
 
         # run inversion
-        invmodel = inv.run(fop.measured, fop.errors, verbose=True, lam=lam,
+        kwargs.setdefault('startModel', fop.sig_0)
+        invmodel = inv.run(fop.measured, relativeError=fop.errors, verbose=True, lam=lam,
                            lamFactor=lamFactor, maxIter=maxIter, 
                            robustData=robustData, blockModel=blockyModel,
                            **kwargs)
@@ -768,7 +774,7 @@ class CSEMSurvey():
         pgmesh['coverage'] = coverage(inv, invmodel)
         pgmesh['coverageLog10'] = np.log10(coverage)
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
-        
+
         # plotting
         if make_plots:
             self.loadResults(dirname=fop.inv_dir)
