@@ -682,7 +682,7 @@ class CSEMSurvey():
 
     def runInv(self, invmesh, 
                sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None, 
-               make_plots=True,
+               make_plots=True, saem_data=None, invmod=None,
                lam=1., lamFactor=0.8, maxIter=21, robustData=False,
                blockyModel=False, **kwargs):
 
@@ -708,6 +708,10 @@ class CSEMSurvey():
             Background conductivity. The default is 0.001.
         make_plots : bool [True]
             Make plots automatically after successful inversion run
+        saem_data : dictionary [None]
+            Use independent saem data dictionary 
+        invmod : str [None]
+            Specify name for inversion run
         lam : float
             Regularization strength
         lamFactor : float
@@ -733,12 +737,14 @@ class CSEMSurvey():
         # elaborate check if mesh exists or something
         if not hasattr(self, 'Ddict'):
             self.createDataDict()
-            
-        invmod = kwargs.pop("invmod", self.basename)
+        if saem_data is None:
+            saem_data = self.DDict
+        if invmod is None:    
+            invmod = self.basename
 
         # setup fop
         from custEM.inv.inv_utils import MultiFWD
-        fop = MultiFWD(invmod, invmesh, saem_data=self.DDict, sig_bg=sig_bg,
+        fop = MultiFWD(invmod, invmesh, saem_data=saem_data, sig_bg=sig_bg,
                        n_cores=n_cores, p_fwd=p_fwd)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
