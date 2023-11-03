@@ -46,6 +46,38 @@ class CSEMData(EMData):
         self.mode = kwargs.pop("mode", "B")
         self.createDataArray()
         self.loop = kwargs.pop("loop", False)
+        if "txPos" in kwargs:
+            txpos = kwargs["txPos"]
+            if isinstance(txpos, str):
+                if txpos.lower().find(".kml") > 0:
+                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos)
+                else:
+                    self.tx, self.ty, self.tz = np.genfromtxt(
+                        txpos, unpack=True, usecols=[0, 1, 2])
+            else:  # take it directly
+                txpos = np.array(txpos)
+                if len(txpos) > 3:
+                    txpos = txpos.T
+
+                if len(txpos) == 2:
+                    self.tx, self.ty = txpos
+                    self.tz = np.zeros_like(self.tx)
+                elif len(txpos) == 3:
+                    self.tx, self.ty, self.tz = txpos
+                else:
+                    raise("Dimensions not matching")
+        else:
+            self.tx = kwargs.pop("tx", np.array([0., 0.]))
+            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
+            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
+            if isinstance(self.ty, (int, float)):
+                self.ty = np.ones_like(self.tx)*self.ty
+            if isinstance(self.tx, (int, float)):
+                self.tx = np.ones_like(self.ty)*self.tx
+            if isinstance(self.tz, (int, float)):
+                self.tz = np.ones_like(self.tx)*self.tz
+
+
         self.txAlt = kwargs.pop("txalt", 0.0)
         self.alt = self.rz - self.txAlt
 

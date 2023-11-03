@@ -9,16 +9,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pyproj
 
 import pygimli as pg
-# from pygimli.viewer.mpl import drawModel1D
-# from pygimli.viewer.mpl import showStitchedModels
-# from pygimli.core.math import symlog
 from matplotlib.colors import LogNorm, SymLogNorm
-
-# from .plotting import showSounding, dMap
 from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
 from .plotting import makeSubTitles, updatePlotKwargs
-# from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, detectLinesAlongAxis  # , distToTx
+from .tools import readCoordsFromKML, detectLinesAlongAxis
 from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
 
 
@@ -68,38 +62,6 @@ class EMData():
         if isinstance(self.rz, (int, float)):
             self.rz = np.ones_like(self.rx)*self.rz
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
-
-        if "txPos" in kwargs:
-            txpos = kwargs["txPos"]
-            if isinstance(txpos, str):
-                if txpos.lower().find(".kml") > 0:
-                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos)
-                else:
-                    self.tx, self.ty, self.tz = np.genfromtxt(
-                        txpos, unpack=True, usecols=[0, 1, 2])
-            else:  # take it directly
-                txpos = np.array(txpos)
-                if len(txpos) > 3:
-                    txpos = txpos.T
-
-                if len(txpos) == 2:
-                    self.tx, self.ty = txpos
-                    self.tz = np.zeros_like(self.tx)
-                elif len(txpos) == 3:
-                    self.tx, self.ty, self.tz = txpos
-                else:
-                    raise("Dimensions not matching")
-        else:
-            self.tx = kwargs.pop("tx", np.array([0., 0.]))
-            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
-            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
-            if isinstance(self.ty, (int, float)):
-                self.ty = np.ones_like(self.tx)*self.ty
-            if isinstance(self.tx, (int, float)):
-                self.tx = np.ones_like(self.ty)*self.tx
-            if isinstance(self.tz, (int, float)):
-                self.tz = np.ones_like(self.tx)*self.tz
-
 
     def __repr__(self):
         """String representation of the class."""
