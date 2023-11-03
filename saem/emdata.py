@@ -42,6 +42,7 @@ class EMData():
         self.llthres = kwargs.pop("llthres", 1e-3)
         self.A = np.array([[1, 0], [0, 1]])
         self.depth = None
+        self.DATA = None  # better np.array([]) ?
         self.PRIM = None
         self.RESP = None
         self.ERR = None

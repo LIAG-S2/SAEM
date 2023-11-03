@@ -34,7 +34,9 @@ class CSEMData(EMData):
         rx/ry/rz : iterable
             receiver positions
         tx/ty/tz : iterable
-            transmitter positions
+            transmitter positions, alternatively
+        txPos : str|array
+            2d-array, text or kml filename to read from
         f : iterable
             frequencies
         cmp : [int, int, int]
@@ -170,10 +172,9 @@ class CSEMData(EMData):
         if 'line' in ALL:
             self.line = ALL["line"]
 
-        self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
-        self.DATAY = np.zeros_like(self.DATAX)
-        self.DATAZ = np.zeros_like(self.DATAX)
-        try:
+        self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
+        self.ERR = np.zeros((3, self.nF, self.nRx), dtype=complex)
+        try:  # this is rubbish!
             cmp = ALL["DATA"][nr]["cmp"]
             for cstr in cmp:
                 try:
@@ -188,18 +189,12 @@ class CSEMData(EMData):
             self.cmp = [np.any(getattr(self, "DATA"+cc))
                         for cc in ["X", "Y", "Z"]]
 
-        self.ERRX = np.ones_like(self.DATAX)
-        self.ERRY = np.ones_like(self.DATAY)
-        self.ERRZ = np.ones_like(self.DATAZ)
+        # actually still too complicated
         for ic, cmp in enumerate(data["cmp"]):
-            setattr(self, "DATA"+cmp[1].upper(),
-                    data["dataR"][0, ic, :, :] +
-                    data["dataI"][0, ic, :, :] * 1j)
-            setattr(self, "ERR"+cmp[1].upper(),
-                    data["errorR"][0, ic, :, :] +
-                    data["errorI"][0, ic, :, :] * 1j)
-        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
+            self.DATA[i] = data["dataR"][0, ic, :, :] + \
+                data["dataI"][0, ic, :, :] * 1j
+            self.ERR[i] = data["errorR"][0, ic, :, :] + \
+                data["errorI"][0, ic, :, :] * 1j
 
     def loadEmteresMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
@@ -229,13 +224,13 @@ class CSEMData(EMData):
 
         self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
         self.f = np.squeeze(MAT["f"]) * 1.0
-        self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
-        self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
-        self.DATAY *= -1  # unless changed in the processing scripts
-        self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
+        DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
+        DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
+        DATAY *= -1  # unless changed in the processing scripts
+        DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
-        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
+        self.DATA = np.stack([DATAX, DATAY, DATAZ])
         return True
 
     def loadWWUMatFile(self, filename):
