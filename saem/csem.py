@@ -79,9 +79,8 @@ class CSEMData(EMData):
             if isinstance(self.tz, (int, float)):
                 self.tz = np.ones_like(self.tx)*self.tz
 
-
         self.txAlt = kwargs.pop("txalt", 0.0)
-        self.alt = self.rz - self.txAlt
+        self.alt = self.rz - self.txAlt  # better create only on demand?
 
         if datafile is not None:
             self.loadData(datafile)

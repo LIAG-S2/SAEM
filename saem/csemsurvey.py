@@ -224,8 +224,11 @@ class CSEMSurvey():
 
     def estimateError(self, *args, **kwargs):
         """Estimate error model."""
+        mask = kwargs.pop("mask", True)
         for p in self.patches:
             p.estimateError(*args, **kwargs)
+            if mask:
+                p.deactivateNoisyData()
 
     def getData(self, line=None, **kwargs):
         """Gather data from individual patches."""
@@ -713,7 +716,7 @@ class CSEMSurvey():
         make_plots : bool [True]
             Make plots automatically after successful inversion run
         saem_data : dictionary [None]
-            Use independent saem data dictionary 
+            Use independent saem data dictionary
         invmod : str [None]
             Specify name for inversion run
         lam : float
@@ -802,6 +805,6 @@ if __name__ == "__main__":
     # %%
     print(self)
     self.showPositions()
-    p = self.patches[0]
+    patch = self.patches[0]  # or self[0]
     # p.filter() etc.
     self.saveData()
