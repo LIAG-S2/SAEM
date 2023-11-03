@@ -73,7 +73,6 @@ class CSEMSurvey():
                                            dtype=int))
 
 
-
         if mode is None:
             if not mtdata:
                 mode = 'B'
@@ -569,7 +568,7 @@ class CSEMSurvey():
 
     def buildInvMesh(self,
                 invmesh=None, depth=1000., surface_cz=1e4,
-                inner_boundary_factor=0.1, inv_cz=1e7,
+                inner_boundary_factor=0.1, inv_cz=1e7, dim=None,
                 invpoly='Qhull', topo=None, check_pos=True,
                 extend_world=10., tx_refine=10., rx_refine=10,
                 tetgen_quality=1.3, **kwargs):
@@ -643,7 +642,12 @@ class CSEMSurvey():
                                     [xmax+dx, ymin-dy, 0.],
                                     [xmax+dx, ymax+dy, 0.],
                                     [xmin-dy, ymax+dy, 0.]])
-
+        ext = max(max(invpoly[:, 0]) - min(invpoly[:, 0]),
+                  max(invpoly[:, 1]) - min(invpoly[:, 1]))
+        dim = dim or ext*5
+        kwargs.setdefault("x_dim", [x0-dim, x0+dim])
+        kwargs.setdefault("y_dim", [y0-dim, y0+dim])
+        kwargs.setdefault("z_dim", [-dim, dim])
         if check_pos:
             ax = self.showPositions()
             ax.plot(invpoly[:, 0], invpoly[:, 1], "k-")
@@ -680,9 +684,9 @@ class CSEMSurvey():
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
 
-    def runInv(self, invmesh,
+    def runInv(self, invmesh=None,
                sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None,
-               make_plots=True,
+               make_plots=True, saem_data=None, invmod=None,
                lam=1., lamFactor=0.8, maxIter=21, robustData=False,
                blockyModel=False, **kwargs):
 
@@ -708,6 +712,10 @@ class CSEMSurvey():
             Background conductivity. The default is 0.001.
         make_plots : bool [True]
             Make plots automatically after successful inversion run
+        saem_data : dictionary [None]
+            Use independent saem data dictionary 
+        invmod : str [None]
+            Specify name for inversion run
         lam : float
             Regularization strength
         lamFactor : float
@@ -731,14 +739,18 @@ class CSEMSurvey():
 
         # usually, this should not be reuiqred here, maybe replace with a more
         # elaborate check if mesh exists or something
+        if invmesh is None:
+            invmesh = self.basename + '_mesh'
         if not hasattr(self, 'Ddict'):
             self.createDataDict()
-
-        invmod = kwargs.pop("invmod", self.basename)
+        if saem_data is None:
+            saem_data = self.DDict
+        if invmod is None:
+            invmod = self.basename
 
         # setup fop
         from custEM.inv.inv_utils import MultiFWD
-        fop = MultiFWD(invmod, invmesh, saem_data=self.DDict, sig_bg=sig_bg,
+        fop = MultiFWD(invmod, invmesh, saem_data=saem_data, sig_bg=sig_bg,
                        n_cores=n_cores, p_fwd=p_fwd)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
@@ -750,7 +762,8 @@ class CSEMSurvey():
             inv.dataTrans = dT
 
         # run inversion
-        invmodel = inv.run(fop.measured, fop.errors, verbose=True, lam=lam,
+        kwargs.setdefault('startModel', fop.sig_0)
+        invmodel = inv.run(fop.measured, relativeError=fop.errors, verbose=True, lam=lam,
                            lamFactor=lamFactor, maxIter=maxIter,
                            robustData=robustData, blockModel=blockyModel,
                            **kwargs)
