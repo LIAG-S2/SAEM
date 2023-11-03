@@ -402,8 +402,7 @@ class EMData():
             self.ERR = self.ERR[:, fInd, :]
 
         if np.any(self.PRIM):
-            for i in range(3):
-                self.PRIM[i] = self.PRIM[i][fInd, :]
+            self.PRIM = self.PRIM[:, fInd, :]
 
         # part 2: receiver axis
         if nInd is None:
@@ -433,13 +432,9 @@ class EMData():
             if np.any(self.RESP):
                 self.RESP = self.RESP[:, :, nInd]
             if np.any(self.PRIM):
-                for i in range(3):
-                    self.PRIM[i] = self.PRIM[i][:, nInd]
+                self.PRIM = self.PRIM[:, :, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
-            if self.PRIM is not None:
-                for i in range(3):
-                    self.PRIM[i] = self.PRIM[i][:, nInd]
 
     def mask(self, **kwargs):
         """Masking out data according to several properties."""
