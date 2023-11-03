@@ -72,10 +72,10 @@ class CSEMSurvey():
             line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
                                            dtype=int))
 
-        
+
 
         if mode is None:
-            if not mtdata: 
+            if not mtdata:
                 mode = 'B'
             else:
                 mode = 'T'
@@ -88,7 +88,7 @@ class CSEMSurvey():
 
             patch.extractData(ALL, i)
             self.addPatch(patch)
-            
+
             if len(line) > 0:
                 patch.line = line[a:a+len(patch.rx)]
                 a += len(patch.rx)
@@ -266,7 +266,7 @@ class CSEMSurvey():
                       'DATA' : DATA,
                       'line' : lines,
                       'cmp' : [patch["cmp"] for patch in DATA],
-                      'origin' : self.origin,  
+                      'origin' : self.origin,
                       'rotation' : self.angle}
         if save:
             np.savez(fname+".npz",
@@ -289,7 +289,7 @@ class CSEMSurvey():
                 pg.error("Could not find response file")
         else:
             respfiles = [dirname + "response_iter_" + str(response) + ".npy"]
-    
+
         responseVec = np.load(respfiles[-1])
         respR, respI = np.split(responseVec, 2)
         response = respR + respI*1j
@@ -453,7 +453,7 @@ class CSEMSurvey():
             saemdata["freqs"] = self.patches[0].f
             # cmp should not be needed as it is inside DATA
             saemdata["cmp"] = kwargs.setdefault("cmp", self.patches[0].cmp)
-            
+
         x0, y0 = 0, 0
         if invpoly is None:
             allrx = np.vstack([data["rx"][:, :2] for data in saemdata["DATA"]])
@@ -571,7 +571,7 @@ class CSEMSurvey():
                 invmesh=None, depth=1000., surface_cz=1e4,
                 inner_boundary_factor=0.1, inv_cz=1e7,
                 invpoly='Qhull', topo=None, check_pos=True,
-                extend_world=10., tx_refine=10., rx_refine=10, 
+                extend_world=10., tx_refine=10., rx_refine=10,
                 tetgen_quality=1.3, **kwargs):
         """Run mesh generation
 
@@ -620,7 +620,7 @@ class CSEMSurvey():
             invmesh = self.basename + '_mesh'
 
         x0, y0 = 0, 0
-        if type(invpoly) is str:
+        if isinstance(invpoly, str):
             allrx = np.vstack([d["rx"][:, :2] for d in self.DDict["DATA"]])
             alltx = np.vstack(self.DDict["tx"])[:, :2]
             points = np.vstack([allrx, alltx])
@@ -667,7 +667,7 @@ class CSEMSurvey():
         M.build_surface(insert_line_tx=txs)
         M.add_inv_domains(-depth, invpoly, cell_size=inv_cz)
         M.build_halfspace_mesh()
-        
+
         # add receiver locations to parameter file for all receiver patches
         rxs = mu.resolve_rx_overlaps(
             [data["rx"] for data in self.DDict["DATA"]], rx_refine)
@@ -680,8 +680,8 @@ class CSEMSurvey():
         M.call_tetgen(tet_param='-pq{:f}aA'.format(tetgen_quality),
                       print_infos=False)
 
-    def runInv(self, invmesh, 
-               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None, 
+    def runInv(self, invmesh,
+               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None,
                make_plots=True,
                lam=1., lamFactor=0.8, maxIter=21, robustData=False,
                blockyModel=False, **kwargs):
@@ -733,7 +733,7 @@ class CSEMSurvey():
         # elaborate check if mesh exists or something
         if not hasattr(self, 'Ddict'):
             self.createDataDict()
-            
+
         invmod = kwargs.pop("invmod", self.basename)
 
         # setup fop
@@ -751,7 +751,7 @@ class CSEMSurvey():
 
         # run inversion
         invmodel = inv.run(fop.measured, fop.errors, verbose=True, lam=lam,
-                           lamFactor=lamFactor, maxIter=maxIter, 
+                           lamFactor=lamFactor, maxIter=maxIter,
                            robustData=robustData, blockModel=blockyModel,
                            **kwargs)
         # post-processing
@@ -762,7 +762,7 @@ class CSEMSurvey():
         pgmesh['coverage'] = coverage(inv, invmodel)
         pgmesh['coverageLog10'] = np.log10(coverage)
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
-        
+
         # plotting
         if make_plots:
             self.loadResults(dirname=fop.inv_dir)

@@ -941,7 +941,7 @@ class EMData():
 
             if background:
                 underlayBackground(ax, background, self.utm)
-                
+
         for i in range(2):
             ax[i, 0].set_ylabel('[m]')
         for i in range(ncmp):
