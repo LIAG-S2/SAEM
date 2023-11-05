@@ -189,11 +189,8 @@ class CSEMData(EMData):
                         for cc in ["X", "Y", "Z"]]
 
         # actually still too complicated
-        for ic, cmp in enumerate(data["cmp"]):
-            self.DATA[i] = data["dataR"][0, ic, :, :] + \
-                data["dataI"][0, ic, :, :] * 1j
-            self.ERR[i] = data["errorR"][0, ic, :, :] + \
-                data["errorI"][0, ic, :, :] * 1j
+        self.DATA = data["dataR"][0, :, :, :] + \
+            data["dataI"][0, :, :, :] * 1j
 
     def loadEmteresMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
