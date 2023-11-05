@@ -3,16 +3,16 @@ from glob import glob
 import numpy as np
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm, SymLogNorm
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import pyproj
 
 import pygimli as pg
-from matplotlib.colors import LogNorm, SymLogNorm
 from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
 from .plotting import makeSubTitles, updatePlotKwargs
-from .tools import readCoordsFromKML, detectLinesAlongAxis
+from .tools import detectLinesAlongAxis
 from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
 
 
@@ -63,6 +63,10 @@ class EMData():
         if isinstance(self.rz, (int, float)):
             self.rz = np.ones_like(self.rx)*self.rz
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
+        self.cmp = []
+        self.cstr = []
+        self.radius = 1
+        self.txAlt = 0 # rather ground altitude
 
     def __repr__(self):
         """String representation of the class."""
@@ -80,6 +84,10 @@ class EMData():
     def nF(self):
         """Number of frequencies."""
         return len(self.f)
+
+    def txDistance(self):
+        """Dummy tx Distance (to be overwritten in CSEM)."""
+        return np.ones(self.nRx)
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
@@ -176,7 +184,7 @@ class EMData():
                 print("closest point at distance is ", min(np.sqrt(dr)))
                 print("Tx distance ", self.txDistance()[nrx])
 
-        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
+        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.rz[nrx]-self.txAlt
         self.dataX = self.DATA[0, :, nrx]
         self.dataY = self.DATA[1, :, nrx]
         self.dataZ = self.DATA[2, :, nrx]
@@ -410,13 +418,12 @@ class EMData():
     def createDepthVector(self, rho=30, nl=15):
         """Create depth vector."""
         sd = self.skinDepths(rho=rho)
-        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
-                                                   n=nl, log=True)))
+        self.depth = np.hstack([0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
+                                                   n=nl, log=True)])
 
-    def showPos(self, ax=None, line=None, background=None, org=False,
+    def showPositions(self, ax=None, line=None, background=None, org=False,
                 color=None, marker=None, **kwargs):
-        """Show positions."""
-        print(ax)
+        """Show receiver positions."""
         if ax is None:
             fig, ax = plt.subplots()
 
@@ -478,11 +485,11 @@ class EMData():
         if "ax" in kwargs:
             ax = kwargs.pop("ax")
         else:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         kwargs.setdefault("radius", self.radius)
         kwargs.setdefault("log", False)
-        kwargs.setdefault("cmap", "jet")
+        kwargs.setdefault("cmap", "Spectral_r")
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
@@ -862,7 +869,7 @@ class EMData():
             if cid:
                 subset = DATA[ci, nf, :]
                 if kw["amphi"]:
-                    kw["cmap"] = 'viridis'
+                    kw["cmap"] = 'Spectral_r'
                     _, cb1 = plotSymbols(self.rx, self.ry, np.abs(subset),
                                 ax=ax[0, ncmp], mode="amp", **kw)
                     _, cb2 = plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),
