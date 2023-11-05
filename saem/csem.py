@@ -188,9 +188,12 @@ class CSEMData(EMData):
             self.cmp = [np.any(getattr(self, "DATA"+cc))
                         for cc in ["X", "Y", "Z"]]
 
-        # actually still too complicated
-        self.DATA = data["dataR"][0, :, :, :] + \
-            data["dataI"][0, :, :, :] * 1j
+        for ic, cmp in enumerate(data["cmp"]):
+            n = "xyz".find(cmp[-1])
+            self.DATA[n] = data["dataR"][0, ic, :, :] + \
+                data["dataI"][0, ic, :, :] * 1j
+            self.ERR[n] = data["errorR"][0, ic, :, :] + \
+                data["errorI"][0, ic, :, :] * 1j
 
     def loadEmteresMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
