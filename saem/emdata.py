@@ -425,7 +425,7 @@ class EMData():
                 color=None, marker=None, **kwargs):
         """Show receiver positions."""
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         rxy = np.column_stack((self.rx, self.ry))
         txy = np.column_stack((self.tx, self.ty))

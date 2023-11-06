@@ -299,11 +299,6 @@ class CSEMData(EMData):
         self.alt = self.rz - self.txAlt
         return True
 
-    def showPositions(self, **kwargs):
-        """Show positions."""
-        ax = super().showPositions(**kwargs)
-        
-
     def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model.
 
