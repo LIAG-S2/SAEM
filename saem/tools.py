@@ -163,10 +163,9 @@ def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
     return np.vstack((*utm(X, Y), Z))
 
 
-def coverage(inv, invmodel=None):
-    """ Calculate coverage from inversion instance."""
-    if invmodel is None:
-        invmodel = inv.model
+def coverage(inv):
+    """ Calculate coverage of inversion results. """
+    invmodel = inv.model
     if hasattr(inv.fop, '_jac'):
         # for single forward operator
         cov = np.zeros(inv.fop._jac.cols())
