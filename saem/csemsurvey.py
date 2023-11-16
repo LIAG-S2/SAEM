@@ -684,7 +684,7 @@ class CSEMSurvey():
                       print_infos=False)
 
     def runInv(self, invmesh=None,
-               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=None,
+               sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=0,
                make_plots=True, saem_data=None, invmod=None,
                lam=1., lamFactor=0.8, maxIter=21, robustData=False,
                blockyModel=False, **kwargs):
@@ -756,7 +756,7 @@ class CSEMSurvey():
         inv = pg.Inversion(fop=fop)
         inv.setRegularization(limits=kwargs.pop("limits", [1e-4, 1.0]))
         inv.setPostStep(fop.analyze)
-        if symlog_threshold is not None:
+        if symlog_threshold > 0:  # otherwise linear
             dT = pg.trans.TransSymLog(symlog_threshold)
             inv.dataTrans = dT
 
@@ -771,8 +771,8 @@ class CSEMSurvey():
         pgmesh = fop.mesh()
         pgmesh['sigma'] = invmodel
         pgmesh['res'] = 1. / invmodel
-        pgmesh['coverage'] = coverage(inv, invmodel)
-        pgmesh['coverageLog10'] = np.log10(coverage)
+        pgmesh['coverage'] = coverage(inv)#, invmodel)
+        pgmesh['coverageLog10'] = np.log10(pgmesh['coverage'])
         pgmesh.exportVTK(fop.inv_dir + invmod + '_final_invmodel.vtk')
 
         # plotting
