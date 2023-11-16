@@ -927,6 +927,9 @@ class EMData():
         * showLineData (if line=given): x-f patch plot
         * showLineFreq (if line and nf given): x-f line plot
         """
+        if isinstance(mat, str):  # obviously what meant
+            kwargs.setdefault('what', mat)
+            mat = True
         if "line" in kwargs:
             if "nf" in kwargs:
                 return self.showLineFreq(*args, **kwargs)
