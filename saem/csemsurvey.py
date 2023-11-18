@@ -340,22 +340,6 @@ class CSEMSurvey():
         kwargs.setdefault("label", r"$\rho$ ($\Omega$m)")
         return pg.show(self.mesh, 1./self.model, **kwargs)
 
-    def exportRxTxVTK(self, marker=1):
-        """Export Receiver and Transmitter positions as VTK file."""
-        rxmesh = pg.Mesh(3)
-        for i in range(self.nRx):
-            rxmesh.createNode([self.rx[i], self.ry[i], self.rz[i]], marker)
-
-        rxmesh.exportVTK(self.basename+"-rxpos.vtk")
-        txmesh = pg.Mesh(3)
-        for xx, yy in zip(self.tx, self.ty):
-            txmesh.createNode(xx, yy, self.txAlt)
-
-        for i in range(txmesh.nodeCount()-1):
-            txmesh.createEdge(txmesh.node(i), txmesh.node(i+1), marker)
-
-        txmesh.exportVTK(self.basename+"-txpos.vtk")
-
     def inversion(self,
                   inner_area_cell_size=1e4, outer_area_cell_size=None,  # m^2
                   inner_boundary_factor=.1, cell_size=1e7,  # m^3
@@ -793,9 +777,9 @@ class CSEMSurvey():
 
 if __name__ == "__main__":
     # %% way 1 - load ready patches
-    self = CSEMSurvey()
-    self.addPatch("Tx1.npz")
-    self.addPatch("Tx2.npz")
+    survey = CSEMSurvey()
+    survey.addPatch("Tx1.npz")
+    survey.addPatch("Tx2.npz")
     # %% way 2 - patch instances
     # patch1 = CSEMData("flight*.mat")
     # self.addPatch(patch1)
@@ -803,8 +787,8 @@ if __name__ == "__main__":
     # self = CSEMSurvey("blabla.emdata")
     # self = CSEMSurvey("blabla.npz")
     # %%
-    print(self)
-    self.showPositions()
-    patch = self.patches[0]  # or self[0]
+    print(survey)
+    survey.showPositions()
+    patch = survey.patches[0]  # or self[0]
     # p.filter() etc.
-    self.saveData()
+    survey.saveData()
