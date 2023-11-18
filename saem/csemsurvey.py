@@ -178,29 +178,22 @@ class CSEMSurvey():
         self.addPatch(*args, **kwargs)
 
     def showPositions(self, **kwargs):
-        """Show all positions."""
+        """Show all positions in one plot."""
         ax = kwargs.pop("ax", None)
         if ax is None:
             _, ax = plt.subplots()
 
         ma = ["x", "+", "^", "v"]
         for i, p in enumerate(self.patches):
-            p.showPos(ax=ax, color="C{:d}".format(i),
-                      marker=ma[i % len(ma)], **kwargs)
+            p.showPositions(ax=ax, color="C{:d}".format(i),
+                            marker=ma[i % len(ma)], **kwargs)
 
         return ax
 
     def showData(self, **kwargs):
-        """."""
-        for i, p in enumerate(self.patches):
+        """Show data of individual patches."""
+        for p in self.patches:
             p.showData(**kwargs)
-
-    def showPos(self, *args, **kwargs):
-        """Show Tx and Rx positions of complete Survey in one figure"""
-
-        ax = self.patches[0].showPos(**kwargs)
-        for i, p in enumerate(self.patches[1:]):
-            p.showPos(ax=ax, **kwargs)
 
     def setOrigin(self, *args, **kwargs):
         """Set the same origin for all patches (reshifting if existing)."""

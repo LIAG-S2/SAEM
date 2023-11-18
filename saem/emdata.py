@@ -190,7 +190,7 @@ class EMData():
         self.dataZ = self.DATA[2, :, nrx]
         self.nrx = nrx
         if show:
-            self.showPos()
+            self.showPositions()
 
     def createConfig(self, fullTx=False):
         """Create EMPYMOD input argument configuration."""
