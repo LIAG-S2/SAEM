@@ -55,7 +55,6 @@ class CSEMSurvey():
             return getattr(self, i)
 
     def loadNPZ(self, filename, mtdata=False, mode=None, **kwargs):
-
         """Load numpy-compressed (NPZ) file."""
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
@@ -546,26 +545,21 @@ class CSEMSurvey():
             p.generateDataPDF(resultdir+f"fit{i+1}.pdf",
                               mode="linefreqwise", x=xy, alim=alim)
 
+    # old inversion() - differences:
+    # inner_area_cell_size=1e4, outer_area_cell_size=None,  # m^2
+    # cell_size=1e7, # m^3
+    # invpoly=None, useQHull=True, => only invpoly(array|'Qhull' else rect)
+    # tx_refine=50. => 10, rx_refine=30 => 10,
     def buildInvMesh(self,
                 invmesh=None, depth=1000., surface_cz=1e4,
                 inner_boundary_factor=0.1, inv_cz=1e7, dim=None,
                 invpoly='Qhull', topo=None, check_pos=True,
                 extend_world=10., tx_refine=10., rx_refine=10,
                 tetgen_quality=1.3, **kwargs):
-        """Run mesh generation
-
-        Does the whole inversion including pre- and post-processing:
-        * check data and errors
-        * automatical boundary computation
-        * setting up meshes
-        * run inversion parsing keyword arguments
-        * load results
-        * generate multipage pdf files showing data fit
+        """Mesh generation before inversion
 
         Parameters
         ----------
-        Geometry
-        ........
         depth : float [1000]
             Depth of the inversion region. The default is 1000
         surface_cz : float [1e4]
@@ -578,8 +572,6 @@ class CSEMSurvey():
             Polygone for describing the shape of inversion domain
         topo : str
             Topography file to by read. The default is None
-        check_pos: bool [True]
-            Show Rx and Tx postions before calling TetGen
         extend_world : float
             Extend world by a factor. The default is 10
         tx_refine : float [10]
@@ -588,10 +580,11 @@ class CSEMSurvey():
             Receiver refinement in m. The default is 30
         tetgen_quality : float [1.3]
             Tetgen mesh quality. The default is 1.3
+        check_pos: bool [True]
+            Show Rx and Tx postions before calling TetGen
         **kwargs : dict
             Other keyword arguments that can be passed to set meshing options
         """
-
         if not hasattr(self, 'Ddict'):
             self.createDataDict()
 

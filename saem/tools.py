@@ -18,7 +18,7 @@ def distToTx(rx, ry, tx, ty):
 
 
 def detectLinesAlongAxis(rx, ry, axis='x'):
-    """Alernative - Split data in lines for line-wise processing."""
+    """Alternative - Split data in lines for line-wise processing."""
 
     if axis == 'x':
         r = rx
