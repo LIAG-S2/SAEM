@@ -59,18 +59,16 @@ class CSEMSurvey():
         ALL = np.load(filename, allow_pickle=True)
         self.f = ALL["freqs"]
         self.origin = ALL["origin"]
-
+        if "tx" in ALL:
+            self.tx = ALL["tx"]
         a = 0
-
         if "line" in list(ALL.keys()):
             line = ALL["line"]
         else:
             pass
         line = np.array([], dtype=int)
-        for i in range(len(ALL["DATA"])):
-            line = np.append(line, np.ones(len(ALL["DATA"][i]['rx']),
-                                           dtype=int))
-
+        for data in ALL["DATA"]:
+            line = np.append(line, np.ones(len(data['rx']), dtype=int))
 
         if mode is None:
             if not mtdata:
@@ -99,7 +97,7 @@ class CSEMSurvey():
         if isinstance(mare, str):
             self.basename = mare.replace(".emdata", "")
             mare = Mare2dEMData(mare, flipxy=flipxy)
-
+        # this part should be moved into Mare2dEMData
         tI = kwargs.setdefault('tI', np.arange(len(mare.txPositions())))
         for typ in ["E", "B"]:
             for i in tI:
