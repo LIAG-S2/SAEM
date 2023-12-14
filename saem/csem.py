@@ -12,7 +12,7 @@ from pygimli.core.math import symlog
 from .plotting import showSounding
 from .emdata import EMData
 from .modelling import fopSAEM, bipole
-from .tools import distToTx
+from .tools import distToTx, readCoordsFromKML
 
 
 class CSEMData(EMData):
@@ -258,8 +258,12 @@ class CSEMData(EMData):
                     assert len(MAT[name]) == len(MAT1[name]), "nFreqs no match"
                     assert np.allclose(MAT[name], MAT1[name]), "freqs no match"
                 else:
-                    MAT[name] = np.concatenate((MAT[name], MAT1[name]),
-                                               axis=-1)
+                    if MAT[name].shape[:-1] == MAT1[name].shape[:-1]:
+                        MAT[name] = np.concatenate((MAT[name], MAT1[name]),
+                                                axis=-1)
+                    else:
+                        print("field not matching:!", name)
+
         self.MAT = MAT
 
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
