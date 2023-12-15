@@ -544,7 +544,7 @@ class CSEMData(EMData):
                         ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
                         ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
 
-            ncmp += 1
+                ncmp += 1
 
         for a in ax:
             a.legend()
