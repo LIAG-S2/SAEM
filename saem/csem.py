@@ -67,7 +67,7 @@ class CSEMData(EMData):
                 elif len(txpos) == 3:
                     self.tx, self.ty, self.tz = txpos
                 else:
-                    raise("Dimensions not matching")
+                    raise IndexError("Dimensions not matching")
         else:
             self.tx = kwargs.pop("tx", np.array([0., 0.]))
             self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
@@ -551,15 +551,6 @@ class CSEMData(EMData):
 
         return ax
 
-    def showResult(self, **kwargs):
-        """Show inversion result."""
-        kwargs.setdefault("logScale", True)
-        kwargs.setdefault("cMap", "Spectral")
-        kwargs.setdefault("xlabel", "x (m)")
-        kwargs.setdefault("ylabel", "z (m)")
-        kwargs.setdefault("label", r"$\rho$ ($\Omega$m)")
-        return pg.show(self.mesh, 1./self.model, **kwargs)
-
     def exportRxTxVTK(self, marker=1):
         """Export Receiver and Transmitter positions as VTK file."""
         rxmesh = pg.Mesh(3)
@@ -575,53 +566,6 @@ class CSEMData(EMData):
             txmesh.createEdge(txmesh.node(i), txmesh.node(i+1), marker)
 
         txmesh.exportVTK(self.basename+"-txpos.vtk")
-
-    def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-7,
-                        save=False, **kwargs):
-        """Show Jacobian row (model distribution for specific data).
-
-        Parameters
-        ----------
-        iI : int [1]
-            real (0) or imaginary (1) part
-        iC : int
-            component (out of existing ones!)
-        iF : int [0]
-            frequency index (into self.f)
-        iR : int [0]
-            receiver number
-        cM : float [1.5]
-            color scale maximum
-        tol : float
-            tolerance/threshold for symlog transformation
-
-        **kwargs are passed to ps.show (e.g. cMin, )
-        """
-        allcmp = ['Bx', 'By', 'Bz']
-        scmp = [allcmp[i] for i in np.nonzero(self.cmp)[0]]
-        allP = ["Re ", "Im "]
-        nD = self.J.rows() // 2
-        nC = sum(self.cmp)
-        nF = self.nF
-        nR = self.nRx
-        assert nD == nC * nF * nR, "Dimensions mismatch"
-        iD = nD*iI + iC*(nF*nR) + iF*nR + iR
-        Jrow = self.J.row(iD)
-        sens = symlog(Jrow / self.mesh.cellSizes() * self.model, tol=tol)
-        defaults = dict(cMap="bwr", cMin=-cM, cMax=cM, colorBar=False,
-                        xlabel="x (m)", ylabel="z (m)")
-        defaults.update(kwargs)
-        ax, cb = pg.show(self.mesh, sens, **defaults)
-        ax.plot(np.mean(self.tx), 5, "k*")
-        ax.plot(self.rx[iR], 10, "kv")
-        st = allP[iI] + scmp[iC] + ", f={:.0f}Hz, x={:.0f}m".format(
-            self.f[iF], self.rx[iR])
-        ax.set_title(st)
-        fn = st.replace(" ", "_").replace(",", "").replace("=", "")
-        if save:
-            ax.figure.savefig("pics/"+fn+".pdf", bbox_inches="tight")
-
-        return ax
 
 
 if __name__ == "__main__":

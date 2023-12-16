@@ -321,6 +321,53 @@ class CSEMSurvey():
             self.J = pg.load(dirname+"jacobian.bmat")
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
 
+    def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-7,
+                        save=False, **kwargs):
+        """Show Jacobian row (model distribution for specific data).
+
+        Parameters
+        ----------
+        iI : int [1]
+            real (0) or imaginary (1) part
+        iC : int
+            component (out of existing ones!)
+        iF : int [0]
+            frequency index (into self.f)
+        iR : int [0]
+            receiver number
+        cM : float [1.5]
+            color scale maximum
+        tol : float
+            tolerance/threshold for symlog transformation
+
+        **kwargs are passed to ps.show (e.g. cMin, )
+        """
+        allcmp = ['Bx', 'By', 'Bz']
+        scmp = [allcmp[i] for i in np.nonzero(self.cmp)[0]]
+        allP = ["Re ", "Im "]
+        nD = self.J.rows() // 2
+        nC = sum(self.cmp)
+        nF = self.nF
+        nR = self.nRx
+        assert nD == nC * nF * nR, "Dimensions mismatch"
+        iD = nD*iI + iC*(nF*nR) + iF*nR + iR
+        Jrow = self.J.row(iD)
+        sens = symlog(Jrow / self.mesh.cellSizes() * self.model, tol=tol)
+        defaults = dict(cMap="bwr", cMin=-cM, cMax=cM, colorBar=False,
+                        xlabel="x (m)", ylabel="z (m)")
+        defaults.update(kwargs)
+        ax, cb = pg.show(self.mesh, sens, **defaults)
+        ax.plot(np.mean(self.tx), 5, "k*")
+        ax.plot(self.rx[iR], 10, "kv")
+        st = allP[iI] + scmp[iC] + ", f={:.0f}Hz, x={:.0f}m".format(
+            self.f[iF], self.rx[iR])
+        ax.set_title(st)
+        fn = st.replace(" ", "_").replace(",", "").replace("=", "")
+        if save:
+            ax.figure.savefig("pics/"+fn+".pdf", bbox_inches="tight")
+
+        return ax
+
     def showResult(self, **kwargs):
         """Show inversion result."""
         kwargs.setdefault("logScale", True)
