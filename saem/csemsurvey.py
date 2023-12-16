@@ -1,9 +1,14 @@
 """Controlled-source electromagnetic (CSEM) survey (patch collection) data."""
 import os.path
 from glob import glob
+
 import numpy as np
+from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
+
 import pygimli as pg
+from pygimli.core.math import symlog
+
 from saem import Mare2dEMData
 from saem import CSEMData
 from saem.mt import MTData
@@ -347,8 +352,8 @@ class CSEMSurvey():
         allP = ["Re ", "Im "]
         nD = self.J.rows() // 2
         nC = sum(self.cmp)
-        nF = self.nF
-        nR = self.nRx
+        nF = self.patches[0].nF
+        nR = sum([p.nRx for p in self.patches])
         assert nD == nC * nF * nR, "Dimensions mismatch"
         iD = nD*iI + iC*(nF*nR) + iF*nR + iR
         Jrow = self.J.row(iD)
@@ -358,9 +363,9 @@ class CSEMSurvey():
         defaults.update(kwargs)
         ax, cb = pg.show(self.mesh, sens, **defaults)
         ax.plot(np.mean(self.tx), 5, "k*")
-        ax.plot(self.rx[iR], 10, "kv")
+        ax.plot(self.patches[0].rx[iR], 10, "kv")
         st = allP[iI] + scmp[iC] + ", f={:.0f}Hz, x={:.0f}m".format(
-            self.f[iF], self.rx[iR])
+            self.f[iF], self.patches[0].rx[iR])
         ax.set_title(st)
         fn = st.replace(" ", "_").replace(",", "").replace("=", "")
         if save:
@@ -485,7 +490,6 @@ class CSEMSurvey():
             x0 = np.median(allrx[:, 0])
             y0 = np.median(allrx[:, 1])
             if useQHull:
-                from scipy.spatial import ConvexHull
                 points -= [x0, y0]
                 ch = ConvexHull(points)
                 invpoly = np.array([[*points[v, :], 0.]
@@ -644,7 +648,6 @@ class CSEMSurvey():
             x0 = np.median(allrx[:, 0])
             y0 = np.median(allrx[:, 1])
             if invpoly == 'Qhull':
-                from scipy.spatial import ConvexHull
                 points -= [x0, y0]
                 ch = ConvexHull(points)
                 invpoly = np.array([[*points[v, :], 0.]

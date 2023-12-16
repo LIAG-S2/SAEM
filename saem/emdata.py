@@ -1119,21 +1119,6 @@ class EMData():
                     fig.savefig(pdf, format='pdf')
                     plt.close(fig)
 
-    def generateModelPDF(self, pdffile=None, **kwargs):
-        """Generate a PDF of all models."""
-        dep = self.depth.copy()
-        dep[:-1] += np.diff(self.depth) / 2
-        pdffile = pdffile or self.basename + "-models5.pdf"
-        kwargs.setdefault('alim', [5, 5000])
-        kwargs.setdefault('log', True)
-        with PdfPages(pdffile) as pdf:
-            fig, ax = plt.subplots()
-            for i in range(self.allModels.shape[1]):
-                self.showField(self.allModels[:, i], ax=ax, **kwargs)
-                ax.set_title('z = {:.1f}'.format(dep[i]))
-                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
-                ax.cla()
-
     def estimateError(self, ignoreErr=True, useMax=False, ri=None,
                       **kwargs):
         """Estimate data error to be saved in self.ERR.

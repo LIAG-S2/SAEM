@@ -1,9 +1,11 @@
 """Controlled-source electromagnetic (CSEM) data class."""
 from glob import glob
+
 import numpy as np
 from scipy.io import loadmat
-
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
@@ -464,6 +466,21 @@ class CSEMData(EMData):
 
         np.savez("models.npz", self.MODELS, self.xLine)
         self.showSection()
+
+    def generateModelPDF(self, pdffile=None, **kwargs):
+        """Generate a PDF of all models."""
+        dep = self.depth.copy()
+        dep[:-1] += np.diff(self.depth) / 2
+        pdffile = pdffile or self.basename + "-models5.pdf"
+        kwargs.setdefault('alim', [5, 5000])
+        kwargs.setdefault('log', True)
+        with PdfPages(pdffile) as pdf:
+            fig, ax = plt.subplots()
+            for i in range(self.allModels.shape[1]):
+                self.showField(self.allModels[:, i], ax=ax, **kwargs)
+                ax.set_title('z = {:.1f}'.format(dep[i]))
+                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+                ax.cla()
 
     def showSection(self, **kwargs):
         """Show all results along a line."""
