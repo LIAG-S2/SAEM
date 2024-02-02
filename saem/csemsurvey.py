@@ -281,11 +281,17 @@ class CSEMSurvey():
             dirname += '/'
 
         if response is None:
-            respfiles = sorted(glob(dirname+"response_iter*.npy"))
+            # respfiles = sorted(glob(dirname+"response_iter*.npy")) # bug 9>11
+            respfiles = glob(dirname+"response_iter*.npy")
             if len(respfiles) == 0:
                 pg.error("Could not find response file")
+            sI = np.argsort([int(respfile[13:-4]) for respfile in respfiles])
+            respfiles = respfiles[sI]
         else:
-            respfiles = [dirname + "response_iter_" + str(response) + ".npy"]
+            if isinstance(response, str):
+                respfiles = [response]
+            elif isinstance(response, int):
+                respfiles = [dirname + "response_iter_" + str(response) + ".npy"]
 
         responseVec = np.load(respfiles[-1])
         respR, respI = np.split(responseVec, 2)
