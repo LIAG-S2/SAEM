@@ -1202,16 +1202,31 @@ class EMData():
         pMin, pMax : float
             minimum/maximum phase
         """
+        cnan = np.nan + 1j * np.nan
         if aErr is not None:
-            self.DATA[np.abs(self.DATA.real) < aErr] = np.nan + 1j * np.nan
-            self.DATA[np.abs(self.DATA.imag) < aErr] = np.nan + 1j * np.nan
+            self.DATA[np.abs(self.DATA.real) < aErr] = cnan
+            self.DATA[np.abs(self.DATA.imag) < aErr] = cnan
 
         if rErr is not None:
-            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+            rr = np.abs(self.ERR.real) / (np.abs(self.DATA.real) + 1e-12)
+            self.DATA[rr > rErr] = cnan
+            ii = np.abs(self.ERR.imag) / (np.abs(self.DATA.imag) + 1e-12)
+            self.DATA[ii > rErr] = cnan
 
-            self.DATA[np.abs(rr) > rErr] = np.nan + 1j * np.nan
-            self.DATA[np.abs(ii) > rErr] = np.nan + 1j * np.nan
+        if aMin is not None or aMax is not None:
+            aa = np.abs(self.DATA)
+            if aMin is not None:
+                self.DATA[aa < aMin] = cnan
+            if aMax is not None:
+                self.DATA[aa > aMax] = cnan
+
+        if pMin is not None or pMax is not None:
+            pp = np.angle(self.DATA)
+            if pMin is not None:
+                self.DATA[pp < pMin] = cnan
+            if pMax is not None:
+                self.DATA[pp > pMax] = cnan
+
 
     # for compatibility, forward to mask with good defaults
     def deactivateNoisyData(self, aErr=1e-4, rErr=0.5):
