@@ -87,7 +87,7 @@ class EMData():
 
     def txDistance(self):
         """Dummy tx Distance (to be overwritten in CSEM)."""
-        return np.ones(self.nRx)
+        return np.zeros(self.nRx)
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
@@ -406,10 +406,6 @@ class EMData():
                 self.PRIM = self.PRIM[:, :, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
-
-    def mask(self, **kwargs):
-        """Masking out data according to several properties."""
-        pass  # not yet implemented
 
     def skinDepths(self, rho=30):
         """Compute skin depth based on a medium resistivity."""
@@ -1191,8 +1187,21 @@ class EMData():
             self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
                 aErr[cmp, freq, :] + rErr[cmp, freq, :]
 
-    def deactivateNoisyData(self, aErr=1e-4, rErr=0.5):
-        """Set data below a certain threshold to nan (inactive)."""
+    def mask(self, aErr=None, rErr=None, aMin=None, aMax=None,
+             pMin=None, pMax=None):
+        """Masking out data according to several properties.
+
+        Parameters
+        ----------
+        aErr : float
+            maximum absolute error
+        rErr : float
+            maximum relative error
+        aMin, aMax : float
+            minimum/maximum amplitude
+        pMin, pMax : float
+            minimum/maximum phase
+        """
         if aErr is not None:
             self.DATA[np.abs(self.DATA.real) < aErr] = np.nan + 1j * np.nan
             self.DATA[np.abs(self.DATA.imag) < aErr] = np.nan + 1j * np.nan
@@ -1203,6 +1212,11 @@ class EMData():
 
             self.DATA[np.abs(rr) > rErr] = np.nan + 1j * np.nan
             self.DATA[np.abs(ii) > rErr] = np.nan + 1j * np.nan
+
+    # for compatibility, forward to mask with good defaults
+    def deactivateNoisyData(self, aErr=1e-4, rErr=0.5):
+        """Set data below a certain threshold to nan (inactive)."""
+        self.mask(aErr=aErr, rErr=rErr)
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
