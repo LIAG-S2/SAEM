@@ -764,18 +764,13 @@ class EMData():
                     ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
                 else:  # real and imaginary part
                     if kw["log"]:
+                        snorm = SymLogNorm(vmin=-kw["alim"][1],
+                                           vmax=kw["alim"][1],
+                                           linthresh=kw["alim"][0])
                         pc1 = ax[0, ncmp].matshow(
-                            np.real(subset),
-                            norm=SymLogNorm(linthresh=kw["alim"][0],
-                                            vmin=-kw["alim"][1],
-                                            vmax=kw["alim"][1]),
-                            cmap=kw["cmap"])
+                            np.real(subset), norm=snorm, cmap=kw["cmap"])
                         pc2 = ax[1, ncmp].matshow(
-                            np.imag(subset),
-                            norm=SymLogNorm(linthresh=kw["alim"][0],
-                                            vmin=-kw["alim"][1],
-                                            vmax=kw["alim"][1]),
-                            cmap=kw["cmap"])
+                            np.imag(subset), norm=snorm, cmap=kw["cmap"])
                     else:
                         pc1 = ax[0, ncmp].matshow(np.real(subset),
                                                   cmap=kw["cmap"])
