@@ -14,7 +14,7 @@ from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
 from .plotting import makeSubTitles, updatePlotKwargs
 from .tools import detectLinesAlongAxis, detectLinesBySpacing
 from .tools import detectLinesByDistance, detectLinesOld
-from .tools import readCoordsFromKML, is_point_inside_polygon
+from .tools import readCoordsFromKML, is_point_inside_polygon, distToTx
 
 
 class EMData():
@@ -358,7 +358,9 @@ class EMData():
         line : int
             remove a line completely
         polygon : ndarray|str
-            polygone (or kmlfile) to remove points inside
+            polygone (or kmlfile) to remove points
+            * inside (minTxDist not set) OR
+            * in a distance of minTxDist
         """
         # part 1: frequency axis
         if fInd is None:
@@ -387,10 +389,13 @@ class EMData():
 
                 rx = self.rx + self.origin[0]
                 ry = self.ry + self.origin[1]
-                nInd = np.ones_like(rx, dtype=bool)
-                for i, xy in enumerate(zip(rx, ry)):
-                    nInd[i] = not is_point_inside_polygon(*xy, polygon)
-
+                if minTxDist is None:  # inside
+                    nInd = np.ones_like(rx, dtype=bool)
+                    for i, xy in enumerate(zip(rx, ry)):
+                        nInd[i] = not is_point_inside_polygon(*xy, polygon)
+                else:
+                    di = distToTx(rx, ry, polygon[:, 0], polygon[:, 1])
+                    nInd = np.nonzero((di >= minTxDist))[0]
             elif minTxDist is not None or maxTxDist is not None:
                 dTx = self.txDistance()
                 minTxDist = minTxDist or 0
