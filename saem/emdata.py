@@ -12,8 +12,9 @@ import pyproj
 import pygimli as pg
 from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
 from .plotting import makeSubTitles, updatePlotKwargs
-from .tools import detectLinesAlongAxis
-from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
+from .tools import detectLinesAlongAxis, detectLinesBySpacing
+from .tools import detectLinesByDistance, detectLinesOld
+from .tools import readCoordsFromKML, is_point_inside_polygon
 
 
 class EMData():
@@ -332,7 +333,8 @@ class EMData():
         self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None, rInd=None,
-               minTxDist=None, maxTxDist=None, every=None, line=None):
+               minTxDist=None, maxTxDist=None, every=None, line=None,
+               polygon=None):
         """Filter data according to frequency and and receiver properties.
 
         Parameters
@@ -355,6 +357,8 @@ class EMData():
             use only every n-th receiver
         line : int
             remove a line completely
+        polygon : ndarray|str
+            polygone (or kmlfile) to remove points inside
         """
         # part 1: frequency axis
         if fInd is None:
@@ -377,7 +381,17 @@ class EMData():
 
         # part 2: receiver axis
         if nInd is None:
-            if minTxDist is not None or maxTxDist is not None:
+            if polygon is not None:
+                if isinstance(polygon, str):
+                    polygon = readCoordsFromKML(polygon).T
+
+                rx = self.rx + self.origin[0]
+                ry = self.ry + self.origin[1]
+                nInd = np.ones_like(rx, dtype=bool)
+                for i, xy in enumerate(zip(rx, ry)):
+                    nInd[i] = not is_point_inside_polygon(*xy, polygon)
+
+            elif minTxDist is not None or maxTxDist is not None:
                 dTx = self.txDistance()
                 minTxDist = minTxDist or 0
                 maxTxDist = maxTxDist or 9e9
