@@ -529,6 +529,19 @@ class EMData():
         if background:
             underlayBackground(ax, background, self.utm)
 
+        if "poly" in kwargs:
+            poly = kwargs["poly"]
+            if isinstance(poly, str):  # only a single
+                poly = [readCoordsFromKML(poly)]
+            elif isinstance(poly, np.ndarray):
+                poly = [poly]
+            elif isinstance(poly, list):  #
+                if isinstance(poly[0], str):
+                    poly = [readCoordsFromKML(p).T for p in poly]
+
+            for p in poly:
+                ax.plot(p[:, 0], p[:, 1])
+
         return ax, cb
 
     def showLineFreq(self, line=None, nf=0, ax=None, **kwargs):
@@ -874,6 +887,15 @@ class EMData():
         else:
             fig = ax.flat[0].figure
 
+        poly = kwargs.pop("poly", None)
+        if isinstance(poly, str):  # only a single
+            poly = [readCoordsFromKML(poly)]
+        elif isinstance(poly, np.ndarray):
+            poly = [poly]
+        elif isinstance(poly, list):  #
+            if isinstance(poly[0], str):
+                poly = [readCoordsFromKML(p).T for p in poly]
+
         ncmp = 0
         for ci, cid in enumerate(cmp):
             if cid:
@@ -913,6 +935,8 @@ class EMData():
             a.set_aspect(1.0)
             a.plot(self.tx, self.ty, "k*-")
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
+            for p in poly:
+                a.plot(p[:, 0], p[:, 1])
 
             if background:
                 underlayBackground(ax, background, self.utm)
@@ -955,6 +979,7 @@ class EMData():
         """Show data and model response for single line/freq."""
         fig, ax = self.showLineFreq(line=line, nf=nf)
         self.showLineFreq(line=line, nf=nf, ax=ax, what="response")
+        return fig, ax
 
     def sortAlongAxis(self, line, axis):
         """Dort points along a given axis (x, y or d)."""
