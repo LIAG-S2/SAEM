@@ -540,7 +540,7 @@ class EMData():
                     poly = [readCoordsFromKML(p).T for p in poly]
 
             for p in poly:
-                ax.plot(p[:, 0], p[:, 1])
+                ax.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
 
         return ax, cb
 
@@ -935,8 +935,9 @@ class EMData():
             a.set_aspect(1.0)
             a.plot(self.tx, self.ty, "k*-")
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
-            for p in poly:
-                a.plot(p[:, 0], p[:, 1])
+            if poly is not None:
+                for p in poly:
+                    a.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
 
             if background:
                 underlayBackground(ax, background, self.utm)
