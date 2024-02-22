@@ -71,9 +71,9 @@ class CSEMData(EMData):
                 else:
                     raise IndexError("Dimensions not matching")
         else:
-            self.tx = kwargs.pop("tx", np.array([0., 0.]))
-            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
-            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
+            self.tx = np.array(kwargs.pop("tx", [0., 0.]))
+            self.ty = np.array(kwargs.pop("ty", np.zeros_like(self.tx)))
+            self.tz = np.array(kwargs.pop("tz", np.zeros_like(self.tx)))
             if isinstance(self.ty, (int, float)):
                 self.ty = np.ones_like(self.tx)*self.ty
             if isinstance(self.tx, (int, float)):
