@@ -1302,7 +1302,23 @@ class EMData():
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
 
     def showSpatialMisfit(self, what="wmisfit", **kwargs):
-        """Show spatial distribution of misfit plots."""
+        """Show spatial distribution of misfit plots.
+
+        chi-square over components, frequency and Real/Imag.
+
+        Parameters
+        ----------
+        what : str ['wmisfit]
+            property to integrate over
+        log : bool [False]
+            use logscale colorbar
+        kwargs : dict
+            keyword args passed to showField/plotSymbols
+
+        Returns
+        -------
+        ax, cb : matplotlib Axes and colorbar objects
+        """
         mis = self.chooseActive(what=what)
         mR = np.nanmean(mis.real**2, axis=(0, 1))
         mI = np.nanmean(mis.imag**2, axis=(0, 1))
@@ -1310,7 +1326,29 @@ class EMData():
         return self.showField((mR+mI)/2, **kwargs)
 
     def showMisfitStats(self, what="wmisfit", **kwargs):
-        """Show spatial distribution of misfit plots."""
+        """Show misfit statistics for data components.
+
+        Chi-square integrated over space, as a function
+        of components, frequency and real/imag parts.
+
+        Parameters
+        ----------
+        what : str ['wmisfit]
+            property to integrate over
+        log : bool [False]
+            use logscale colorbar
+        vmin, vmax : float [min/max values]
+            minimum and maximum colorbar ranges
+        log : bool [False]
+            use logarithmic colorbar
+        cmap : str ['Spetral_r']
+            matplotlib colormap or string
+
+        Returns
+        -------
+        ax : [Axes, Axes]
+            two matplotlib axes for real and imaginary
+        """
         mis = self.chooseActive(what=what)
         statR = np.nanmean(mis.real**2, axis=2)
         statI = np.nanmean(mis.imag**2, axis=2)
