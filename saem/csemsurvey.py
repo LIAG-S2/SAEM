@@ -5,6 +5,7 @@ from glob import glob
 import numpy as np
 from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 import pygimli as pg
 from pygimli.core.math import symlog
@@ -303,7 +304,7 @@ class CSEMSurvey():
             p.loadResponse(response=response[ind[i]:ind[i+1]])
 
     def loadResults(self, dirname=None, datafile=None, invmesh="Prisms",
-                    jacobian=None):
+                    jacobian=None, misfits=False):
         """Load inversion results from directory."""
         datafile = datafile or self.basename
         if dirname is None:
@@ -332,6 +333,27 @@ class CSEMSurvey():
         elif os.path.exists(dirname+"jacobian.bmat"):
             self.J = pg.load(dirname+"jacobian.bmat")
             print("Loaded jacobian: ", self.J.rows(), self.J.cols())
+        if misfits:
+            self.generateSpatialMisfitPDF(dirname+"misfits.pdf")
+            self.generateMisfitStatsPDF(dirname+"misfitStats.pdf")
+
+    def generateSpatialMisfitPDF(self, filename=None, **kwargs):
+        """Generate multipage pdf with spatial misfits."""
+        filename = filename or self.basename + "-misfits.pdf"
+        with PdfPages(filename) as pdf:
+            for p in self.patches:
+                ax, cb = p.showSpatialMisfit(**kwargs)
+                ax.figure.savefig(pdf, format="pdf")
+                plt.close(ax.figure)
+
+    def generateMisfitStatsPDF(self, filename=None, **kwargs):
+        """Generate multipage pdf with misfit stats."""
+        filename = filename or self.basename + "-misfitStats.pdf"
+        with PdfPages(filename) as pdf:
+            for p in self.patches:
+                ax = p.showMisfitStats(**kwargs)
+                ax[0].figure.savefig(pdf, format="pdf")
+                plt.close(ax[0].figure)
 
     def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-7,
                         save=False, **kwargs):
@@ -806,7 +828,7 @@ class CSEMSurvey():
 
         # plotting
         if make_plots:
-            self.loadResults(dirname=fop.inv_dir)
+            self.loadResults(dirname=fop.inv_dir, misfits=True)
             alim = kwargs.pop("alim", [1e-3, 1])
             xy = kwargs.pop("x", "y")
             for i, p in enumerate(self.patches):
