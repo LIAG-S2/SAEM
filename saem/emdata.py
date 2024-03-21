@@ -1300,3 +1300,36 @@ class EMData():
         self.RESP = np.ones((len(self.cstr), self.nF, self.nRx),
                             dtype=np.complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
+
+    def showSpatialMisfit(self, what="wmisfit"):
+        """Show spatial distribution of misfit plots."""
+        mis = self.chooseActive(what=what)
+        mR = np.nanmean(mis.real**2, axis=(0, 1))
+        mI = np.nanmean(mis.imag**2, axis=(0, 1))
+        return self.showField(np.log10((mR+mI)/2))
+
+    def showMisfitStats(self, what="wmisfit", **kwargs):
+        """Show spatial distribution of misfit plots."""
+        mis = self.chooseActive(what=what)
+        statR = np.nanmean(mis.real**2, axis=2)
+        statI = np.nanmean(mis.imag**2, axis=2)
+        fig, ax = plt.subplots(nrows=2, sharex=True, sharey=True)
+        kwargs.setdefault("vmin", min(np.min(statR), np.min(statI)))
+        kwargs.setdefault("vmax", min(np.max(statR), np.max(statI)))
+        kwargs.setdefault("cmap", "Spectral_r")
+        if kwargs.pop("log", True):
+            kwargs["vmin"] = np.log10(kwargs["vmin"])
+            kwargs["vmax"] = np.log10(kwargs["vmax"])
+            statR = np.log10(statR)
+            statI = np.log10(statI)
+        for i, ri in enumerate([statR, statI]):
+            im = ax[i].imshow(ri, **kwargs)
+            plt.colorbar(im, ax=ax[i])
+            ax[i].set_yticks([0, 1, 2], ["Bx", "By", "Bz"])
+
+        ax[1].set_xticks(range(self.nF),
+                         [str(int(fi)) for fi in self.f])
+        ax[0].set_title("Real")
+        ax[1].set_title("Imag")
+        ax[1].set_xlabel("f (Hz)")
+        return ax
