@@ -285,7 +285,7 @@ class CSEMSurvey():
             respfiles = glob(dirname+"response_iter*.npy")
             if len(respfiles) == 0:
                 pg.error("Could not find response file")
-            sI = np.argsort([int(respfile.replace(dirname, '')[14:-4])
+            sI = np.argsort([int(respfile[respfile.rfind("_")+1:-4])
                              for respfile in respfiles])
             respfiles = [respfiles[i] for i in sI]
         else:
