@@ -77,7 +77,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
         draw colowbar
     clim : [float, float]
         min/max values for colorbar
-    logScale : bool [False]
+    log : bool [False]
         use logarithmic color scaling
     label : str
         label for the colorbar
@@ -121,6 +121,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         alim = kwargs.setdefault("alim", [min(w), max(w)])
         log = kwargs.setdefault("log", False)
+
     if log:
         norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
         if not symlog:
@@ -158,8 +159,9 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
 
 def underlayBackground(ax, background="BKG", utm=32):
     """Underlay background from any map."""
-    if background == "BKG":
-        underlayBKGMap(ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+    if background in ["DOP", "DTK", "MAP"]:
+        underlayBKGMap(ax, mode=background,
+                       uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
     else:
         underlayMap(ax, utm, vendor=background)
 

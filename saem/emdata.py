@@ -529,7 +529,7 @@ class EMData():
         if background:
             underlayBackground(ax, background, self.utm)
 
-        if "poly" in kwargs:
+        if "poly" in kwargs and poly is not None:
             poly = kwargs["poly"]
             if isinstance(poly, str):  # only a single
                 poly = [readCoordsFromKML(poly)]
@@ -1301,12 +1301,13 @@ class EMData():
                             dtype=np.complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
 
-    def showSpatialMisfit(self, what="wmisfit"):
+    def showSpatialMisfit(self, what="wmisfit", **kwargs):
         """Show spatial distribution of misfit plots."""
         mis = self.chooseActive(what=what)
         mR = np.nanmean(mis.real**2, axis=(0, 1))
         mI = np.nanmean(mis.imag**2, axis=(0, 1))
-        return self.showField(np.log10((mR+mI)/2))
+        kwargs.setdefault('symlog', False)
+        return self.showField((mR+mI)/2, **kwargs)
 
     def showMisfitStats(self, what="wmisfit", **kwargs):
         """Show spatial distribution of misfit plots."""
