@@ -347,6 +347,8 @@ class EMData():
             minimum frequency to keep
         fInd : iterable, optional
             index array of frequencies to use
+        rInd : iterable, optional
+            index array for receivers to remove
         nInd : iterable, optional
             index array for receivers to use, alternatively
         minTxDist : float
