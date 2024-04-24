@@ -250,7 +250,7 @@ class EMData():
             origin of coordinate system, if not given, center of Tx
         """
 
-        if origin:
+        if origin is not None:
             self.setOrigin()
         if ang is None:
             if line is not None:  # use Tx orientation so that Tx points to y
@@ -284,7 +284,7 @@ class EMData():
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
-        if origin:
+        if origin is not None:
             self.setOrigin(shift_back=True)
 
     def setOrigin(self, origin=None, shift_back=True):
