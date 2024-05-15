@@ -633,7 +633,7 @@ class CSEMSurvey():
                 inner_boundary_factor=0.1, inv_cz=1e7, dim=None,
                 invpoly='Qhull', topo=None, check_pos=True,
                 extend_world=10., tx_refine=10., rx_refine=10,
-                tetgen_quality=1.3, **kwargs):
+                tetgen_quality=1.3, frame=1000, **kwargs):
         """Mesh generation before inversion
 
         Parameters
@@ -719,7 +719,12 @@ class CSEMSurvey():
                        )
         txs = [mu.refine_path(tx, length=tx_refine) for tx in self.DDict['tx']]
         M.build_surface(insert_line_tx=txs)
-        M.add_inv_domains(-depth, invpoly, cell_size=inv_cz)
+        invmeshkw = {}
+        invmeshkw['x_frame'] = frame
+        invmeshkw['y_frame'] = frame
+        invmeshkw['z_frame'] = frame
+
+        M.add_inv_domains(-depth, invpoly, cell_size=inv_cz, **invmeshkw)
         M.build_halfspace_mesh()
 
         # add receiver locations to parameter file for all receiver patches
