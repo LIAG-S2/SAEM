@@ -512,7 +512,10 @@ class EMData():
         ax.plot(self.tx, self.ty, "k*-", zorder=-1)
         if isinstance(field, str):
             kwargs.setdefault("label", field)
-            field = getattr(self, field)
+            if field == "txDist":
+                field = self.txDistance()
+            else:
+                field = getattr(self, field)
 
         kwargs.setdefault("alim", [np.min(np.unique(field)),
                                    np.max(np.unique(field))])
@@ -942,7 +945,7 @@ class EMData():
                     a.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
 
             if background:
-                underlayBackground(ax, background, self.utm)
+                underlayBackground(a, background, self.utm)
 
         for i in range(2):
             ax[i, 0].set_ylabel('[m]')
