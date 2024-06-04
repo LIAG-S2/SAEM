@@ -36,7 +36,7 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     if ax is None:
         fig, ax = plt.subplots(1, 2, sharey=True)
 
-    if snddata.dtype == np.float:
+    if snddata.dtype == float:
         snddata = snddata[:len(snddata)//2] + snddata[len(snddata)//2:] * 1j
         # print(len(freqs), len(data))
 
