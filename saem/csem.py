@@ -269,10 +269,10 @@ class CSEMData(EMData):
         self.MAT = MAT
 
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
-        # self.ry, self.rx = MAT["xy"]  # can be wrong
+        self.ry, self.rx = MAT["xy"]  # can be wrong
         # import utm
         # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
-        self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
+        # self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
 
         # if "topo" in MAT.dtype.names:
         #     self.rz = MAT["topo"][0]

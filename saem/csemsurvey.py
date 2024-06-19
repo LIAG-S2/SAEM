@@ -694,6 +694,7 @@ class CSEMSurvey():
                                     [xmin-dy, ymax+dy, 0.]])
         ext = max(max(invpoly[:, 0]) - min(invpoly[:, 0]),
                   max(invpoly[:, 1]) - min(invpoly[:, 1]))
+
         dim = dim or ext*5
         kwargs.setdefault("x_dim", [x0-dim, x0+dim])
         kwargs.setdefault("y_dim", [y0-dim, y0+dim])
@@ -712,8 +713,8 @@ class CSEMSurvey():
                        preserve_edges=True,
                        topo=topo,
                        inner_area_cell_size=surface_cz,
-                       easting_shift=-self.DDict['origin'][0],
-                       northing_shift=-self.DDict['origin'][1],
+                       easting_shift=float(-self.DDict['origin'][0]),
+                       northing_shift=float(-self.DDict['origin'][1]),
                        rotation=float(self.DDict['rotation'])*180/np.pi,
                        **kwargs,
                        )
