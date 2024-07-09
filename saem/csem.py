@@ -267,19 +267,18 @@ class CSEMData(EMData):
                         print("field not matching:!", name)
 
         self.MAT = MAT
-
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
-        self.ry, self.rx = MAT["xy"]  # can be wrong
-        # import utm
-        # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
-        # self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
-
-        # if "topo" in MAT.dtype.names:
-        #     self.rz = MAT["topo"][0]
         if "lla" in MAT.dtype.names:
+            # import utm
+            # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
+            self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
             self.rz = MAT["lla"][2]
         else:
-            raise Exception("Could not determine altitude!")
+            self.ry, self.rx = MAT["xy"]  # can be wrong
+            if "topo" in MAT.dtype.names:
+                self.rz = MAT["topo"][0]
+            else:
+                raise Exception("Could not determine altitude!")
 
         if "line" in MAT.dtype.names:
             self.line = MAT["line"]
