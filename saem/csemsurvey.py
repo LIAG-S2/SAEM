@@ -89,6 +89,7 @@ class CSEMSurvey():
                 patch = MTData(mode=mode)
 
             patch.extractData(ALL, i)
+            patch.origin = self.origin
             self.addPatch(patch)
 
             if len(line) > 0:
@@ -267,7 +268,9 @@ class CSEMSurvey():
                       'origin' : self.origin,
                       'rotation' : self.angle}
         if save:
-            np.savez(fname+".npz",
+            if not fname.endswith(".npz"):
+                fname += ".npz"
+            np.savez(fname,
                      tx=txs,
                      freqs=self.patches[0].f,
                      DATA=DATA,
@@ -858,6 +861,7 @@ if __name__ == "__main__":
     # %%
     print(survey)
     survey.showPositions()
-    patch = survey.patches[0]  # or self[0]
-    # p.filter() etc.
+    patch0 = survey.patches[0]  # or survey[0]
+    # patch0.filter() etc.
+    # for p in survey.patches:
     survey.saveData()
