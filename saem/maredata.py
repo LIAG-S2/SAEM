@@ -185,13 +185,8 @@ class Mare2dEMData():
         ax.set_aspect(1.0)
         ax.grid(True)
         if globalCoordinates:
-            if background == "BKG":
-                from pygimli.viewer.mpl import underlayBKGMap
-                underlayBKGMap(ax, utmzone=self.utmzone, mode=mode,
-                               uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
-            elif background is not None:
-                from pygimli.viewer.mpl import underlayMap
-                underlayMap(ax, self.utmzone, vendor=background)
+            from .plotting import underlayBackground
+            underlayBackground(ax, background, self.utmzone)
 
         if save:
             ax.figure.savefig(self.basename+"-pos.pdf",

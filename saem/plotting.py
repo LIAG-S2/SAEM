@@ -10,7 +10,7 @@ from matplotlib.colors import SymLogNorm, LogNorm
 from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from pygimli.viewer.mpl import underlayMap, underlayBKGMap
+from pygimli.viewer.mpl.overlayimage import underlayMap, underlayBKGMap
 # import seaborn as sns
 
 
