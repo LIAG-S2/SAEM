@@ -123,23 +123,28 @@ class EMData():
                 rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
                 pf - primary fields
-                sf - measured secondary data divided by primary fields
+                sf - measured secondary field
+                sf/pf - measured secondary field divided by primary fields
         """
         if isinstance(what, str):
+            what = what.lower()
             self.cb_label='[nT/A]'
-            if what.lower() == "data":
+            if (what.find("pf") >= 0 or what.find("sf") >= 0
+                and self.PRIM is None):
+                self.computePrimaryFields()
+            if what == "data":
                 return self.DATA[:]
-            elif what.lower() == "resp" or what.lower() == "response":
+            elif what.startswith("resp"):
                 return self.RESP[:]
-            elif what.lower() == "aerr" or what.lower() == "abserror":
+            elif what == "aerr" or what == "abserror":
                 return self.ERR[:]
-            elif what.lower() == "rerr" or what.lower() == "relerror":
+            elif what == "rerr" or what == "relerror":
                 rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
                 ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
                 return rr + ii * 1j
-            elif what.lower() == "amisfit":
+            elif what == "amisfit":
                 return self.DATA[:] - self.RESP[:]
-            elif what.lower() == "rmisfit":
+            elif what == "rmisfit":
                 tmp = np.zeros_like(self.DATA)
                 for i in range(len(self.DATA)):
                     rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
@@ -147,25 +152,18 @@ class EMData():
                     tmp[i, :] = rr + ii * 1j
                     self.cb_label='[%]'
                 return tmp
-            elif what.lower() == "wmisfit":
+            elif what == "wmisfit":
                 mis = self.DATA - self.RESP
                 wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
                 self.cb_label=''
                 return wmis
-            elif what.lower() == "pf":
+            elif what == "pf":
                 return self.PRIM[:]
-            elif what.lower() == "sf":
+            elif what == "sf":
                 return self.DATA - self.PRIM
-            elif what.lower() == "sf/pf":
-                tmp = np.zeros_like(self.DATA)
-                for i in range(len(self.DATA)):
-                    rr = ((self.DATA[i].real - self.PRIM[i].real) /
-                          self.PRIM[i].real)
-
-                    ii = ((self.DATA[i].imag - self.PRIM[i].imag) /
-                          self.PRIM[i].imag)
-                    tmp[i, :] = rr + ii * 1j
-                return tmp
+            elif what == "sf/pf":
+                self.cb_label = ''
+                return (self.DATA - self.PRIM) / np.abs(self.PRIM)
             else:
                 print('Error! Wrong argument chosen to specify active data. '
                       'Aborting  ...')
