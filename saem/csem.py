@@ -546,10 +546,10 @@ class CSEMData(EMData):
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
-                kwargs['color'] = 'C' + str(i)
-                kwargs['label'] = 'B' + allcmp[i]
-                # kwargs.setdefault("color", "C" + str(i))
-                # kwargs.setdefault("label", "B" + allcmp[i])
+                # kwargs['color'] = 'C' + str(i)
+                # kwargs['label'] = 'B' + allcmp[i]
+                kwargs.setdefault("color", "C" + str(i))
+                kwargs.setdefault("label", "B" + allcmp[i])
                 ax = showSounding(data, self.f, ax=ax, ls="",
                                   marker="x", amphi=amphi, **kwargs)
                 if response is not None:
