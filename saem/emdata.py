@@ -1181,7 +1181,7 @@ class EMData():
         freq : iterable|int [0:nF]
             frequency number(s) to which it is applied
         """
-        if np.any(np.array(self.DATA.shape) - np.array(self.ERR.shape)):
+        if np.shape(self.DATA) != np.shape(self.ERR):
             self.ERR = np.zeros_like(self.DATA)
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
