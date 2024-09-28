@@ -1093,7 +1093,7 @@ class EMData():
                  rotation=self.angle)
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
-                        mode='patchwise', **kwargs):
+                        mode='patchwise', background=None, **kwargs):
         """Generate a multi-page pdf file containing all data."""
         what = kwargs.setdefault('what', 'data')
         sw = what.replace("/", "_")
@@ -1152,9 +1152,10 @@ class EMData():
             else:
                 fig, ax = plt.subplots(ncols=2, figsize=figsize, sharey=True)
                 self.showField(np.arange(len(self.rx)), ax=ax[0],
-                               cMap="Spectral_r")
+                               cMap="Spectral_r", background=background)
                 ax[0].set_title("Sounding number")
-                self.showField(self.line, ax=ax[1], cMap="Spectral_r")
+                self.showField(self.line, ax=ax[1], cMap="Spectral_r",
+                               background=background)
                 ax[1].set_title("Line number")
                 fig.savefig(pdf, format='pdf')
                 plt.close(fig)
