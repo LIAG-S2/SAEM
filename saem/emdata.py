@@ -3,7 +3,7 @@ from glob import glob
 import numpy as np
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm, SymLogNorm
+from matplotlib.colors import Normalize, LogNorm, SymLogNorm
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -1364,17 +1364,16 @@ class EMData():
         mis = self.chooseActive(what=what)
         statR = np.nanmean(mis.real**2, axis=2)
         statI = np.nanmean(mis.imag**2, axis=2)
-        fig, ax = plt.subplots(nrows=2, sharex=True, sharey=True)
+        _, ax = plt.subplots(nrows=2, sharex=True, sharey=True)
         kwargs.setdefault("vmin", min(np.min(statR), np.min(statI)))
         kwargs.setdefault("vmax", min(np.max(statR), np.max(statI)))
         kwargs.setdefault("cmap", "Spectral_r")
+        norm = Normalize(vmin=kwargs["vmin"], vmax=kwargs["vmax"])
         if kwargs.pop("log", True):
-            kwargs["vmin"] = np.log10(kwargs["vmin"])
-            kwargs["vmax"] = np.log10(kwargs["vmax"])
-            statR = np.log10(statR)
-            statI = np.log10(statI)
+            norm = LogNorm(vmin=kwargs["vmin"], vmax=kwargs["vmax"])
+
         for i, ri in enumerate([statR, statI]):
-            im = ax[i].imshow(ri, **kwargs)
+            im = ax[i].imshow(ri, norm=norm, **kwargs)
             plt.colorbar(im, ax=ax[i])
             ax[i].set_yticks([0, 1, 2], ["Bx", "By", "Bz"])
 
