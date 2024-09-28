@@ -453,8 +453,10 @@ class EMData():
         ax.plot(rxy[:, 0], rxy[:, 1], ma, markersize=2,
                 color=color or "blue")
         if txy.shape[1] > 0:
-            ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
-                    color=color or "orange")
+            if np.any(txy):
+                ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
+                        color=color or "orange")
+
         if hasattr(self, "nrx") and self.nrx < self.nRx:
             ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "ro", **kwargs)
 
@@ -507,7 +509,9 @@ class EMData():
         kwargs.setdefault("cmap", "Spectral_r")
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
-        ax.plot(self.tx, self.ty, "k*-", zorder=-1)
+        if np.any(self.tx) or np.any(self.ty):
+            ax.plot(self.tx, self.ty, "k*-", zorder=-1)
+
         if isinstance(field, str):
             kwargs.setdefault("label", field)
             if field == "txDist":
@@ -936,7 +940,9 @@ class EMData():
 
         for a in ax.flat:
             a.set_aspect(1.0)
-            a.plot(self.tx, self.ty, "k*-")
+            if np.any(self.tx) or np.any(self.ty):
+                a.plot(self.tx, self.ty, "k*-")
+
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
             if poly is not None:
                 for p in poly:
