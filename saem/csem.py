@@ -247,6 +247,10 @@ class CSEMData(EMData):
         #     MAT = ALL["data"][0][0]
         MAT = loadmat(filename)["ztfs"][0][0]
         MAT["line"] = np.ones(MAT["xy"].shape[-1], dtype=int)
+        for name in ["tfs", "tfs_se"]:
+            if len(MAT[name].shape) < 4:  # catch single-point files
+                MAT[name] = MAT[name][:, :, :, np.newaxis]
+
         line = 1
         if len(filenames) > 1:
             print("read "+filename)
@@ -260,6 +264,10 @@ class CSEMData(EMData):
                     assert len(MAT[name]) == len(MAT1[name]), "nFreqs no match"
                     assert np.allclose(MAT[name], MAT1[name]), "freqs no match"
                 else:
+                    # catch single-point files
+                    if name.startswith("tfs") and len(MAT1[name].shape) < 4:
+                        MAT1[name] = MAT1[name][:, :, :, np.newaxis]
+
                     if MAT[name].shape[:-1] == MAT1[name].shape[:-1]:
                         MAT[name] = np.concatenate((MAT[name], MAT1[name]),
                                                 axis=-1)
