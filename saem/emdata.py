@@ -1368,9 +1368,10 @@ class EMData():
         kwargs.setdefault("vmin", min(np.min(statR), np.min(statI)))
         kwargs.setdefault("vmax", min(np.max(statR), np.max(statI)))
         kwargs.setdefault("cmap", "Spectral_r")
-        norm = Normalize(vmin=kwargs["vmin"], vmax=kwargs["vmax"])
         if kwargs.pop("log", True):
-            norm = LogNorm(vmin=kwargs["vmin"], vmax=kwargs["vmax"])
+            norm = LogNorm(vmin=kwargs.pop("vmin"), vmax=kwargs.pop("vmax"))
+        else:
+            norm = Normalize(vmin=kwargs.pop("vmin"), vmax=kwargs.pop("vmax"))
 
         for i, ri in enumerate([statR, statI]):
             im = ax[i].imshow(ri, norm=norm, **kwargs)
