@@ -53,20 +53,23 @@ class EMData():
         zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
         self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
-
+        # receiver positions (rx and optionally ry and rz)
         self.rx = kwargs.pop("rx", np.array([0.]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
         if isinstance(self.ry, (int, float)):
             self.ry = np.ones_like(self.rx)*self.ry
+
         if isinstance(self.rx, (int, float)):
             self.rx = np.ones_like(self.ry)*self.rx
+
         self.rz = kwargs.pop("rz", np.ones_like(self.rx)*kwargs.pop("alt", 0.))
         if isinstance(self.rz, (int, float)):
             self.rz = np.ones_like(self.rx)*self.rz
+
         self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
         self.cmp = []
         self.cstr = []
-        self.radius = 1
+        self.radius = kwargs.pop("radius", 1)
         self.txAlt = 0 # rather ground altitude
 
     def __repr__(self):
