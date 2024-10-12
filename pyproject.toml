@@ -1,0 +1,19 @@
+[project]
+name = "saem"
+version = "v0.7.0"
+description = "Semi-airborne electromagnetics toolbox"
+dependencies = ["pygimli", "numpy", "matplotlib", "scipy", "pyproj", "empymod"]
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Thomas Günther", email = "thomas@pygimli.org"},
+  {name = "Raphael Rochlitz", email = "raphael.rochlitz@leibniz-liag.de"},
+]
+
+[project.urls]
+Homepage = "https://example.com"
+Documentation = "https://readthedocs.org"
+Repository = "https://github.com/LIAG-S2/SAEM.git"
+
+[tool.setuptools]
+packages = ["saem"]
