@@ -160,7 +160,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
 def underlayBackground(ax, background="BKG", utm=32):
     """Underlay background from any map."""
     if background in ["DOP", "DTK", "MAP"]:
-        underlayBKGMap(ax, mode=background,
+        underlayBKGMap(ax, mode=background, utmzone=utm,
                        uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
     else:
         underlayMap(ax, utm, vendor=background)

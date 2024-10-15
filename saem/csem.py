@@ -54,7 +54,7 @@ class CSEMData(EMData):
             txpos = kwargs["txPos"]
             if isinstance(txpos, str):
                 if txpos.lower().find(".kml") > 0:
-                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos)
+                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos, zone=self.zone)
                 else:
                     self.tx, self.ty, self.tz = np.genfromtxt(
                         txpos, unpack=True, usecols=[0, 1, 2])

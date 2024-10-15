@@ -50,9 +50,9 @@ class EMData():
         self.mode = None  # needs to be done in derived classes
         self.f = kwargs.pop("f", [])
         self.basename = kwargs.pop("basename", "noname")
-        zone = kwargs.pop("zone", 32)
+        self.zone = kwargs.pop("zone", 32)
         self.verbose = kwargs.pop("verbose", True)
-        self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
+        self.utm = pyproj.Proj(proj='utm', zone=self.zone, ellps='WGS84')
         # receiver positions (rx and optionally ry and rz)
         self.rx = kwargs.pop("rx", np.array([0.]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
@@ -440,7 +440,7 @@ class EMData():
                                                    n=nl, log=True)])
 
     def showPositions(self, ax=None, line=None, background=None, org=False,
-                color=None, marker=None, **kwargs):
+                      color=None, marker=None, **kwargs):
         """Show receiver positions."""
         if ax is None:
             _, ax = plt.subplots()
@@ -472,7 +472,7 @@ class EMData():
         ax.set_xlabel("Easting (m) UTM32N")
         ax.set_ylabel("Northing (m) UTM32N")
         if background:
-            underlayBackground(ax, background, self.utm)
+            underlayBackground(ax, background, utm=self.zone)
 
         return ax
 
@@ -537,7 +537,7 @@ class EMData():
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
         if background:
-            underlayBackground(ax, background, self.utm)
+            underlayBackground(ax, background, utm=self.zone)
 
         if "poly" in kwargs and poly is not None:
             poly = kwargs["poly"]
@@ -939,7 +939,7 @@ class EMData():
                 ncmp += 1
 
         if background is not None and kwargs.pop("overlay", False):  # bwc
-            background = "BKG"
+            background = "MAP"
 
         for a in ax.flat:
             a.set_aspect(1.0)
@@ -952,7 +952,7 @@ class EMData():
                     a.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
 
             if background:
-                underlayBackground(a, background, self.utm)
+                underlayBackground(a, background, utm=self.zone)
 
         for i in range(2):
             ax[i, 0].set_ylabel('[m]')
@@ -1085,7 +1085,7 @@ class EMData():
         data = self.getData(line=line, **kwargs)
         data["tx_ids"] = [0]
         DATA = [data]
-        np.savez(fname+".npz",
+        np.savez(fname.replace(".npz", "") + ".npz",
                  tx=[np.column_stack((np.array(self.tx)[::txdir],
                                       np.array(self.ty)[::txdir],
                                       np.array(self.tz)[::txdir]))],
