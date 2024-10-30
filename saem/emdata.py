@@ -539,7 +539,7 @@ class EMData():
         if background:
             underlayBackground(ax, background, utm=self.zone)
 
-        if "poly" in kwargs and poly is not None:
+        if "poly" in kwargs and kwargs["poly"] is not None:
             poly = kwargs["poly"]
             if isinstance(poly, str):  # only a single
                 poly = [readCoordsFromKML(poly)]
