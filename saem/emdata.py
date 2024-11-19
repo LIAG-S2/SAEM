@@ -1164,7 +1164,7 @@ class EMData():
                 plt.close(fig)
                 for i in range(len(self.f)):
                     fig, ax = self.showPatchData(nf=i, figsize=figsize,
-                                                 **kwargs)
+                                                 background=background, **kwargs)
                     fig.savefig(pdf, format='pdf')
                     plt.close(fig)
 
