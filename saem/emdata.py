@@ -363,7 +363,7 @@ class EMData():
         self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None, rInd=None,
-               minTxDist=None, maxTxDist=None, every=None, line=None):
+               minTxDist=None, maxTxDist=None, every=None, line=None, minRxDist=None):
         """Filter data according to frequency and and receiver properties.
 
         Parameters
@@ -422,6 +422,15 @@ class EMData():
             if isinstance(every, int):
                 nInd = nInd[::every]
 
+            if minRxDist is not None:
+                   nInd = [0]
+                   for i in range(1, len(self.rx)):
+                       dist = np.sqrt((self.rx[i] - self.rx[nInd[-1]])**2 + (self.ry[i] - self.ry[nInd[-1]])**2)
+                       if dist >= minRxDist:
+                           nInd.append(i)   
+            if rInd is not None:
+                   nInd = np.delete(np.arange(len(self.rx)), rInd)
+                   
         if rInd is not None:
             nInd = np.delete(np.arange(len(self.rx)), rInd)
 
