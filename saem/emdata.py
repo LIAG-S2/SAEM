@@ -1097,7 +1097,19 @@ class EMData():
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', background=None, **kwargs):
-        """Generate a multi-page pdf file containing all data."""
+        """Generate a multi-page pdf file containing all data.
+        
+        Parameters
+        ----------
+        pdffile : str
+            name of pdf file to create
+        what : str
+            field to choose (DATA, ERR, RESPONSE etc.)
+        mode : str
+            'patchwise', 'linewise', 'linewisemat', 'linefreqwise'
+        background : str
+            underlay background (e.g. 'MAP)
+        """
         what = kwargs.setdefault('what', 'data')
         sw = what.replace("/", "_")
         if mode == 'patchwise':
