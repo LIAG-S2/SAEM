@@ -747,7 +747,7 @@ class CSEMSurvey():
                sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=0,
                make_plots=True, saem_data=None, invmod=None,
                lam=1., lamFactor=0.8, maxIter=21, robustData=False,
-               blockyModel=False, **kwargs):
+               blockyModel=False, start_iter=0, **kwargs):
 
         """Run inversion
 
@@ -810,7 +810,7 @@ class CSEMSurvey():
         # setup fop
         from custEM.inv.inv_utils import MultiFWD
         fop = MultiFWD(invmod, invmesh, saem_data=saem_data, sig_bg=sig_bg,
-                       n_cores=n_cores, p_fwd=p_fwd)
+                       n_cores=n_cores, p_fwd=p_fwd, start_iter=start_iter)
         # fop.setRegionProperties("*", limits=[1e-4, 1])  # =>inv.setReg
         # set up inversion operator
         inv = pg.Inversion(fop=fop)
