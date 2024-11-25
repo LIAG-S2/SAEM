@@ -331,7 +331,8 @@ class CSEMData(EMData):
         **kwargs are passed to the show function
         """
         cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
-        self.createConfig(fullTx=kwargs.pop("fullTx", False))
+        self.createConfig(fullTx=kwargs.pop("fullTx", False),
+                          loop=kwargs.pop("loop", False))
         rho = np.atleast_1d(rho)
         thk = np.atleast_1d(thk)
         if len(thk) > 0:
