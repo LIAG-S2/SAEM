@@ -1361,6 +1361,7 @@ class EMData():
         mR = np.nanmean(mis.real**2, axis=(0, 1))
         mI = np.nanmean(mis.imag**2, axis=(0, 1))
         kwargs.setdefault('symlog', False)
+        kwargs.setdefault('log', True)
         return self.showField((mR+mI)/2, **kwargs)
 
     def showMisfitStats(self, what="wmisfit", **kwargs):
@@ -1392,7 +1393,7 @@ class EMData():
         statI = np.nanmean(mis.imag**2, axis=2)
         _, ax = plt.subplots(nrows=2, sharex=True, sharey=True)
         kwargs.setdefault("vmin", min(np.min(statR), np.min(statI)))
-        kwargs.setdefault("vmax", min(np.max(statR), np.max(statI)))
+        kwargs.setdefault("vmax", max(np.max(statR), np.max(statI)))
         kwargs.setdefault("cmap", "Spectral_r")
         if kwargs.pop("log", True):
             norm = LogNorm(vmin=kwargs.pop("vmin"), vmax=kwargs.pop("vmax"))
