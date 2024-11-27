@@ -194,22 +194,28 @@ class EMData():
         if show:
             self.showPositions()
 
-    def createConfig(self, fullTx=False):
+    def createConfig(self, fullTx=False, loop=False):
         """Create EMPYMOD input argument configuration."""
         self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
                     'verb': 1}
-        if fullTx:  # sum up over segments
+        if fullTx or loop:  # sum up over segments
             self.cfg['src'] = [self.tx[:-1], self.tx[1:],
                                self.ty[:-1], self.ty[1:],
                                -0.1, -0.1]
+            if loop:
+                self.cfg['src'][0] = np.append(self.cfg['src'][0], self.tx[-1])
+                self.cfg['src'][1] = np.append(self.cfg['src'][1], self.tx[0])
+                self.cfg['src'][2] = np.append(self.cfg['src'][2], self.ty[-1])
+                self.cfg['src'][3] = np.append(self.cfg['src'][3], self.ty[0])                      
+                      
         else:  # only first&last point (quick)
             self.cfg['src'] = [self.tx[0], self.tx[-1],
                                self.ty[0], self.ty[-1],
                                -0.1, -0.1]
-
+            
     def rotateBack(self):
         """Rotate coordinate system back to previously stored origin/angle."""
         self.tx, self.ty = self.A.T.dot(np.array([self.tx, self.ty]))
