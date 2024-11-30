@@ -1116,7 +1116,19 @@ class EMData():
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', background=None, **kwargs):
-        """Generate a multi-page pdf file containing all data."""
+        """Generate a multi-page pdf file containing all data.
+        
+        Parameters
+        ----------
+        pdffile : str
+            name of pdf file to create
+        what : str
+            field to choose (DATA, ERR, RESPONSE etc.)
+        mode : str
+            'patchwise', 'linewise', 'linewisemat', 'linefreqwise'
+        background : str
+            underlay background (e.g. 'MAP)
+        """
         what = kwargs.setdefault('what', 'data')
         sw = what.replace("/", "_")
         if mode == 'patchwise':
@@ -1183,7 +1195,7 @@ class EMData():
                 plt.close(fig)
                 for i in range(len(self.f)):
                     fig, ax = self.showPatchData(nf=i, figsize=figsize,
-                                                 **kwargs)
+                                                 background=background, **kwargs)
                     fig.savefig(pdf, format='pdf')
                     plt.close(fig)
 
@@ -1323,7 +1335,7 @@ class EMData():
             response = respR + respI*1j
 
         sizes = [sum(self.cmp), self.nF, self.nRx]
-        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
+        RESP = np.ones(np.prod(sizes), dtype=complex) * np.nan
 
         try:
             RESP[self.getIndices()] = response
@@ -1332,7 +1344,7 @@ class EMData():
 
         RESP = np.reshape(RESP, sizes)
         self.RESP = np.ones((len(self.cstr), self.nF, self.nRx),
-                            dtype=np.complex) * np.nan
+                            dtype=complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
 
     def showSpatialMisfit(self, what="wmisfit", **kwargs):
@@ -1357,6 +1369,7 @@ class EMData():
         mR = np.nanmean(mis.real**2, axis=(0, 1))
         mI = np.nanmean(mis.imag**2, axis=(0, 1))
         kwargs.setdefault('symlog', False)
+        kwargs.setdefault('log', True)
         return self.showField((mR+mI)/2, **kwargs)
 
     def showMisfitStats(self, what="wmisfit", **kwargs):
@@ -1387,8 +1400,8 @@ class EMData():
         statR = np.nanmean(mis.real**2, axis=2)
         statI = np.nanmean(mis.imag**2, axis=2)
         _, ax = plt.subplots(nrows=2, sharex=True, sharey=True)
-        kwargs.setdefault("vmin", min(np.min(statR), np.min(statI)))
-        kwargs.setdefault("vmax", min(np.max(statR), np.max(statI)))
+        kwargs.setdefault("vmin", min(np.nanmin(statR), np.nanmin(statI)))
+        kwargs.setdefault("vmax", max(np.nanmax(statR), np.nanmax(statI)))
         kwargs.setdefault("cmap", "Spectral_r")
         if kwargs.pop("log", True):
             norm = LogNorm(vmin=kwargs.pop("vmin"), vmax=kwargs.pop("vmax"))

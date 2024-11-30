@@ -227,6 +227,11 @@ class CSEMSurvey():
             if mask:
                 p.deactivateNoisyData()
 
+    def deactivateNoisyData(self, *args, **kwargs):
+        """Mask out data not meeting the criteria."""
+        for p in self.patches:
+            p.deactivateNoisyData(*args, **kwargs)
+
     def getData(self, line=None, **kwargs):
         """Gather data from individual patches."""
         DATA = []
