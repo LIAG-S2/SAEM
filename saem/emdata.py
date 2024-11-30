@@ -238,7 +238,7 @@ class EMData():
             # self.ERR[0, i, :] = Bxy[0, :]
             # self.ERR[1, i, :] = Bxy[1, :]
 
-    def rotate(self, ang=None, line=None, origin=None):
+    def rotate(self, ang=None, line=None, origin=None, rotateData=True):
         """Rotate positions and fields to a local coordinate system.
 
         Rotate the lines
@@ -278,16 +278,17 @@ class EMData():
             self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
             # print('Need to fix field rotation of X/Y components')
-            for i in range(len(self.f)):
-                Bxy = self.A.dot(np.vstack((self.DATA[0, i, :],
-                                            self.DATA[1, i, :])))
-                self.DATA[0, i, :] = Bxy[0, :]
-                self.DATA[1, i, :] = Bxy[1, :]
-                "Need to correct Error rotation!"
-                # Errxy = self.A.dot(np.vstack((self.ERR[0, i, :],
-                #                               self.ERR[1, i, :])))
-                # self.ERR[0, i, :] = Errxy[0, :]
-                # self.ERR[1, i, :] = Errxy[1, :]
+            if rotateData:
+                for i in range(len(self.f)):
+                    Bxy = self.A.dot(np.vstack((self.DATA[0, i, :],
+												self.DATA[1, i, :])))
+                    self.DATA[0, i, :] = Bxy[0, :]
+                    self.DATA[1, i, :] = Bxy[1, :]
+                    #"Need to correct Error rotation!"
+	                # Errxy = self.A.dot(np.vstack((self.ERR[0, i, :],
+                    #                               self.ERR[1, i, :])))
+                    # self.ERR[0, i, :] = Errxy[0, :]
+                    # self.ERR[1, i, :] = Errxy[1, :]
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
@@ -571,7 +572,7 @@ class EMData():
 
         return ax, cb
 
-    def showLineFreq(self, line=None, nf=0, ax=None, **kwargs):
+    def showLineFreq(self, line=None, nf=0, ax=None, lww=0., **kwargs):
         """Show data of a line as pcolor.
 
         Parameters
@@ -600,7 +601,7 @@ class EMData():
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
                                    squeeze=False, sharex=True,
-                                   sharey=not kw["amphi"],
+                                   sharey=False,
                                    figsize=kwargs.pop("figsize", (12, 8)))
         else:
             fig = ax.flat[0].figure
@@ -631,13 +632,13 @@ class EMData():
                         ax[0, ncmp].errorbar(
                             x, np.real(subset),
                             yerr=[errbar[ci].real, errbar[ci].real],
-                            marker='o', lw=0., barsabove=True,
+                            marker='o', lw=lww, barsabove=True,
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                         ax[1, ncmp].errorbar(
                             x, np.imag(subset),
                             yerr=[errbar[ci].imag, errbar[ci].imag],
-                            marker='o', lw=0., barsabove=True,
+                            marker='o', lw=lww, barsabove=True,
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                     else:
@@ -929,6 +930,7 @@ class EMData():
                 subset = DATA[ci, nf, :]
                 if kw["amphi"]:
                     kw["cmap"] = 'Spectral_r'
+                    kw["cmap"] = 'magma_r'
                     _, cb1 = plotSymbols(self.rx, self.ry, np.abs(subset),
                                 ax=ax[0, ncmp], mode="amp", **kw)
                     _, cb2 = plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),

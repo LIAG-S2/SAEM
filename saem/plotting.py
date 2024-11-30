@@ -136,6 +136,8 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         pc.set_array(np.abs(w))
         ax.plot(x[w < 0], y[w < 0], 'k_', markersize=1.)
+    # for i in range(len(x)):
+    #     ax.text(x[i], y[i], str(i))
 
     ax.add_collection(pc)
     if log:

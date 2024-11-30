@@ -96,6 +96,7 @@ class MTData(EMData):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
             self.loadIPHTMatFile(filename)
+            #self.loadWWUMatFile(filename)
 
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
@@ -162,12 +163,14 @@ class MTData(EMData):
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
+        dummy = None
         if len([var for var in MAT.keys() if "_" not in var]) == 1:
             MAT = MAT[[var for var in MAT.keys() if "_" not in var][0]][0]
             MAT1 = dict()
 
-            for i, temp in enumerate(MAT):
+            for i, temp in enumerate(MAT):                
                 for name in MAT.dtype.names:
+                    print(name, i)
                     if name == "nr":
                         temp[name] = np.ones(temp["rx"].shape[-1],
                                               dtype=int) * temp["nr"][0][0]
@@ -176,8 +179,18 @@ class MTData(EMData):
                         if i == 0:
                             MAT1[name] = temp[name]
                         else:
-                            MAT1[name] = np.concatenate((MAT1[name],
-                                                         temp[name]), axis=-1)
+                            # catch bug from Annekes Matfile 1 extra Rx base
+                            try:
+                                MAT1[name] = np.concatenate((MAT1[name],
+                                                             temp[name]),
+                                                            axis=-1)
+                            except ValueError:
+                                dummy = True
+                                proxy = np.zeros((6, temp[name].shape[1], 1), dtype=complex)
+                                proxy[:2, :, : ] = temp[name].reshape(2, temp[name].shape[1], 1)
+                                MAT1[name] = np.concatenate((MAT1[name],
+                                                             proxy),
+                                                            axis=-1)                                
                 if self.firstonly:
                     break
 
