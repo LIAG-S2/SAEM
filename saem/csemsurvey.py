@@ -672,7 +672,11 @@ class CSEMSurvey():
         tetgen_quality : float [1.3]
             Tetgen mesh quality. The default is 1.3
         check_pos: bool [True]
-            Show Rx and Tx postions before calling TetGen
+            Show Rx and Tx positions before calling TetGen
+        frame/x_frame/y_frame/z_frame : float [1000]
+            size of outer (coarser) inversion region
+        dim/x_dim/y_dim/z_dim : float [rx/tx extension*5]
+            size of the domain in all or in individual dimensions
         **kwargs : dict
             Other keyword arguments that can be passed to set meshing options
         """
@@ -733,10 +737,7 @@ class CSEMSurvey():
                        )
         txs = [mu.refine_path(tx, length=tx_refine) for tx in self.DDict['tx']]
         M.build_surface(insert_line_tx=txs)
-        invmeshkw = {}
-        invmeshkw['x_frame'] = frame
-        invmeshkw['y_frame'] = frame
-        invmeshkw['z_frame'] = frame
+        invmeshkw = dict(x_frame=frame, y_frame=frame, z_frame=frame)
         
         M.add_inv_domains(-depth, invpoly, cell_size=inv_cz, **invmeshkw)
         M.build_halfspace_mesh()
