@@ -507,7 +507,7 @@ class MTData(EMData):
         else:
             ind = np.nonzero(self.line == line)[0]
 
-        allcmp = ['X', 'Y', 'Z']
+        allcmp = ['Zxx', 'Zxy', 'Zyx', 'Zyy', 'Tx', 'Ty']
         meany = 0  # np.median(self.ry[ind]) # needed anymore?
         ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
         rxpos = np.round(np.column_stack((self.rx[ind], ypos,
@@ -528,7 +528,7 @@ class MTData(EMData):
                 dataI[0, kC, :, :] = self.DATA[iC][:, ind].imag
                 errorR[0, kC, :, :] = self.ERR[iC][:, ind].real
                 errorI[0, kC, :, :] = self.ERR[iC][:, ind].imag
-                Cmp.append('B'+allcmp[iC].lower())
+                Cmp.append(allcmp[iC])
                 kC += 1
 
         # error estimation

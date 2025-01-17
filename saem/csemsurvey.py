@@ -265,6 +265,8 @@ class CSEMSurvey():
 
         txs = [np.column_stack((p.tx, p.ty, p.ty*0)) for p in self.patches]
         DATA, lines = self.getData(line=line, **kwargs)
+        print(DATA[0]["dataR"].shape)
+        print(DATA[0]["dataR"])
         self.DDict = {'tx' : txs,
                       'freqs' : self.patches[0].f,
                       'DATA' : DATA,
