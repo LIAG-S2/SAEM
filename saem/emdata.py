@@ -209,13 +209,13 @@ class EMData():
                 self.cfg['src'][0] = np.append(self.cfg['src'][0], self.tx[-1])
                 self.cfg['src'][1] = np.append(self.cfg['src'][1], self.tx[0])
                 self.cfg['src'][2] = np.append(self.cfg['src'][2], self.ty[-1])
-                self.cfg['src'][3] = np.append(self.cfg['src'][3], self.ty[0])                      
-                      
+                self.cfg['src'][3] = np.append(self.cfg['src'][3], self.ty[0])
+
         else:  # only first&last point (quick)
             self.cfg['src'] = [self.tx[0], self.tx[-1],
                                self.ty[0], self.ty[-1],
                                -0.1, -0.1]
-            
+
     def rotateBack(self):
         """Rotate coordinate system back to previously stored origin/angle."""
         self.tx, self.ty = self.A.T.dot(np.array([self.tx, self.ty]))
@@ -312,7 +312,7 @@ class EMData():
         self.rx -= origin[0]
         self.ry -= origin[1]
         self.origin = origin
-        
+
     def revertTx(self):
         """Revert direction of Tx Path
         """
@@ -428,12 +428,12 @@ class EMData():
             ###
             if minRxDist is not None:
                 nInd = [0]
-                
+
                 for i in range(1, len(self.rx)):
                     dist = np.sqrt((self.rx[i] - self.rx[nInd[-1]])**2 + (self.ry[i] - self.ry[nInd[-1]])**2)
-                    
+
                     if dist >= minRxDist:
-                        nInd.append(i)   
+                        nInd.append(i)
             if rInd is not None:
                 nInd = np.delete(np.arange(len(self.rx)), rInd)
             ###
@@ -1111,9 +1111,6 @@ class EMData():
         data = self.getData(line=line, **kwargs)
         data["tx_ids"] = [0]
         DATA = [data]
-        print(np.column_stack((np.array(self.tx)[::txdir],
-                             np.array(self.ty)[::txdir],
-                             np.array(self.tz)[::txdir])))
         np.savez(fname.replace(".npz", "") + ".npz",
                  tx=[np.column_stack((np.array(self.tx)[::txdir],
                                       np.array(self.ty)[::txdir],
@@ -1127,7 +1124,7 @@ class EMData():
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
                         mode='patchwise', background=None, **kwargs):
         """Generate a multi-page pdf file containing all data.
-        
+
         Parameters
         ----------
         pdffile : str

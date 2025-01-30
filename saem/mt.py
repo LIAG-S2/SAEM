@@ -83,9 +83,9 @@ class MTData(EMData):
             self.cstr = ['Zxx', 'Zyy']
         elif self.mode == 'Zo':
             self.cstr = ['Zxy', 'Zyx']
-        elif self.mode == 'TM'
+        elif self.mode == 'TM':
             self.cstr = ['Tx', 'Ty', 'Mxx', 'Mxy', 'Myx', 'Myy']
-        elif self.mode == 'M'
+        elif self.mode == 'M':
             self.cstr = ['Mxx', 'Mxy', 'Myx', 'Myy']
         else:
             print('Error! Choose correct mode for MTData initialization.')
