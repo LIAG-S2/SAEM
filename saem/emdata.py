@@ -312,6 +312,13 @@ class EMData():
         self.rx -= origin[0]
         self.ry -= origin[1]
         self.origin = origin
+        
+    def revertTx(self):
+        """Revert direction of Tx Path
+        """
+        self.tx = self.tx[::-1]
+        self.ty = self.ty[::-1]
+        self.tz = self.tz[::-1]
 
     def detectLines(self, mode=None, axis='x', show=False):
         """Split data in lines for line-wise processing.
@@ -1104,6 +1111,9 @@ class EMData():
         data = self.getData(line=line, **kwargs)
         data["tx_ids"] = [0]
         DATA = [data]
+        print(np.column_stack((np.array(self.tx)[::txdir],
+                             np.array(self.ty)[::txdir],
+                             np.array(self.tz)[::txdir])))
         np.savez(fname.replace(".npz", "") + ".npz",
                  tx=[np.column_stack((np.array(self.tx)[::txdir],
                                       np.array(self.ty)[::txdir],

@@ -83,6 +83,10 @@ class MTData(EMData):
             self.cstr = ['Zxx', 'Zyy']
         elif self.mode == 'Zo':
             self.cstr = ['Zxy', 'Zyx']
+        elif self.mode == 'TM'
+            self.cstr = ['Tx', 'Ty', 'Mxx', 'Mxy', 'Myx', 'Myy']
+        elif self.mode == 'M'
+            self.cstr = ['Mxx', 'Mxy', 'Myx', 'Myy']
         else:
             print('Error! Choose correct mode for MTData initialization.')
             raise SystemExit
@@ -168,7 +172,7 @@ class MTData(EMData):
             MAT = MAT[[var for var in MAT.keys() if "_" not in var][0]][0]
             MAT1 = dict()
 
-            for i, temp in enumerate(MAT):                
+            for i, temp in enumerate(MAT):
                 for name in MAT.dtype.names:
                     print(name, i)
                     if name == "nr":
@@ -190,7 +194,7 @@ class MTData(EMData):
                                 proxy[:2, :, : ] = temp[name].reshape(2, temp[name].shape[1], 1)
                                 MAT1[name] = np.concatenate((MAT1[name],
                                                              proxy),
-                                                            axis=-1)                                
+                                                            axis=-1)
                 if self.firstonly:
                     break
 
@@ -569,13 +573,13 @@ class MTData(EMData):
             return
 
         data = self.getData(line=line, **kwargs)
-        data["tx_ids"] = [0]
+        data["tx_ids"] = [0, 1]
         DATA = [data]
-        meany = 0  # np.median(self.ry[ind]) # needed anymore?
+
         np.savez(fname+".npz",
-                 tx=[np.column_stack((np.array(self.tx)[::txdir],
-                                      np.array(self.ty)[::txdir]-meany,
-                                      np.array(self.tx)*0))],
+                 tx=[np.column_stack((np.array(self.tx),
+                                      np.array(self.ty),
+                                      np.array(self.tz)))],
                  freqs=self.f,
                  cmp=cmp,
                  DATA=DATA,

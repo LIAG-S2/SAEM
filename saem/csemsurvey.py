@@ -204,6 +204,11 @@ class CSEMSurvey():
         for p in self.patches:
             p.setOrigin(*args, **kwargs)
 
+    def revertTx(self, *args, **kwargs):
+        """Set the same origin for all patches (reshifting if existing)."""
+        for p in self.patches:
+            p.revertTx(*args, **kwargs)
+
     def rotate(self, *args, **kwargs):
         """SRotate all patches."""
         for p in self.patches:
@@ -265,8 +270,6 @@ class CSEMSurvey():
 
         txs = [np.column_stack((p.tx, p.ty, p.ty*0)) for p in self.patches]
         DATA, lines = self.getData(line=line, **kwargs)
-        print(DATA[0]["dataR"].shape)
-        print(DATA[0]["dataR"])
         self.DDict = {'tx' : txs,
                       'freqs' : self.patches[0].f,
                       'DATA' : DATA,
