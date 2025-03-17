@@ -174,7 +174,6 @@ class MTData(EMData):
 
             for i, temp in enumerate(MAT):
                 for name in MAT.dtype.names:
-                    print(name, i)
                     if name == "nr":
                         temp[name] = np.ones(temp["rx"].shape[-1],
                                               dtype=int) * temp["nr"][0][0]
@@ -189,12 +188,17 @@ class MTData(EMData):
                                                              temp[name]),
                                                             axis=-1)
                             except ValueError:
-                                dummy = True
                                 proxy = np.zeros((6, temp[name].shape[1], 1), dtype=complex)
                                 proxy[:2, :, : ] = temp[name].reshape(2, temp[name].shape[1], 1)
-                                MAT1[name] = np.concatenate((MAT1[name],
-                                                             proxy),
-                                                            axis=-1)
+                                try: 
+                                    MAT1[name] = np.concatenate((MAT1[name],
+                                                                 proxy),
+                                                                axis=-1)
+                                except:
+                                    proxy = np.zeros((2, temp[name].shape[1], 1), dtype=complex)
+                                    MAT1[name] = np.concatenate((MAT1[name],
+                                                                 proxy),
+                                                                axis=-1)
                 if self.firstonly:
                     break
 
