@@ -177,11 +177,12 @@ class CSEMData(EMData):
         self.ERR = np.zeros((3, self.nF, self.nRx), dtype=complex)
         try:  # this is rubbish!
             cmp = ALL["DATA"][nr]["cmp"]
-            for cstr in cmp:
+            for i, cstr in enumerate(cmp):
                 try:
                     idx = self.cstr.index(cstr)
                     self.cmp[idx] = 1
                 except ValueError:
+                    idx = i
                     self.cmp[idx] = 0
 
         except Exception:

@@ -683,12 +683,12 @@ class CSEMSurvey():
             invmesh = self.basename + '_mesh'
 
         x0, y0 = 0, 0
+        allrx = np.vstack([d["rx"][:, :2] for d in self.DDict["DATA"]])
+        alltx = np.vstack(self.DDict["tx"])[:, :2]
+        points = np.vstack([allrx, alltx])
+        x0 = np.median(allrx[:, 0])
+        y0 = np.median(allrx[:, 1])
         if isinstance(invpoly, str):
-            allrx = np.vstack([d["rx"][:, :2] for d in self.DDict["DATA"]])
-            alltx = np.vstack(self.DDict["tx"])[:, :2]
-            points = np.vstack([allrx, alltx])
-            x0 = np.median(allrx[:, 0])
-            y0 = np.median(allrx[:, 1])
             if invpoly == 'Qhull':
                 points -= [x0, y0]
                 ch = ConvexHull(points)
@@ -737,7 +737,7 @@ class CSEMSurvey():
         invmeshkw['x_frame'] = frame
         invmeshkw['y_frame'] = frame
         invmeshkw['z_frame'] = frame
-
+        
         M.add_inv_domains(-depth, invpoly, cell_size=inv_cz, **invmeshkw)
         M.build_halfspace_mesh()
 

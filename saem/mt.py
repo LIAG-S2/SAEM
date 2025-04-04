@@ -190,7 +190,7 @@ class MTData(EMData):
                             except ValueError:
                                 proxy = np.zeros((6, temp[name].shape[1], 1), dtype=complex)
                                 proxy[:2, :, : ] = temp[name].reshape(2, temp[name].shape[1], 1)
-                                try: 
+                                try:
                                     MAT1[name] = np.concatenate((MAT1[name],
                                                                  proxy),
                                                                 axis=-1)
