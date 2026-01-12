@@ -136,6 +136,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         pc.set_array(np.abs(w))
         ax.plot(x[w < 0], y[w < 0], 'k_', markersize=1.)
+    # add id numbers 
     # for i in range(len(x)):
     #     ax.text(x[i], y[i], str(i))
 

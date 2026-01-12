@@ -318,15 +318,25 @@ class CSEMData(EMData):
 
         self.DATA = np.stack((-DX, -DY, DZ))
         TMP = np.squeeze(MAT["tfs_se"])
+
         if len(TMP.shape) != 3:
             TMP2 = np.zeros((3, *TMP.shape), dtype=complex)
             TMP2[2, :, :] = TMP
             TMP = TMP2
 
-        if TMP.dtype is complex:
-            self.ERR = TMP
-        else:
-            self.ERR = TMP * (1+1j)
+        print('HACKED WWU MAT import ERR')
+        self.ERR = TMP
+        self.ERR.real = np.abs(self.ERR.real)
+        self.ERR.imag = np.abs(self.ERR.imag)     
+        
+        # if TMP.dtype is complex:
+        #     self.ERR = TMP
+        #     self.ERR.real = np.abs(self.ERR.real)
+        #     self.ERR.imag = np.abs(self.ERR.imag)     
+        #     print(np.min(self.ERR.real))
+        #     print(np.max(self.ERR.real))
+        # else:
+        #     self.ERR = TMP * (1+1j)
 
         self.alt = self.rz - self.txAlt
         return True
