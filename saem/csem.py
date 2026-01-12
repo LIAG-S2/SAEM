@@ -1,9 +1,11 @@
 """Controlled-source electromagnetic (CSEM) data class."""
 from glob import glob
+
 import numpy as np
 from scipy.io import loadmat
-
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
 import pygimli as pg
 from pygimli.viewer.mpl import drawModel1D
 from pygimli.viewer.mpl import showStitchedModels
@@ -12,13 +14,13 @@ from pygimli.core.math import symlog
 from .plotting import showSounding
 from .emdata import EMData
 from .modelling import fopSAEM, bipole
-from .tools import distToTx
+from .tools import distToTx, readCoordsFromKML
 
 
 class CSEMData(EMData):
     """Class for CSEM frequency-domain data patch (single Tx)."""
 
-    def __init__(self, datafile=None, mode='B', **kwargs):
+    def __init__(self, datafile=None, **kwargs):
         """Initialize CSEM data class.
 
         Parameters
@@ -33,6 +35,10 @@ class CSEMData(EMData):
             transmitter position as polygone
         rx/ry/rz : iterable
             receiver positions
+        tx/ty/tz : iterable
+            transmitter positions, alternatively
+        txPos : str|array
+            2d-array, text or kml filename to read from
         f : iterable
             frequencies
         cmp : [int, int, int]
@@ -40,18 +46,43 @@ class CSEMData(EMData):
         alt : float
             flight altitude
         """
-        super().__init__()
-
-        self.mode = mode
-        self.tx = np.array([0., 0.])
-        self.ty = np.array([0., 0.])
-        self.tz = np.array([0., 0.])
-
-        self.updateDefaults(**kwargs)
+        super().__init__(**kwargs)
+        self.mode = kwargs.pop("mode", "B")
         self.createDataArray()
         self.loop = kwargs.pop("loop", False)
+        if "txPos" in kwargs:
+            txpos = kwargs["txPos"]
+            if isinstance(txpos, str):
+                if txpos.lower().find(".kml") > 0:
+                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos, zone=self.zone)
+                else:
+                    self.tx, self.ty, self.tz = np.genfromtxt(
+                        txpos, unpack=True, usecols=[0, 1, 2])
+            else:  # take it directly
+                txpos = np.array(txpos)
+                if len(txpos) > 3:
+                    txpos = txpos.T
+
+                if len(txpos) == 2:
+                    self.tx, self.ty = txpos
+                    self.tz = np.zeros_like(self.tx)
+                elif len(txpos) == 3:
+                    self.tx, self.ty, self.tz = txpos
+                else:
+                    raise IndexError("Dimensions not matching")
+        else:
+            self.tx = np.array(kwargs.pop("tx", [0., 0.]))
+            self.ty = np.array(kwargs.pop("ty", np.zeros_like(self.tx)))
+            self.tz = np.array(kwargs.pop("tz", np.zeros_like(self.tx)))
+            if isinstance(self.ty, (int, float)):
+                self.ty = np.ones_like(self.tx)*self.ty
+            if isinstance(self.tx, (int, float)):
+                self.tx = np.ones_like(self.ty)*self.tx
+            if isinstance(self.tz, (int, float)):
+                self.tz = np.ones_like(self.tx)*self.tz
+
         self.txAlt = kwargs.pop("txalt", 0.0)
-        self.alt = self.rz - self.txAlt
+        self.alt = self.rz - self.txAlt  # better create only on demand?
 
         if datafile is not None:
             self.loadData(datafile)
@@ -112,7 +143,7 @@ class CSEMData(EMData):
         if new.ty is not None:
             assert np.allclose(self.ty, new.ty), "Tx(y) not matching!"
         if new.f is not None:
-            assert np.allclose(self.f, new.f)
+            assert np.allclose(self.f, new.f, rtol=0.01), "frequencies differ!"
         for attr in ["rx", "ry", "rz", "line", "alt",
                      'DATA', 'ERR', 'RESP', 'PRIM']:
             one = getattr(self, attr)
@@ -142,16 +173,16 @@ class CSEMData(EMData):
         if 'line' in ALL:
             self.line = ALL["line"]
 
-        self.DATAX = np.zeros((self.nF, self.nRx), dtype=complex)
-        self.DATAY = np.zeros_like(self.DATAX)
-        self.DATAZ = np.zeros_like(self.DATAX)
-        try:
+        self.DATA = np.zeros((3, self.nF, self.nRx), dtype=complex)
+        self.ERR = np.zeros((3, self.nF, self.nRx), dtype=complex)
+        try:  # this is rubbish!
             cmp = ALL["DATA"][nr]["cmp"]
-            for cstr in cmp:
+            for i, cstr in enumerate(cmp):
                 try:
                     idx = self.cstr.index(cstr)
                     self.cmp[idx] = 1
                 except ValueError:
+                    idx = i
                     self.cmp[idx] = 0
 
         except Exception:
@@ -160,18 +191,12 @@ class CSEMData(EMData):
             self.cmp = [np.any(getattr(self, "DATA"+cc))
                         for cc in ["X", "Y", "Z"]]
 
-        self.ERRX = np.ones_like(self.DATAX)
-        self.ERRY = np.ones_like(self.DATAY)
-        self.ERRZ = np.ones_like(self.DATAZ)
         for ic, cmp in enumerate(data["cmp"]):
-            setattr(self, "DATA"+cmp[1].upper(),
-                    data["dataR"][0, ic, :, :] +
-                    data["dataI"][0, ic, :, :] * 1j)
-            setattr(self, "ERR"+cmp[1].upper(),
-                    data["errorR"][0, ic, :, :] +
-                    data["errorI"][0, ic, :, :] * 1j)
-        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
-        self.ERR = np.stack([self.ERRX, self.ERRY, self.ERRZ])
+            n = "xyz".find(cmp[-1])
+            self.DATA[n] = data["dataR"][0, ic, :, :] + \
+                data["dataI"][0, ic, :, :] * 1j
+            self.ERR[n] = data["errorR"][0, ic, :, :] + \
+                data["errorI"][0, ic, :, :] * 1j
 
     def loadEmteresMatFile(self, filename):
         """Load data from mat file (WWU Muenster processing)."""
@@ -201,13 +226,13 @@ class CSEMData(EMData):
 
         self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
         self.f = np.squeeze(MAT["f"]) * 1.0
-        self.DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
-        self.DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
-        self.DATAY *= -1  # unless changed in the processing scripts
-        self.DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
+        DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
+        DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
+        DATAY *= -1  # unless changed in the processing scripts
+        DATAZ = MAT["ampz"] * np.exp(MAT["phiz"]*np.pi/180*1j)
         self.rz = MAT["alt"][0]
         self.alt = self.rz - self.txAlt
-        self.DATA = np.stack([self.DATAX, self.DATAY, self.DATAZ])
+        self.DATA = np.stack([DATAX, DATAY, DATAZ])
         return True
 
     def loadWWUMatFile(self, filename):
@@ -223,6 +248,10 @@ class CSEMData(EMData):
         #     MAT = ALL["data"][0][0]
         MAT = loadmat(filename)["ztfs"][0][0]
         MAT["line"] = np.ones(MAT["xy"].shape[-1], dtype=int)
+        for name in ["tfs", "tfs_se"]:
+            if len(MAT[name].shape) < 4:  # catch single-point files
+                MAT[name] = MAT[name][:, :, :, np.newaxis]
+
         line = 1
         if len(filenames) > 1:
             print("read "+filename)
@@ -236,12 +265,37 @@ class CSEMData(EMData):
                     assert len(MAT[name]) == len(MAT1[name]), "nFreqs no match"
                     assert np.allclose(MAT[name], MAT1[name]), "freqs no match"
                 else:
-                    MAT[name] = np.concatenate((MAT[name], MAT1[name]),
-                                               axis=-1)
-        self.MAT = MAT
+                    # catch single-point files
+                    if name.startswith("tfs") and len(MAT1[name].shape) < 4:
+                        MAT1[name] = MAT1[name][:, :, :, np.newaxis]
 
+                    if MAT[name].shape[:-1] == MAT1[name].shape[:-1]:
+                        MAT[name] = np.concatenate((MAT[name], MAT1[name]),
+                                                axis=-1)
+                    else:
+                        print("field not matching:!", name)
+
+        self.MAT = MAT
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
-        self.ry, self.rx = MAT["xy"]
+        
+        # # fix does not work as supposed 
+        # if "lla" in MAT.dtype.names:
+        #     # import utm
+        #     # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
+        #     self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
+        #     self.rz = MAT["lla"][2]
+        # else:
+        #     self.ry, self.rx = MAT["xy"]  # can be wrong
+        #     if "topo" in MAT.dtype.names:
+        #         self.rz = MAT["topo"][0]
+        #     else:
+        #         raise Exception("Could not determine altitude!")
+        
+        # using old version from June 2024
+        self.ry, self.rx = MAT["xy"]  # can be wrong
+        # import utm
+        # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
+        # self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
 
         # if "topo" in MAT.dtype.names:
         #     self.rz = MAT["topo"][0]
@@ -293,7 +347,8 @@ class CSEMData(EMData):
         **kwargs are passed to the show function
         """
         cmp = [1, 1, 1]  # cmp = kwargs.pop("cmp", self.cmp)
-        self.createConfig(fullTx=kwargs.pop("fullTx", False))
+        self.createConfig(fullTx=kwargs.pop("fullTx", False),
+                          loop=kwargs.pop("loop", False))
         rho = np.atleast_1d(rho)
         thk = np.atleast_1d(thk)
         if len(thk) > 0:
@@ -325,12 +380,12 @@ class CSEMData(EMData):
         """Compute primary fields."""
         cfg = dict(self.cfg)
         fak = 4e-7 * np.pi * 1e9  # H->B and T in nT
+        self.alt = self.rz - np.mean(self.tz)
         cfg["rec"] = [self.rx, self.ry, self.alt, 0, 0]  # x
         cfg["freqtime"] = self.f
         cfg["xdirect"] = True
         cfg["res"] = [2e14]
         cfg["depth"] = []
-        print(cfg)
         pfx = bipole(**cfg).real * fak
         cfg["rec"][3:5] = [90, 0]  # y
         pfy = bipole(**cfg).real * fak
@@ -399,7 +454,7 @@ class CSEMData(EMData):
             fig, ax = plt.subplots()
             drawModel1D(ax, np.diff(self.depth), self.model, color="blue",
                         plot='semilogx', label="inverted")
-            ax = self.showSounding(#amphi=False,
+            ax = self.showSounding(amphi=False,
                                    response=self.response1d)
 
         return self.model
@@ -435,6 +490,21 @@ class CSEMData(EMData):
 
         np.savez("models.npz", self.MODELS, self.xLine)
         self.showSection()
+
+    def generateModelPDF(self, pdffile=None, **kwargs):
+        """Generate a PDF of all models."""
+        dep = self.depth.copy()
+        dep[:-1] += np.diff(self.depth) / 2
+        pdffile = pdffile or self.basename + "-models5.pdf"
+        kwargs.setdefault('alim', [5, 5000])
+        kwargs.setdefault('log', True)
+        with PdfPages(pdffile) as pdf:
+            fig, ax = plt.subplots()
+            for i in range(self.allModels.shape[1]):
+                self.showField(self.allModels[:, i], ax=ax, **kwargs)
+                ax.set_title('z = {:.1f}'.format(dep[i]))
+                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
+                ax.cla()
 
     def showSection(self, **kwargs):
         """Show all results along a line."""
@@ -497,41 +567,32 @@ class CSEMData(EMData):
                 respIm = np.reshape(respIm, (sum(cmp), -1))
 
         ncmp = 0
-        bl = kwargs.pop("baselabel", "")
-        noc = "color" not in kwargs
+        amphi = kwargs.pop("amphi", True)
         for i in range(3):
             if cmp[i] > 0:
-                # data = getattr(self, "data"+allcmp[i].upper())
-                data = self.DATA[i, :, self.nrx]
-                if noc:
-                    kwargs["color"] = "C" + str(i)
-                kwargs["label"] = bl + " B" + allcmp[i]
-                kwargs["ls"] = "None"
-                kwargs["marker"] = "x"
-                ax = showSounding(data, self.f, ax=ax, **kwargs)
+                data = getattr(self, "data"+allcmp[i].upper())
+                # kwargs['color'] = 'C' + str(i)
+                # kwargs['label'] = 'B' + allcmp[i]
+                kwargs.setdefault("color", "C" + str(i))
+                kwargs.setdefault("label", "B" + allcmp[i])
+                ax = showSounding(data, self.f, ax=ax, ls="",
+                                  marker="x", amphi=amphi, **kwargs)
                 if response is not None:
                     # col = kwargs["color"]
-                    kwargs["ls"] = "-"
-                    kwargs["marker"] = ""
-                    tmp = respRe[ncmp] + respIm[ncmp] * 1j
-                    showSounding(tmp, self.f, ax=ax, **kwargs)
-                    # ax[0].plot(respRe[ncmp], self.f, **kwargs)
-                    # ax[1].plot(respIm[ncmp], self.f, **kwargs)
-                    ncmp += 1
+                    if amphi:
+                        snddata = respRe[ncmp] + respIm[ncmp] * 1j
+                        ax[0].plot(np.abs(snddata), self.f, ls="-", **kwargs)
+                        ax[1].plot(np.angle(snddata)*180/np.pi, self.f, ls="-", **kwargs)
+                    else:
+                        ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
+                        ax[1].plot(respIm[ncmp], self.f, ls="-", **kwargs)
+
+                ncmp += 1
 
         for a in ax:
             a.legend()
 
         return ax
-
-    def showResult(self, **kwargs):
-        """Show inversion result."""
-        kwargs.setdefault("logScale", True)
-        kwargs.setdefault("cMap", "Spectral")
-        kwargs.setdefault("xlabel", "x (m)")
-        kwargs.setdefault("ylabel", "z (m)")
-        kwargs.setdefault("label", r"$\rho$ ($\Omega$m)")
-        return pg.show(self.mesh, 1./self.model, **kwargs)
 
     def exportRxTxVTK(self, marker=1):
         """Export Receiver and Transmitter positions as VTK file."""
@@ -549,64 +610,17 @@ class CSEMData(EMData):
 
         txmesh.exportVTK(self.basename+"-txpos.vtk")
 
-    def showJacobianRow(self, iI=1, iC=0, iF=0, iR=0, cM=1.5, tol=1e-7,
-                        save=False, **kwargs):
-        """Show Jacobian row (model distribution for specific data).
-
-        Parameters
-        ----------
-        iI : int [1]
-            real (0) or imaginary (1) part
-        iC : int
-            component (out of existing ones!)
-        iF : int [0]
-            frequency index (into self.f)
-        iR : int [0]
-            receiver number
-        cM : float [1.5]
-            color scale maximum
-        tol : float
-            tolerance/threshold for symlog transformation
-
-        **kwargs are passed to ps.show (e.g. cMin, )
-        """
-        allcmp = ['Bx', 'By', 'Bz']
-        scmp = [allcmp[i] for i in np.nonzero(self.cmp)[0]]
-        allP = ["Re ", "Im "]
-        nD = self.J.rows() // 2
-        nC = sum(self.cmp)
-        nF = self.nF
-        nR = self.nRx
-        assert nD == nC * nF * nR, "Dimensions mismatch"
-        iD = nD*iI + iC*(nF*nR) + iF*nR + iR
-        Jrow = self.J.row(iD)
-        sens = symlog(Jrow / self.mesh.cellSizes() * self.model, tol=tol)
-        defaults = dict(cMap="bwr", cMin=-cM, cMax=cM, colorBar=False,
-                        xlabel="x (m)", ylabel="z (m)")
-        defaults.update(kwargs)
-        ax, cb = pg.show(self.mesh, sens, **defaults)
-        ax.plot(np.mean(self.tx), 5, "k*")
-        ax.plot(self.rx[iR], 10, "kv")
-        st = allP[iI] + scmp[iC] + ", f={:.0f}Hz, x={:.0f}m".format(
-            self.f[iF], self.rx[iR])
-        ax.set_title(st)
-        fn = st.replace(" ", "_").replace(",", "").replace("=", "")
-        if save:
-            ax.figure.savefig("pics/"+fn+".pdf", bbox_inches="tight")
-
-        return ax
-
 
 if __name__ == "__main__":
     txpos = np.array([[559497.46, 5784467.953],
                       [559026.532, 5784301.022]]).T
-    self = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
-    print(self)
+    data = CSEMData(datafile="data_f*.mat", txPos=txpos, txalt=70)
+    print(data)
     # self.generateDataPDF()
-    self.showData(nf=1)
+    data.showData(nf=1)
     # self.showField("alt", background="BKG")
     # self.invertSounding(nrx=20)
     # plotSymbols(self.rx, self.ry, -self.alt, numpoints=0)
-    self.showSounding(nrx=20)
+    data.showSounding(nrx=20)
     # self.showData(nf=1)
     # self.generateDataPDF()

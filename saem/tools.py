@@ -17,8 +17,25 @@ def distToTx(rx, ry, tx, ty):
     return np.sqrt(dist2)
 
 
+def is_point_inside_polygon(x, y, polygon):
+    """Determine whether a point is inside a polygon."""
+    n = len(polygon)
+    inside = False
+    p1x, p1y, *_ = polygon[0]
+    for i in range(n + 1):
+        p2x, p2y, *_ = polygon[i % n]
+        if y > min(p1y, p2y) and y <= max(p1y, p2y) and x <= max(p1x, p2x):
+            if p1y != p2y:
+                xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                if p1x == p2x or x <= xinters:
+                    inside = not inside
+
+        p1x, p1y = p2x, p2y
+
+    return inside
+
 def detectLinesAlongAxis(rx, ry, axis='x'):
-    """Alernative - Split data in lines for line-wise processing."""
+    """Alternative - Split data in lines for line-wise processing."""
 
     if axis == 'x':
         r = rx
@@ -61,8 +78,7 @@ def detectLinesByDistance(rx, ry, minDist=200., axis='x'):
 
 
 def detectLinesBySpacing(rx, ry, vec, axis='x'):
-    """Alernative - Split data in lines for line-wise processing."""
-
+    """Detect line changes by jumps in point spacing."""
     if axis == 'x':
         r = rx
     elif axis == 'y':
@@ -74,7 +90,7 @@ def detectLinesBySpacing(rx, ry, vec, axis='x'):
     return np.argmin(np.abs(np.tile(r, (len(vec), 1)).T - vec), axis=1)
 
 
-def detectLinesOld(rx, ry, show=False):
+def detectLinesOld(rx, ry):
     """Split data in lines for line-wise processing."""
     dt = np.sqrt(np.diff(rx)**2 + np.diff(ry)**2)
     dtmin = np.median(dt) * 2
@@ -85,15 +101,17 @@ def detectLinesOld(rx, ry, show=False):
     line = np.zeros_like(rx, dtype=int)
     nLine = 1
     act = True
-    for i in range(len(sdx)):
-        if sdx[i] != 0:
+    for i, sdxi in enumerate(sdx):
+        if sdxi != 0:
             act = not act
             if act:
                 nLine += 1
+
         if sdy[i] != 0:
             act = not act
             if act:
                 nLine += 1
+
         if i > 0 and dt[i-1] > dtmin:
             act = True
             nLine += 1
@@ -105,11 +123,7 @@ def detectLinesOld(rx, ry, show=False):
 
 
 def sortLines(rx, ry, line, dummy, axis):
-
-    """
-    Sort line elements by Rx or Ry coordinates.
-    """
-
+    """Sort line elements by Rx or Ry coordinates."""
     means = []
     for li in np.unique(dummy):
         if axis == 'x':
@@ -150,12 +164,11 @@ def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
     root = tree.getroot()
     X, Y, Z = [], [], []
     for line in root.iter("*"):
-        if line.tag.find("coordinates"):
+        if line.tag.find("coordinates") >= 0:
             try:
                 lin = line.text.replace("\n", "").replace("\t", "")
             except AttributeError:
-                lin = root[0][4][2][1].text.replace("\n", "").replace("\t",
-                                                                       "")
+                lin = root[0][4][2][1].text.replace("\n", "").replace("\t", "")
             for col in lin.split(" "):
                 if col.find(",") > 0:
                     vals = np.array(col.split(","), dtype=float)
@@ -165,3 +178,48 @@ def readCoordsFromKML(xmlfile, proj='utm', zone=32, ellps="WGS84"):
                         Z.append(vals[2])
 
     return np.vstack((*utm(X, Y), Z))
+
+
+def coverage(inv):
+    """ Calculate coverage of inversion results. """
+    invmodel = inv.model
+    if hasattr(inv.fop, '_jac'):
+        # for single forward operator
+        cov = np.zeros(inv.fop._jac.cols())
+
+        dataScale = inv.dataTrans.deriv(inv.fop.last_response) / \
+            inv.dataTrans.error(inv.fop.last_response, inv.fop.errors)
+        for i in range(inv.fop._jac.rows()):
+            cov += np.abs(inv.fop._jac.row(i) * dataScale[i])
+        cov /= inv.modelTrans.deriv(invmodel) # previous * invmodel
+        cov /= inv.fop.mesh().cellSizes()
+    else:
+        # for joint modelling
+        cov = np.zeros(inv.fop.fops[0]._jac.cols())
+        for n in range(len(inv.fop.fops)):
+            dataScale = inv.dataTrans.deriv(inv.fop.fops[n].last_response) / \
+                inv.dataTrans.error(inv.fop.fops[n].last_response,
+                                    inv.fop.fops[n].errors)
+            for i in range(inv.fop.fops[n]._jac.rows()):
+                cov += np.abs(inv.fop.fops[n]._jac.row(i) * dataScale[i])
+        cov /= inv.modelTrans.deriv(invmodel) # previous * invmodel
+        cov /= inv.fop.fops[0].mesh().cellSizes()
+
+    return cov
+
+def isPointInsidePolygon(x, y, polygon):
+    """Determine whether point (x, y) is inside a closed polygon."""
+    n = len(polygon)
+    inside = False
+    p1x, p1y = polygon[0]
+    for i in range(n + 1):
+        p2x, p2y = polygon[i % n]
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+        p1x, p1y = p2x, p2y
+    return inside

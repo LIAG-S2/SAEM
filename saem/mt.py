@@ -43,14 +43,18 @@ class MTData(EMData):
             *Zo* for off-diagonal of impedance tensor (Zxy, Zyx)
             *T* for tipper (Tx, Ty)
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.mode = mode
         self.tx = [[], []]
         self.ty = [[], []]
         self.tz = [[], []]
-        self.updateDefaults(**kwargs)
         self.createDataArray()
+
+        if 'debugImport' in kwargs:
+            self.firstonly = True
+        else:
+            self.firstonly = False
 
         if datafile is not None:
             self.loadData(datafile)
@@ -79,6 +83,10 @@ class MTData(EMData):
             self.cstr = ['Zxx', 'Zyy']
         elif self.mode == 'Zo':
             self.cstr = ['Zxy', 'Zyx']
+        elif self.mode == 'TM':
+            self.cstr = ['Tx', 'Ty', 'Mxx', 'Mxy', 'Myx', 'Myy']
+        elif self.mode == 'M':
+            self.cstr = ['Mxx', 'Mxy', 'Myx', 'Myy']
         else:
             print('Error! Choose correct mode for MTData initialization.')
             raise SystemExit
@@ -92,6 +100,7 @@ class MTData(EMData):
             self.loadNpzFile(filename)
         elif filename.endswith(".mat"):
             self.loadIPHTMatFile(filename)
+            #self.loadWWUMatFile(filename)
 
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
@@ -158,6 +167,7 @@ class MTData(EMData):
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
+        dummy = None
         if len([var for var in MAT.keys() if "_" not in var]) == 1:
             MAT = MAT[[var for var in MAT.keys() if "_" not in var][0]][0]
             MAT1 = dict()
@@ -166,14 +176,31 @@ class MTData(EMData):
                 for name in MAT.dtype.names:
                     if name == "nr":
                         temp[name] = np.ones(temp["rx"].shape[-1],
-                                             dtype=int) * temp["nr"][0][0]
+                                              dtype=int) * temp["nr"][0][0]
 
                     if name != "frequencies":
                         if i == 0:
                             MAT1[name] = temp[name]
                         else:
-                            MAT1[name] = np.concatenate((MAT1[name],
-                                                         temp[name]), axis=-1)
+                            # catch bug from Annekes Matfile 1 extra Rx base
+                            try:
+                                MAT1[name] = np.concatenate((MAT1[name],
+                                                             temp[name]),
+                                                            axis=-1)
+                            except ValueError:
+                                proxy = np.zeros((6, temp[name].shape[1], 1), dtype=complex)
+                                proxy[:2, :, : ] = temp[name].reshape(2, temp[name].shape[1], 1)
+                                try:
+                                    MAT1[name] = np.concatenate((MAT1[name],
+                                                                 proxy),
+                                                                axis=-1)
+                                except:
+                                    proxy = np.zeros((2, temp[name].shape[1], 1), dtype=complex)
+                                    MAT1[name] = np.concatenate((MAT1[name],
+                                                                 proxy),
+                                                                axis=-1)
+                if self.firstonly:
+                    break
 
             self.f = MAT[0]["frequencies"].ravel()
             sorting = np.argsort(self.f)
@@ -488,7 +515,7 @@ class MTData(EMData):
         else:
             ind = np.nonzero(self.line == line)[0]
 
-        allcmp = ['X', 'Y', 'Z']
+        allcmp = ['Zxx', 'Zxy', 'Zyx', 'Zyy', 'Tx', 'Ty']
         meany = 0  # np.median(self.ry[ind]) # needed anymore?
         ypos = np.round((self.ry[ind]-meany)*10)/10  # get to straight line
         rxpos = np.round(np.column_stack((self.rx[ind], ypos,
@@ -509,7 +536,7 @@ class MTData(EMData):
                 dataI[0, kC, :, :] = self.DATA[iC][:, ind].imag
                 errorR[0, kC, :, :] = self.ERR[iC][:, ind].real
                 errorI[0, kC, :, :] = self.ERR[iC][:, ind].imag
-                Cmp.append('B'+allcmp[iC].lower())
+                Cmp.append(allcmp[iC])
                 kC += 1
 
         # error estimation
@@ -550,13 +577,13 @@ class MTData(EMData):
             return
 
         data = self.getData(line=line, **kwargs)
-        data["tx_ids"] = [0]
+        data["tx_ids"] = [0, 1]
         DATA = [data]
-        meany = 0  # np.median(self.ry[ind]) # needed anymore?
+
         np.savez(fname+".npz",
-                 tx=[np.column_stack((np.array(self.tx)[::txdir],
-                                      np.array(self.ty)[::txdir]-meany,
-                                      np.array(self.tx)*0))],
+                 tx=[np.column_stack((np.array(self.tx),
+                                      np.array(self.ty),
+                                      np.array(self.tz)))],
                  freqs=self.f,
                  cmp=cmp,
                  DATA=DATA,

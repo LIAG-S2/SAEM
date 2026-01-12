@@ -10,7 +10,7 @@ from matplotlib.colors import SymLogNorm, LogNorm
 from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from pygimli.viewer.mpl import underlayMap, underlayBKGMap
+from pygimli.viewer.mpl.overlayimage import underlayMap, underlayBKGMap
 # import seaborn as sns
 
 
@@ -36,8 +36,9 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
     if ax is None:
         fig, ax = plt.subplots(1, 2, sharey=True)
 
-    if snddata.dtype == np.float:
+    if snddata.dtype == float:
         snddata = snddata[:len(snddata)//2] + snddata[len(snddata)//2:] * 1j
+        # print(len(freqs), len(data))
 
     if amphi:
         ax[0].loglog(np.abs(snddata), freqs, **kwargs)
@@ -54,6 +55,9 @@ def showSounding(snddata, freqs, ma="rx", ax=None, amphi=True, response=None,
 
     for a in ax:
         a.grid(True)
+
+    # if response is not None:
+        # showSounding(response, "-", ax=ax, amphi=amphi, **kwargs)
 
     return ax
 
@@ -73,7 +77,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
         draw colowbar
     clim : [float, float]
         min/max values for colorbar
-    logScale : bool [False]
+    log : bool [False]
         use logarithmic color scaling
     label : str
         label for the colorbar
@@ -117,6 +121,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         alim = kwargs.setdefault("alim", [min(w), max(w)])
         log = kwargs.setdefault("log", False)
+
     if log:
         norm = SymLogNorm(linthresh=alim[0], vmin=-alim[1], vmax=alim[1])
         if not symlog:
@@ -131,6 +136,8 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         pc.set_array(np.abs(w))
         ax.plot(x[w < 0], y[w < 0], 'k_', markersize=1.)
+    # for i in range(len(x)):
+    #     ax.text(x[i], y[i], str(i))
 
     ax.add_collection(pc)
     if log:
@@ -154,8 +161,9 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
 
 def underlayBackground(ax, background="BKG", utm=32):
     """Underlay background from any map."""
-    if background == "BKG":
-        underlayBKGMap(ax, uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+    if background in ["DOP", "DTK", "MAP"]:
+        underlayBKGMap(ax, mode=background, utmzone=utm,
+                       uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
     else:
         underlayMap(ax, utm, vendor=background)
 
@@ -211,4 +219,5 @@ def makeSubTitles(ax, ncmp, cstr, ci, what):
                 ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' +
                 cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
         else:
-            ax[i, ncmp].set_title(ri + cstr[ci][0] + '_' + cstr[ci][1] + '$)')
+            ax[i, ncmp].set_title(ri + cstr[ci][0] + '_{' + 
+                                  cstr[ci][1:] + '}$)')

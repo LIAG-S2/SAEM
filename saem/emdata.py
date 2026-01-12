@@ -3,35 +3,28 @@ from glob import glob
 import numpy as np
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize, LogNorm, SymLogNorm
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import pyproj
 
 import pygimli as pg
-# from pygimli.viewer.mpl import drawModel1D
-# from pygimli.viewer.mpl import showStitchedModels
-# from pygimli.core.math import symlog
-from matplotlib.colors import LogNorm, SymLogNorm
-
-# from .plotting import showSounding, dMap
 from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
 from .plotting import makeSubTitles, updatePlotKwargs
-# from .modelling import fopSAEM, bipole
-from .tools import readCoordsFromKML, detectLinesAlongAxis  # , distToTx
-from .tools import detectLinesBySpacing, detectLinesByDistance, detectLinesOld
+from .tools import detectLinesAlongAxis, detectLinesBySpacing
+from .tools import detectLinesByDistance, detectLinesOld
+from .tools import readCoordsFromKML, is_point_inside_polygon, distToTx
 
 
 class EMData():
     """Class for EM frequency-domain data."""
 
-    def __init__(self, datafile=None, **kwargs):
+    def __init__(self, **kwargs):
         """Initialize CSEM data class.
 
         Parameters
         ----------
-        datafile : str
-            data file to load if not None
         basename : str [datafile without extension]
             name for data (exporting, figures etc.)
         txPos : array
@@ -47,12 +40,37 @@ class EMData():
         """
         self.origin = [0., 0., 0.]
         self.angle = 0.
-        self.llthres = 1e-3
+        self.llthres = kwargs.pop("llthres", 1e-3)
         self.A = np.array([[1, 0], [0, 1]])
         self.depth = None
+        self.DATA = None  # better np.array([]) ?
         self.PRIM = None
         self.RESP = None
         self.ERR = None
+        self.mode = None  # needs to be done in derived classes
+        self.f = kwargs.pop("f", [])
+        self.basename = kwargs.pop("basename", "noname")
+        self.zone = kwargs.pop("zone", 32)
+        self.verbose = kwargs.pop("verbose", True)
+        self.utm = pyproj.Proj(proj='utm', zone=self.zone, ellps='WGS84')
+        # receiver positions (rx and optionally ry and rz)
+        self.rx = kwargs.pop("rx", np.array([0.]))
+        self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
+        if isinstance(self.ry, (int, float)):
+            self.ry = np.ones_like(self.rx)*self.ry
+
+        if isinstance(self.rx, (int, float)):
+            self.rx = np.ones_like(self.ry)*self.rx
+
+        self.rz = kwargs.pop("rz", np.ones_like(self.rx)*kwargs.pop("alt", 0.))
+        if isinstance(self.rz, (int, float)):
+            self.rz = np.ones_like(self.rx)*self.rz
+
+        self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
+        self.cmp = []
+        self.cstr = []
+        self.radius = kwargs.pop("radius", 1)
+        self.txAlt = 0 # rather ground altitude
 
     def __repr__(self):
         """String representation of the class."""
@@ -71,57 +89,9 @@ class EMData():
         """Number of frequencies."""
         return len(self.f)
 
-    def updateDefaults(self, **kwargs):
-        """Update default keyword arguments."""
-        self.f = kwargs.pop("f", [])
-        self.basename = "noname"
-        self.basename = kwargs.pop("basename", self.basename)
-        zone = kwargs.pop("zone", 32)
-        self.verbose = kwargs.pop("verbose", True)
-        self.utm = pyproj.Proj(proj='utm', zone=zone, ellps='WGS84')
-
-        self.rx = kwargs.pop("rx", np.array([0.]))
-        self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
-        if isinstance(self.ry, (int, float)):
-            self.ry = np.ones_like(self.rx)*self.ry
-        if isinstance(self.rx, (int, float)):
-            self.rx = np.ones_like(self.ry)*self.rx
-        self.rz = kwargs.pop("rz", np.ones_like(self.rx)*kwargs.pop("alt", 0.))
-        if isinstance(self.rz, (int, float)):
-            self.rz = np.ones_like(self.rx)*self.rz
-        self.line = kwargs.pop("line", np.ones_like(self.rx, dtype=int))
-
-        if "txPos" in kwargs:
-            txpos = kwargs["txPos"]
-            if isinstance(txpos, str):
-                if txpos.lower().find(".kml") > 0:
-                    self.tx, self.ty, self.tz = readCoordsFromKML(txpos)
-                else:
-                    self.tx, self.ty, self.tz = np.genfromtxt(
-                        txpos, unpack=True, usecols=[0, 1, 2])
-            else:  # take it directly
-                txpos = np.array(txpos)
-                if len(txpos) > 3:
-                    txpos = txpos.T
-
-                if len(txpos) == 2:
-                    self.tx, self.ty = txpos
-                    self.tz = np.zeros_like(self.tx)
-                elif len(txpos) == 3:
-                    self.tx, self.ty, self.tz = txpos
-                else:
-                    raise("Dimensions not matching")
-        else:
-            self.tx = kwargs.pop("tx", np.array([0., 0.]))
-            self.ty = kwargs.pop("ty", np.zeros_like(self.tx))
-            self.tz = kwargs.pop("tz", np.zeros_like(self.tx))
-            # self.tz = kwargs.pop("tz", np.ones_like(self.rx)*kwargs.pop("txalt", 0.))
-            if isinstance(self.ty, (int, float)):
-                self.ty = np.ones_like(self.tx)*self.ty
-            if isinstance(self.tx, (int, float)):
-                self.tx = np.ones_like(self.ty)*self.tx
-            if isinstance(self.tz, (int, float)):
-                self.tz = np.ones_like(self.tx)*self.tz
+    def txDistance(self):
+        """Dummy tx Distance (to be overwritten in CSEM)."""
+        return np.zeros(self.nRx)
 
     def getIndices(self):
         """Return indices of finite data into full matrix."""
@@ -156,46 +126,47 @@ class EMData():
                 rmisfit - relative misfit between data and response
                 wmisfit - error-weighted misfit
                 pf - primary fields
-                sf - measured secondary data divided by primary fields
+                sf - measured secondary field
+                sf/pf - measured secondary field divided by primary fields
         """
         if isinstance(what, str):
-            if what.lower() == "data":
+            what = what.lower()
+            self.cb_label='[nT/A]'
+            if (what.find("pf") >= 0 or what.find("sf") >= 0
+                and self.PRIM is None):
+                self.computePrimaryFields()
+            if what == "data":
                 return self.DATA[:]
-            elif what.lower() == "resp" or what.lower() == "response":
+            elif what.startswith("resp"):
                 return self.RESP[:]
-            elif what.lower() == "aerr" or what.lower() == "abserror":
+            elif what == "aerr" or what == "abserror":
                 return self.ERR[:]
-            elif what.lower() == "rerr" or what.lower() == "relerror":
+            elif what == "rerr" or what == "relerror":
                 rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
                 ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
                 return rr + ii * 1j
-            elif what.lower() == "amisfit":
+            elif what == "amisfit":
                 return self.DATA[:] - self.RESP[:]
-            elif what.lower() == "rmisfit":
+            elif what == "rmisfit":
                 tmp = np.zeros_like(self.DATA)
                 for i in range(len(self.DATA)):
                     rr = (1. - self.RESP[i].real / self.DATA[i].real) * 100.
                     ii = (1. - self.RESP[i].imag / self.DATA[i].imag) * 100.
                     tmp[i, :] = rr + ii * 1j
+                    self.cb_label='[%]'
                 return tmp
-            elif what.lower() == "wmisfit":
+            elif what == "wmisfit":
                 mis = self.DATA - self.RESP
                 wmis = mis.real / self.ERR.real + mis.imag / self.ERR.imag * 1j
+                self.cb_label=''
                 return wmis
-            elif what.lower() == "pf":
+            elif what == "pf":
                 return self.PRIM[:]
-            elif what.lower() == "sf":
+            elif what == "sf":
                 return self.DATA - self.PRIM
-            elif what.lower() == "sf/pf":
-                tmp = np.zeros_like(self.DATA)
-                for i in range(len(self.DATA)):
-                    rr = ((self.DATA[i].real - self.PRIM[i].real) /
-                          self.PRIM[i].real)
-
-                    ii = ((self.DATA[i].imag - self.PRIM[i].imag) /
-                          self.PRIM[i].imag)
-                    tmp[i, :] = rr + ii * 1j
-                return tmp
+            elif what == "sf/pf":
+                self.cb_label = ''
+                return (self.DATA - self.PRIM) / np.abs(self.PRIM)
             else:
                 print('Error! Wrong argument chosen to specify active data. '
                       'Aborting  ...')
@@ -215,25 +186,31 @@ class EMData():
                 print("closest point at distance is ", min(np.sqrt(dr)))
                 print("Tx distance ", self.txDistance()[nrx])
 
-        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.alt[nrx]
+        self.cfg["rec"][:3] = self.rx[nrx], self.ry[nrx], self.rz[nrx]-self.txAlt
         self.dataX = self.DATA[0, :, nrx]
         self.dataY = self.DATA[1, :, nrx]
         self.dataZ = self.DATA[2, :, nrx]
         self.nrx = nrx
         if show:
-            self.showPos()
+            self.showPositions()
 
-    def createConfig(self, fullTx=False):
+    def createConfig(self, fullTx=False, loop=False):
         """Create EMPYMOD input argument configuration."""
         self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0], 0, 90],
                     'strength': 1, 'mrec': True,
                     'srcpts': 5,
                     'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
                     'verb': 1}
-        if fullTx:  # sum up over segments
+        if fullTx or loop:  # sum up over segments
             self.cfg['src'] = [self.tx[:-1], self.tx[1:],
                                self.ty[:-1], self.ty[1:],
                                -0.1, -0.1]
+            if loop:
+                self.cfg['src'][0] = np.append(self.cfg['src'][0], self.tx[-1])
+                self.cfg['src'][1] = np.append(self.cfg['src'][1], self.tx[0])
+                self.cfg['src'][2] = np.append(self.cfg['src'][2], self.ty[-1])
+                self.cfg['src'][3] = np.append(self.cfg['src'][3], self.ty[0])
+
         else:  # only first&last point (quick)
             self.cfg['src'] = [self.tx[0], self.tx[-1],
                                self.ty[0], self.ty[-1],
@@ -261,7 +238,7 @@ class EMData():
             # self.ERR[0, i, :] = Bxy[0, :]
             # self.ERR[1, i, :] = Bxy[1, :]
 
-    def rotate(self, ang=None, line=None, origin=None):
+    def rotate(self, ang=None, line=None, origin=None, rotateData=True):
         """Rotate positions and fields to a local coordinate system.
 
         Rotate the lines
@@ -280,7 +257,7 @@ class EMData():
             origin of coordinate system, if not given, center of Tx
         """
 
-        if origin:
+        if origin is not None:
             self.setOrigin()
         if ang is None:
             if line is not None:  # use Tx orientation so that Tx points to y
@@ -301,31 +278,32 @@ class EMData():
             self.rx, self.ry = self.A.dot(np.vstack([self.rx, self.ry]))
 
             # print('Need to fix field rotation of X/Y components')
-            for i in range(len(self.f)):
-                Bxy = self.A.dot(np.vstack((self.DATA[0, i, :],
-                                            self.DATA[1, i, :])))
-                self.DATA[0, i, :] = Bxy[0, :]
-                self.DATA[1, i, :] = Bxy[1, :]
-                "Need to correct Error rotation!"
-                # Errxy = self.A.dot(np.vstack((self.ERR[0, i, :],
-                #                               self.ERR[1, i, :])))
-                # self.ERR[0, i, :] = Errxy[0, :]
-                # self.ERR[1, i, :] = Errxy[1, :]
+            if rotateData:
+                for i in range(len(self.f)):
+                    Bxy = self.A.dot(np.vstack((self.DATA[0, i, :],
+												self.DATA[1, i, :])))
+                    self.DATA[0, i, :] = Bxy[0, :]
+                    self.DATA[1, i, :] = Bxy[1, :]
+                    #"Need to correct Error rotation!"
+	                # Errxy = self.A.dot(np.vstack((self.ERR[0, i, :],
+                    #                               self.ERR[1, i, :])))
+                    # self.ERR[0, i, :] = Errxy[0, :]
+                    # self.ERR[1, i, :] = Errxy[1, :]
 
         self.createConfig()  # make sure rotated Tx is in cfg
         self.angle = ang
-        if origin:
+        if origin is not None:
             self.setOrigin(shift_back=True)
 
     def setOrigin(self, origin=None, shift_back=True):
         """Set origin."""
         # first shift back to old origin
-        origin = origin or self.origin
-        if shift_back:
-            self.tx += self.origin[0]
-            self.ty += self.origin[1]
-            self.rx += self.origin[0]
-            self.ry += self.origin[1]
+        # origin = origin or self.origin
+        # if shift_back:
+        #     self.tx += self.origin[0]
+        #     self.ty += self.origin[1]
+        #     self.rx += self.origin[0]
+        #     self.ry += self.origin[1]
         if origin is None:
             origin = [np.mean(self.tx), np.mean(self.ty)]
         # now shift to new origin
@@ -334,6 +312,13 @@ class EMData():
         self.rx -= origin[0]
         self.ry -= origin[1]
         self.origin = origin
+
+    def revertTx(self):
+        """Revert direction of Tx Path
+        """
+        self.tx = self.tx[::-1]
+        self.ty = self.ty[::-1]
+        self.tz = self.tz[::-1]
 
     def detectLines(self, mode=None, axis='x', show=False):
         """Split data in lines for line-wise processing.
@@ -363,7 +348,8 @@ class EMData():
         self.filter(nInd=np.nonzero(self.line)[0])
 
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None, rInd=None,
-               minTxDist=None, maxTxDist=None, every=None, line=None):
+               minTxDist=None, maxTxDist=None, every=None, line=None,
+               polygon=None, minRxDist=None):
         """Filter data according to frequency and and receiver properties.
 
         Parameters
@@ -376,6 +362,8 @@ class EMData():
             minimum frequency to keep
         fInd : iterable, optional
             index array of frequencies to use
+        rInd : iterable, optional
+            index array for receivers to remove
         nInd : iterable, optional
             index array for receivers to use, alternatively
         minTxDist : float
@@ -386,6 +374,10 @@ class EMData():
             use only every n-th receiver
         line : int
             remove a line completely
+        polygon : ndarray|str
+            polygone (or kmlfile) to remove points
+            * inside (minTxDist not set) OR
+            * in a distance of minTxDist
         """
         # part 1: frequency axis
         if fInd is None:
@@ -404,12 +396,24 @@ class EMData():
             self.ERR = self.ERR[:, fInd, :]
 
         if np.any(self.PRIM):
-            for i in range(3):
-                self.PRIM[i] = self.PRIM[i][fInd, :]
+            self.PRIM = self.PRIM[:, fInd, :]
 
         # part 2: receiver axis
         if nInd is None:
-            if minTxDist is not None or maxTxDist is not None:
+            if polygon is not None:
+                if isinstance(polygon, str):
+                    polygon = readCoordsFromKML(polygon).T
+
+                rx = self.rx + self.origin[0]
+                ry = self.ry + self.origin[1]
+                if minTxDist is None:  # inside
+                    nInd = np.ones_like(rx, dtype=bool)
+                    for i, xy in enumerate(zip(rx, ry)):
+                        nInd[i] = not is_point_inside_polygon(*xy, polygon)
+                else:
+                    di = distToTx(rx, ry, polygon[:, 0], polygon[:, 1])
+                    nInd = np.nonzero((di >= minTxDist))[0]
+            elif minTxDist is not None or maxTxDist is not None:
                 dTx = self.txDistance()
                 minTxDist = minTxDist or 0
                 maxTxDist = maxTxDist or 9e9
@@ -421,7 +425,18 @@ class EMData():
 
             if isinstance(every, int):
                 nInd = nInd[::every]
+            ###
+            if minRxDist is not None:
+                nInd = [0]
 
+                for i in range(1, len(self.rx)):
+                    dist = np.sqrt((self.rx[i] - self.rx[nInd[-1]])**2 + (self.ry[i] - self.ry[nInd[-1]])**2)
+
+                    if dist >= minRxDist:
+                        nInd.append(i)
+            if rInd is not None:
+                nInd = np.delete(np.arange(len(self.rx)), rInd)
+            ###
         if rInd is not None:
             nInd = np.delete(np.arange(len(self.rx)), rInd)
 
@@ -435,17 +450,9 @@ class EMData():
             if np.any(self.RESP):
                 self.RESP = self.RESP[:, :, nInd]
             if np.any(self.PRIM):
-                for i in range(3):
-                    self.PRIM[i] = self.PRIM[i][:, nInd]
+                self.PRIM = self.PRIM[:, :, nInd]
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
-            if self.PRIM is not None:
-                for i in range(3):
-                    self.PRIM[i] = self.PRIM[i][:, nInd]
-
-    def mask(self, **kwargs):
-        """Masking out data according to several properties."""
-        pass  # not yet implemented
 
     def skinDepths(self, rho=30):
         """Compute skin depth based on a medium resistivity."""
@@ -454,15 +461,14 @@ class EMData():
     def createDepthVector(self, rho=30, nl=15):
         """Create depth vector."""
         sd = self.skinDepths(rho=rho)
-        self.depth = np.hstack((0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
-                                                   n=nl, log=True)))
+        self.depth = np.hstack([0, pg.utils.grange(min(sd)*0.3, max(sd)*1.2,
+                                                   n=nl, log=True)])
 
-    def showPos(self, ax=None, line=None, background=None, org=False,
-                color=None, marker=None, **kwargs):
-        """Show positions."""
-        print(ax)
+    def showPositions(self, ax=None, line=None, background=None, org=False,
+                      color=None, marker=None, **kwargs):
+        """Show receiver positions."""
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         rxy = np.column_stack((self.rx, self.ry))
         txy = np.column_stack((self.tx, self.ty))
@@ -474,10 +480,13 @@ class EMData():
         ma = marker or "."
         ax.plot(rxy[:, 0], rxy[:, 1], ma, markersize=2,
                 color=color or "blue")
-        ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
-                color=color or "orange")
+        if txy.shape[1] > 0:
+            if np.any(txy):
+                ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
+                        color=color or "orange")
+
         if hasattr(self, "nrx") and self.nrx < self.nRx:
-            ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "k", **kwargs)
+            ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "ro", **kwargs)
 
         if line is not None:
             ax.plot(rxy[self.line == line, 0],
@@ -488,7 +497,7 @@ class EMData():
         ax.set_xlabel("Easting (m) UTM32N")
         ax.set_ylabel("Northing (m) UTM32N")
         if background:
-            underlayBackground(ax, background, self.utm)
+            underlayBackground(ax, background, utm=self.zone)
 
         return ax
 
@@ -521,17 +530,22 @@ class EMData():
         if "ax" in kwargs:
             ax = kwargs.pop("ax")
         else:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         kwargs.setdefault("radius", self.radius)
         kwargs.setdefault("log", False)
-        kwargs.setdefault("cmap", "jet")
+        kwargs.setdefault("cmap", "Spectral_r")
         background = kwargs.pop("background", None)
         ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
-        ax.plot(self.tx, self.ty, "k*-", zorder=-1)
+        if np.any(self.tx) or np.any(self.ty):
+            ax.plot(self.tx, self.ty, "k*-", zorder=-1)
+
         if isinstance(field, str):
             kwargs.setdefault("label", field)
-            field = getattr(self, field)
+            if field == "txDist":
+                field = self.txDistance()
+            else:
+                field = getattr(self, field)
 
         kwargs.setdefault("alim", [np.min(np.unique(field)),
                                    np.max(np.unique(field))])
@@ -548,11 +562,24 @@ class EMData():
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
         if background:
-            underlayBackground(ax, background, self.utm)
+            underlayBackground(ax, background, utm=self.zone)
+
+        if "poly" in kwargs and kwargs["poly"] is not None:
+            poly = kwargs["poly"]
+            if isinstance(poly, str):  # only a single
+                poly = [readCoordsFromKML(poly)]
+            elif isinstance(poly, np.ndarray):
+                poly = [poly]
+            elif isinstance(poly, list):  #
+                if isinstance(poly[0], str):
+                    poly = [readCoordsFromKML(p).T for p in poly]
+
+            for p in poly:
+                ax.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
 
         return ax, cb
 
-    def showLineFreq(self, line=None, nf=0, ax=None, **kwargs):
+    def showLineFreq(self, line=None, nf=0, ax=None, lww=0., **kwargs):
         """Show data of a line as pcolor.
 
         Parameters
@@ -581,7 +608,7 @@ class EMData():
         if ax is None:
             fig, ax = plt.subplots(ncols=sum(cmp), nrows=2,
                                    squeeze=False, sharex=True,
-                                   sharey=not kw["amphi"],
+                                   sharey=False,
                                    figsize=kwargs.pop("figsize", (12, 8)))
         else:
             fig = ax.flat[0].figure
@@ -612,19 +639,19 @@ class EMData():
                         ax[0, ncmp].errorbar(
                             x, np.real(subset),
                             yerr=[errbar[ci].real, errbar[ci].real],
-                            marker='o', lw=0., barsabove=True,
+                            marker='o', lw=lww, barsabove=True,
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                         ax[1, ncmp].errorbar(
                             x, np.imag(subset),
                             yerr=[errbar[ci].imag, errbar[ci].imag],
-                            marker='o', lw=0., barsabove=True,
+                            marker='o', lw=lww, barsabove=True,
                             color=kw["color"],
                             elinewidth=0.5, markersize=3, label=label)
                     else:
-                        ax[0, ncmp].plot(x, np.real(subset), '--', lw=lw,
+                        ax[0, ncmp].plot(x, np.real(subset), 'x-', lw=lw,
                                          color=kw["color"], label=label)
-                        ax[1, ncmp].plot(x, np.imag(subset), '--', lw=lw,
+                        ax[1, ncmp].plot(x, np.imag(subset), 'x-', lw=lw,
                                          color=kw["color"], label=label)
                     if kw["log"]:
                         ax[0, ncmp].set_yscale('symlog',
@@ -804,18 +831,13 @@ class EMData():
                     ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
                 else:  # real and imaginary part
                     if kw["log"]:
+                        snorm = SymLogNorm(vmin=-kw["alim"][1],
+                                           vmax=kw["alim"][1],
+                                           linthresh=kw["alim"][0])
                         pc1 = ax[0, ncmp].matshow(
-                            np.real(subset),
-                            norm=SymLogNorm(linthresh=kw["alim"][0],
-                                            vmin=-kw["alim"][1],
-                                            vmax=kw["alim"][1]),
-                            cmap=kw["cmap"])
+                            np.real(subset), norm=snorm, cmap=kw["cmap"])
                         pc2 = ax[1, ncmp].matshow(
-                            np.imag(subset),
-                            norm=SymLogNorm(linthresh=kw["alim"][0],
-                                            vmin=-kw["alim"][1],
-                                            vmax=kw["alim"][1]),
-                            cmap=kw["cmap"])
+                            np.imag(subset), norm=snorm, cmap=kw["cmap"])
                     else:
                         pc1 = ax[0, ncmp].matshow(np.real(subset),
                                                   cmap=kw["cmap"])
@@ -900,18 +922,30 @@ class EMData():
         else:
             fig = ax.flat[0].figure
 
+        poly = kwargs.pop("poly", None)
+        if isinstance(poly, str):  # only a single
+            poly = [readCoordsFromKML(poly)]
+        elif isinstance(poly, np.ndarray):
+            poly = [poly]
+        elif isinstance(poly, list):  #
+            if isinstance(poly[0], str):
+                poly = [readCoordsFromKML(p).T for p in poly]
+
         ncmp = 0
         for ci, cid in enumerate(cmp):
             if cid:
                 subset = DATA[ci, nf, :]
                 if kw["amphi"]:
-                    kw["cmap"] = 'viridis'
-                    plotSymbols(self.rx, self.ry, np.abs(subset),
+                    kw["cmap"] = 'Spectral_r'
+                    kw["cmap"] = 'magma_r'
+                    _, cb1 = plotSymbols(self.rx, self.ry, np.abs(subset),
                                 ax=ax[0, ncmp], mode="amp", **kw)
-                    plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),
+                    _, cb2 = plotSymbols(self.rx, self.ry, np.angle(subset, deg=1),
                                 ax=ax[1, ncmp], mode="phase", **kw)
                     ax[0, ncmp].set_title(r'|| (' + self.cstr[ci] + ') ||')
                     ax[1, ncmp].set_title(r'$\phi$(' + self.cstr[ci] + ')')
+                    cb1.ax.set_title(self.cb_label)
+                    cb2.ax.set_title('[°]')
                 else:
                     _, cb1 = plotSymbols(self.rx, self.ry, np.real(subset),
                                          ax=ax[0, ncmp], **kw)
@@ -927,18 +961,29 @@ class EMData():
                             pass
                         else:
                             cb.set_ticks([])
+                        cb.ax.set_title(self.cb_label)
                 ncmp += 1
 
         if background is not None and kwargs.pop("overlay", False):  # bwc
-            background = "BKG"
+            background = "MAP"
 
         for a in ax.flat:
             a.set_aspect(1.0)
-            a.plot(self.tx, self.ty, "k*-")
+            if np.any(self.tx) or np.any(self.ty):
+                a.plot(self.tx, self.ty, "k*-")
+
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
+            if poly is not None:
+                for p in poly:
+                    a.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
 
             if background:
-                underlayBackground(ax, background, self.utm)
+                underlayBackground(a, background, utm=self.zone)
+
+        for i in range(2):
+            ax[i, 0].set_ylabel('[m]')
+        for i in range(ncmp):
+            ax[1, i].set_xlabel('[m]')
 
         basename = kwargs.pop("name", self.basename)
         if "what" in kwargs and isinstance(kwargs["what"], str):
@@ -955,6 +1000,9 @@ class EMData():
         * showLineData (if line=given): x-f patch plot
         * showLineFreq (if line and nf given): x-f line plot
         """
+        if isinstance(mat, str):  # obviously what meant
+            kwargs.setdefault('what', mat)
+            mat = True
         if "line" in kwargs:
             if "nf" in kwargs:
                 return self.showLineFreq(*args, **kwargs)
@@ -970,6 +1018,7 @@ class EMData():
         """Show data and model response for single line/freq."""
         fig, ax = self.showLineFreq(line=line, nf=nf)
         self.showLineFreq(line=line, nf=nf, ax=ax, what="response")
+        return fig, ax
 
     def sortAlongAxis(self, line, axis):
         """Dort points along a given axis (x, y or d)."""
@@ -1062,7 +1111,7 @@ class EMData():
         data = self.getData(line=line, **kwargs)
         data["tx_ids"] = [0]
         DATA = [data]
-        np.savez(fname+".npz",
+        np.savez(fname.replace(".npz", "") + ".npz",
                  tx=[np.column_stack((np.array(self.tx)[::txdir],
                                       np.array(self.ty)[::txdir],
                                       np.array(self.tz)[::txdir]))],
@@ -1073,18 +1122,30 @@ class EMData():
                  rotation=self.angle)
 
     def generateDataPDF(self, pdffile=None, figsize=[12, 6],
-                        mode='patchwise', **kwargs):
-        """Generate a multi-page pdf file containing all data."""
-        what = kwargs.setdefault('what', 'data')
+                        mode='patchwise', background=None, **kwargs):
+        """Generate a multi-page pdf file containing all data.
 
+        Parameters
+        ----------
+        pdffile : str
+            name of pdf file to create
+        what : str
+            field to choose (DATA, ERR, RESPONSE etc.)
+        mode : str
+            'patchwise', 'linewise', 'linewisemat', 'linefreqwise'
+        background : str
+            underlay background (e.g. 'MAP)
+        """
+        what = kwargs.setdefault('what', 'data')
+        sw = what.replace("/", "_")
         if mode == 'patchwise':
-            pdffile = pdffile or self.basename + "_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_" + sw + ".pdf"
         elif mode == 'linewise':
-            pdffile = pdffile or self.basename + "_line_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_line_" + sw + ".pdf"
         elif mode == 'linewisemat':
-            pdffile = pdffile or self.basename + "_linemat_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_linemat_" + sw + ".pdf"
         elif mode == 'linefreqwise':
-            pdffile = pdffile or self.basename + "_linefreqs_" + what + ".pdf"
+            pdffile = pdffile or self.basename + "_linefreqs_" + sw + ".pdf"
         else:
             print('Error, wrong *mode* chosen. Aborting ...')
             raise SystemExit
@@ -1132,32 +1193,18 @@ class EMData():
             else:
                 fig, ax = plt.subplots(ncols=2, figsize=figsize, sharey=True)
                 self.showField(np.arange(len(self.rx)), ax=ax[0],
-                               cMap="Spectral_r")
+                               cMap="Spectral_r", background=background)
                 ax[0].set_title("Sounding number")
-                self.showField(self.line, ax=ax[1], cMap="Spectral_r")
+                self.showField(self.line, ax=ax[1], cMap="Spectral_r",
+                               background=background)
                 ax[1].set_title("Line number")
                 fig.savefig(pdf, format='pdf')
                 plt.close(fig)
                 for i in range(len(self.f)):
                     fig, ax = self.showPatchData(nf=i, figsize=figsize,
-                                                 **kwargs)
+                                                 background=background, **kwargs)
                     fig.savefig(pdf, format='pdf')
                     plt.close(fig)
-
-    def generateModelPDF(self, pdffile=None, **kwargs):
-        """Generate a PDF of all models."""
-        dep = self.depth.copy()
-        dep[:-1] += np.diff(self.depth) / 2
-        pdffile = pdffile or self.basename + "-models5.pdf"
-        kwargs.setdefault('alim', [5, 5000])
-        kwargs.setdefault('log', True)
-        with PdfPages(pdffile) as pdf:
-            fig, ax = plt.subplots()
-            for i in range(self.allModels.shape[1]):
-                self.showField(self.allModels[:, i], ax=ax, **kwargs)
-                ax.set_title('z = {:.1f}'.format(dep[i]))
-                fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
-                ax.cla()
 
     def estimateError(self, ignoreErr=True, useMax=False, ri=None,
                       **kwargs):
@@ -1182,6 +1229,8 @@ class EMData():
         freq : iterable|int [0:nF]
             frequency number(s) to which it is applied
         """
+        if np.shape(self.DATA) != np.shape(self.ERR):
+            self.ERR = np.zeros_like(self.DATA)
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
         cmp = kwargs.pop("cmp", slice(0, 3))
@@ -1231,32 +1280,70 @@ class EMData():
             self.ERR[cmp, freq, :] = self.ERR[cmp, freq, :] +\
                 aErr[cmp, freq, :] + rErr[cmp, freq, :]
 
-    def deactivateNoisyData(self, aErr=1e-4, rErr=0.5):
-        """Set data below a certain threshold to nan (inactive)."""
+    def mask(self, aErr=None, rErr=None, aMin=None, aMax=None,
+             pMin=None, pMax=None):
+        """Masking out data according to several properties.
+
+        Parameters
+        ----------
+        aErr : float
+            maximum absolute error
+        rErr : float
+            maximum relative error
+        aMin, aMax : float
+            minimum/maximum amplitude
+        pMin, pMax : float
+            minimum/maximum phase
+        """
+        cnan = np.nan + 1j * np.nan
         if aErr is not None:
-            self.DATA[np.abs(self.DATA.real) < aErr] = np.nan + 1j * np.nan
-            self.DATA[np.abs(self.DATA.imag) < aErr] = np.nan + 1j * np.nan
+            self.DATA[np.abs(self.DATA.real) < aErr] = cnan
+            self.DATA[np.abs(self.DATA.imag) < aErr] = cnan
 
         if rErr is not None:
-            rr = self.ERR.real / (np.abs(self.DATA.real) + 1e-12)
-            ii = self.ERR.imag / (np.abs(self.DATA.imag) + 1e-12)
+            rr = np.abs(self.ERR.real) / (np.abs(self.DATA.real) + 1e-12)
+            self.DATA[rr > rErr] = cnan
+            ii = np.abs(self.ERR.imag) / (np.abs(self.DATA.imag) + 1e-12)
+            self.DATA[ii > rErr] = cnan
 
-            self.DATA[np.abs(rr) > rErr] = np.nan + 1j * np.nan
-            self.DATA[np.abs(ii) > rErr] = np.nan + 1j * np.nan
+        if aMin is not None or aMax is not None:
+            aa = np.abs(self.DATA)
+            if aMin is not None:
+                self.DATA[aa < aMin] = cnan
+            if aMax is not None:
+                self.DATA[aa > aMax] = cnan
+
+        if pMin is not None or pMax is not None:
+            pp = np.angle(self.DATA)
+            if pMin is not None:
+                self.DATA[pp < pMin] = cnan
+            if pMax is not None:
+                self.DATA[pp > pMax] = cnan
+
+
+    # for compatibility, forward to mask with good defaults
+    def deactivateNoisyData(self, aErr=1e-4, rErr=0.5):
+        """Set data below a certain threshold to nan (inactive)."""
+        self.mask(aErr=aErr, rErr=rErr)
 
     def loadResponse(self, dirname=None, response=None):
         """Load model response file."""
-        if response is None:
-            respfiles = sorted(glob(dirname+"response_iter*.npy"))
-            if len(respfiles) == 0:
-                pg.error("Could not find response file")
+        if response is None or type(response) is int:
+            if type(response) is int:
+                respfiles = [dirname + "response_iter_" +
+                             str(response) + ".npy"]
+            else:
+                respfiles = sorted(glob(dirname+"response_iter*.npy"))
+                if len(respfiles) == 0:
+                    pg.error("Could not find response file")
 
             responseVec = np.load(respfiles[-1])
             respR, respI = np.split(responseVec, 2)
             response = respR + respI*1j
 
         sizes = [sum(self.cmp), self.nF, self.nRx]
-        RESP = np.ones(np.prod(sizes), dtype=np.complex) * np.nan
+        RESP = np.ones(np.prod(sizes), dtype=complex) * np.nan
+
         try:
             RESP[self.getIndices()] = response
         except ValueError:
@@ -1264,5 +1351,78 @@ class EMData():
 
         RESP = np.reshape(RESP, sizes)
         self.RESP = np.ones((len(self.cstr), self.nF, self.nRx),
-                            dtype=np.complex) * np.nan
+                            dtype=complex) * np.nan
         self.RESP[np.nonzero(self.cmp)[0]] = RESP
+
+    def showSpatialMisfit(self, what="wmisfit", **kwargs):
+        """Show spatial distribution of misfit plots.
+
+        chi-square over components, frequency and Real/Imag.
+
+        Parameters
+        ----------
+        what : str ['wmisfit]
+            property to integrate over
+        log : bool [False]
+            use logscale colorbar
+        kwargs : dict
+            keyword args passed to showField/plotSymbols
+
+        Returns
+        -------
+        ax, cb : matplotlib Axes and colorbar objects
+        """
+        mis = self.chooseActive(what=what)
+        mR = np.nanmean(mis.real**2, axis=(0, 1))
+        mI = np.nanmean(mis.imag**2, axis=(0, 1))
+        kwargs.setdefault('symlog', False)
+        kwargs.setdefault('log', True)
+        return self.showField((mR+mI)/2, **kwargs)
+
+    def showMisfitStats(self, what="wmisfit", **kwargs):
+        """Show misfit statistics for data components.
+
+        Chi-square integrated over space, as a function
+        of components, frequency and real/imag parts.
+
+        Parameters
+        ----------
+        what : str ['wmisfit]
+            property to integrate over
+        log : bool [False]
+            use logscale colorbar
+        vmin, vmax : float [min/max values]
+            minimum and maximum colorbar ranges
+        log : bool [False]
+            use logarithmic colorbar
+        cmap : str ['Spetral_r']
+            matplotlib colormap or string
+
+        Returns
+        -------
+        ax : [Axes, Axes]
+            two matplotlib axes for real and imaginary
+        """
+        mis = self.chooseActive(what=what)
+        statR = np.nanmean(mis.real**2, axis=2)
+        statI = np.nanmean(mis.imag**2, axis=2)
+        _, ax = plt.subplots(nrows=2, sharex=True, sharey=True)
+        kwargs.setdefault("vmin", min(np.nanmin(statR), np.nanmin(statI)))
+        kwargs.setdefault("vmax", max(np.nanmax(statR), np.nanmax(statI)))
+        kwargs.setdefault("cmap", "Spectral_r")
+        if kwargs.pop("log", True):
+            norm = LogNorm(vmin=kwargs.pop("vmin"), vmax=kwargs.pop("vmax"))
+        else:
+            norm = Normalize(vmin=kwargs.pop("vmin"), vmax=kwargs.pop("vmax"))
+
+        for i, ri in enumerate([statR, statI]):
+            im = ax[i].imshow(ri, norm=norm, **kwargs)
+            plt.colorbar(im, ax=ax[i])
+            ax[i].set_yticks([0, 1, 2], ["Bx", "By", "Bz"])
+
+        ax[1].set_xticks(range(self.nF),
+                         [str(int(fi)) for fi in self.f])
+        ax[0].set_title("Real")
+        ax[1].set_title("Imag")
+        ax[1].set_xlabel("f (Hz)")
+        return ax
