@@ -247,7 +247,7 @@ class CSEMSurvey():
             DATA.append(data)
             lines = np.concatenate((lines, p.line+(i+1)*100))
 
-        return DATA, lines
+        return np.array(DATA, dtype=object), lines
 
     def saveData(self, fname=None, line=None, **kwargs):
         """Ensure that old scripts with the old method name work."""
@@ -281,7 +281,7 @@ class CSEMSurvey():
             if not fname.endswith(".npz"):
                 fname += ".npz"
             np.savez(fname,
-                     tx=txs,
+                     tx=np.array(txs, dtype=object),
                      freqs=self.patches[0].f,
                      DATA=DATA,
                      line=lines,
