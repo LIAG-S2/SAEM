@@ -454,6 +454,89 @@ class EMData():
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
 
+    def set_nan(self, fInd=None, cInd=None, nInd=None,
+               minTxDist=None, maxTxDist=None, every=None,
+               polygon=None, minRxDist=None):
+        """Filter data according to frequency and and receiver properties.
+
+        Parameters
+        ----------
+        fInd : bool array, optional
+            frequency indices to be adjusted to set data to NaN
+        cInd : bool array, optional
+            cmp indices to be adjusted to set data to NaN
+        nInd : iterable, optional
+            index array for receivers to use, alternatively
+        minTxDist : float
+            minimum distance to transmitter
+        maxTxDist : TYPE, optional
+            maximum distance to transmitter
+        every : int
+            use only every n-th receiver
+        polygon : ndarray|str
+            polygone (or kmlfile) to remove points
+            * inside (minTxDist not set) OR
+            * in a distance of minTxDist
+        """
+
+
+        if fInd is None:
+            fInd = np.arange(len(self.f), dtype=int)
+        if cInd is None:
+            cInd = np.arange(len(self.cmp), dtype=int)
+
+        # part 2: receiver axis
+        if nInd is None:
+            if polygon is not None:
+                if isinstance(polygon, str):
+                    polygon = readCoordsFromKML(polygon).T
+
+                rx = self.rx + self.origin[0]
+                ry = self.ry + self.origin[1]
+                if minTxDist is None:  # inside
+                    nInd = np.ones_like(rx, dtype=bool)
+                    for i, xy in enumerate(zip(rx, ry)):
+                        nInd[i] = not is_point_inside_polygon(*xy, polygon)
+                    nInd = np.invert(nInd)
+                else:
+                    di = distToTx(rx, ry, polygon[:, 0], polygon[:, 1])
+                    nInd = np.nonzero((di >= minTxDist))[0]
+                    nInd = np.invert(np.isin(np.arange(len(self.rx)), nInd))
+            elif minTxDist is not None or maxTxDist is not None:
+                dTx = self.txDistance()
+                minTxDist = minTxDist or 0
+                maxTxDist = maxTxDist or 9e9
+                nInd = np.nonzero((dTx >= minTxDist) * (dTx <= maxTxDist))[0]
+                nInd = np.invert(np.isin(np.arange(len(self.rx)), nInd))
+            else:
+                nInd = np.arange(len(self.rx))
+
+            if isinstance(every, int):
+                nInd = nInd[::every]
+            ###
+            if minRxDist is not None:
+                nInd = [0]
+
+                for i in range(1, len(self.rx)):
+                    dist = np.sqrt((self.rx[i] - self.rx[nInd[-1]])**2 +
+                                   (self.ry[i] - self.ry[nInd[-1]])**2)
+
+                    if dist >= minRxDist:
+                        nInd.append(i)
+
+        if nInd is not None:
+            for fi in fInd:
+                for ci in cInd:
+                    self.DATA[ci, fi, nInd] = np.nan + 1j * np.nan
+                    if np.any(self.ERR):
+                        self.ERR[ci, fi, nInd] = np.nan + 1j * np.nan
+                    if np.any(self.RESP):
+                        self.RESP[ci, fi, nInd] = np.nan + 1j * np.nan
+                    if np.any(self.PRIM):
+                        self.PRIM[ci, fi, nInd] = np.nan + 1j * np.nan
+            if hasattr(self, 'MODELS'):
+                self.MODELS = self.MODELS[nInd, :]
+                
     def skinDepths(self, rho=30):
         """Compute skin depth based on a medium resistivity."""
         return np.sqrt(rho/self.f) * 500

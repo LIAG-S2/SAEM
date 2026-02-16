@@ -202,7 +202,6 @@ class CSEMData(EMData):
         """Load data from mat file (WWU Muenster processing)."""
         self.basename = filename.replace("*", "").replace(".mat", "")
         filenames = sorted(glob(filename))
-        print(filenames)
         assert len(filenames) > 0
         filename = filenames[0]
         MAT = loadmat(filename)
@@ -214,7 +213,7 @@ class CSEMData(EMData):
         if len(filenames) > 1:
             print("read "+filename)
         for filename in filenames[1:]:
-            print("reading "+filename)
+            #print("reading "+filename)
             MAT1 = loadmat(filename)
             line += 1
             MAT1["line"] = np.ones(MAT1["lon"].shape[-1], dtype=int) * line
@@ -256,7 +255,7 @@ class CSEMData(EMData):
         if len(filenames) > 1:
             print("read "+filename)
         for filename in filenames[1:]:
-            print("reading "+filename)
+            #print("reading "+filename)
             MAT1 = loadmat(filename)["ztfs"][0][0]
             line += 1
             MAT1["line"] = np.ones(MAT1["xy"].shape[-1], dtype=int) * line
