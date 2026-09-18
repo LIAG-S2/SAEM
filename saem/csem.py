@@ -1,19 +1,16 @@
 """Controlled-source electromagnetic (CSEM) data class."""
 from glob import glob
-
-import numpy as np
-from scipy.io import loadmat
+import utm
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-
+import numpy as np
 import pygimli as pg
-from pygimli.viewer.mpl import drawModel1D
-from pygimli.viewer.mpl import showStitchedModels
-from pygimli.core.math import symlog
+from matplotlib.backends.backend_pdf import PdfPages
+from pygimli.viewer.mpl import drawModel1D, showStitchedModels
+from scipy.io import loadmat
 
-from .plotting import showSounding
 from .emdata import EMData
-from .modelling import fopSAEM, bipole
+from .modelling import bipole, fopSAEM
+from .plotting import showSounding
 from .tools import distToTx, readCoordsFromKML
 
 
@@ -81,7 +78,8 @@ class CSEMData(EMData):
             if isinstance(self.tz, (int, float)):
                 self.tz = np.ones_like(self.tx)*self.tz
 
-        self.txAlt = kwargs.pop("txalt", 0.0)
+        # self.txAlt = kwargs.pop("txalt", 0.0)
+        self.txAlt = np.median(self.tz) # rather ground altitude
         self.alt = self.rz - self.txAlt  # better create only on demand?
 
         if datafile is not None:
@@ -94,15 +92,15 @@ class CSEMData(EMData):
 
     def __repr__(self):
         """String representation of the class."""
-        sdata = "CSEM data with {:d} stations and {:d} frequencies".format(
-            len(self.rx), len(self.f))
+        sdata = f"CSEM data with {len(self.rx):d} stations " + \
+                f"and {len(self.f):d} frequencies"
         txlen = np.sum(np.sqrt(np.diff(self.tx)**2+np.diff(self.ty)**2))
-        stx = "Transmitter length {:.0f}m".format(txlen)
+        stx = f"Transmitter length {txlen:.0f}m"
         dx = np.sqrt(np.diff(self.rx)**2+np.diff(self.ry)**2)
-        smrx = "Median Rx distance {:.1f}m".format(np.median(dx))
+        smrx = f"Median Rx distance {np.median(dx):.1f}m"
         spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])
 
-        return "\n".join((sdata, stx, smrx, spos))
+        return f"{sdata}\n{stx}\n{smrx}\n{spos}"
 
     def createDataArray(self):
         """Create data array for a given model ("E", "B", or "RB")."""
@@ -123,10 +121,9 @@ class CSEMData(EMData):
         """Load any data format."""
         if filename.endswith(".npz"):
             self.loadNpzFile(filename)
-        elif filename.endswith(".mat"):
-            if not self.loadEmteresMatFile(filename):
-                print("No frequency in data, try read WWU style")
-                self.loadWWUMatFile(filename)
+        elif filename.endswith(".mat") and not self.loadEmteresMatFile(filename):
+            print("No frequency in data, try read WWU style")
+            self.loadWWUMatFile(filename)
 
         if len(self.line) != len(self.rx):
             self.line = np.ones_like(self.rx, dtype=int)
@@ -219,11 +216,12 @@ class CSEMData(EMData):
             MAT1["line"] = np.ones(MAT1["lon"].shape[-1], dtype=int) * line
             assert len(MAT["f"]) == len(MAT1["f"]), filename+" nf not matching"
             assert np.allclose(MAT["f"], MAT1["f"]), filename+" f not matching"
-            for key in MAT1.keys():
+            for key in MAT1:
                 if key[0] != "_" and key != "f":
                     MAT[key] = np.hstack([MAT[key], MAT1[key]])
 
-        self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
+        # self.rx, self.ry = self.utm(MAT["lon"][0], MAT["lat"][0])
+        self.rx, self.ry, self.zone, _ = utm.from_latlon(MAT["lat"][0], MAT["lon"][0])
         self.f = np.squeeze(MAT["f"]) * 1.0
         DATAX = MAT["ampx"] * np.exp(MAT["phix"]*np.pi/180*1j)
         DATAY = MAT["ampy"] * np.exp(MAT["phiy"]*np.pi/180*1j)
@@ -276,22 +274,22 @@ class CSEMData(EMData):
 
         self.MAT = MAT
         self.f = np.round(100.0 / np.squeeze(MAT["periods"])) / 100.
-        
-        # # fix does not work as supposed 
-        # if "lla" in MAT.dtype.names:
-        #     # import utm
-        #     # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
-        #     self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
-        #     self.rz = MAT["lla"][2]
-        # else:
-        #     self.ry, self.rx = MAT["xy"]  # can be wrong
-        #     if "topo" in MAT.dtype.names:
-        #         self.rz = MAT["topo"][0]
-        #     else:
-        #         raise Exception("Could not determine altitude!")
-        
+
+        # # fix does not work as supposed
+        if "lla" in MAT.dtype.names:
+            self.rx, self.ry, self.zone, _ = utm.from_latlon(*MAT["lla"][:2])
+            # self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
+            self.rz = MAT["lla"][2]
+        else:
+            self.ry, self.rx = MAT["xy"]  # can be wrong
+            if "topo" in MAT.dtype.names:
+                self.rz = MAT["topo"][0]
+            else:
+
+                raise Exception("Could not determine altitude!")
+
         # using old version from June 2024
-        self.ry, self.rx = MAT["xy"]  # can be wrong
+        # self.ry, self.rx = MAT["xy"]  # can be wrong
         # import utm
         # self.rx, self.ry, *_ = utm.from_latlon(*MAT["lla"][:2])
         # self.rx, self.ry = self.utm(*MAT["lla"][1::-1])
@@ -301,7 +299,7 @@ class CSEMData(EMData):
         if "lla" in MAT.dtype.names:
             self.rz = MAT["lla"][2]
         else:
-            raise Exception("Could not determine altitude!")
+            raise ValueError("Could not determine altitude!")
 
         if "line" in MAT.dtype.names:
             self.line = MAT["line"]
@@ -323,22 +321,44 @@ class CSEMData(EMData):
             TMP2[2, :, :] = TMP
             TMP = TMP2
 
-        print('HACKED WWU MAT import ERR')
-        self.ERR = TMP
-        self.ERR.real = np.abs(self.ERR.real)
-        self.ERR.imag = np.abs(self.ERR.imag)     
-        
-        # if TMP.dtype is complex:
-        #     self.ERR = TMP
-        #     self.ERR.real = np.abs(self.ERR.real)
-        #     self.ERR.imag = np.abs(self.ERR.imag)     
-        #     print(np.min(self.ERR.real))
-        #     print(np.max(self.ERR.real))
-        # else:
-        #     self.ERR = TMP * (1+1j)
+        # print('HACKED WWU MAT import ERR')
+        # self.ERR = TMP
+        # self.ERR.real = np.abs(self.ERR.real)
+        # self.ERR.imag = np.abs(self.ERR.imag)
+
+        if TMP.dtype is complex:
+            self.ERR = TMP
+            self.ERR.real = np.abs(self.ERR.real)
+            self.ERR.imag = np.abs(self.ERR.imag)
+            print(np.min(self.ERR.real))
+            print(np.max(self.ERR.real))
+        else:
+            self.ERR = TMP * (1+1j)
 
         self.alt = self.rz - self.txAlt
         return True
+
+    def createConfig(self, fullTx=False, loop=False):
+        """Create EMPYMOD input argument configuration."""
+        self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0]-self.txAlt, 0, 90],
+                    'strength': 1, 'mrec': True,
+                    'srcpts': 5,
+                    'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
+                    'verb': 1}
+        if fullTx or loop:  # sum up over segments
+            self.cfg['src'] = [self.tx[:-1], self.tx[1:],
+                               self.ty[:-1], self.ty[1:],
+                               -0.1, -0.1]
+            if loop:
+                self.cfg['src'][0] = np.append(self.cfg['src'][0], self.tx[-1])
+                self.cfg['src'][1] = np.append(self.cfg['src'][1], self.tx[0])
+                self.cfg['src'][2] = np.append(self.cfg['src'][2], self.ty[-1])
+                self.cfg['src'][3] = np.append(self.cfg['src'][3], self.ty[0])
+
+        else:  # only first&last point (quick)
+            self.cfg['src'] = [self.tx[0], self.tx[-1],
+                               self.ty[0], self.ty[-1],
+                               -0.1, -0.1]
 
     def simulate(self, rho, thk=[], **kwargs):
         """Simulate data by assuming 1D layered model.
@@ -385,8 +405,9 @@ class CSEMData(EMData):
         if kwargs.pop("show", False):
             self.showData(what="response", **kwargs)
 
-    def computePrimaryFields(self):
+    def computePrimaryFields(self, fullTx=True, loop=False):
         """Compute primary fields."""
+        self.createConfig(fullTx=fullTx, loop=loop)
         cfg = dict(self.cfg)
         fak = 4e-7 * np.pi * 1e9  # H->B and T in nT
         self.alt = self.rz - np.mean(self.tz)
@@ -401,6 +422,8 @@ class CSEMData(EMData):
         cfg["rec"][3:5] = [0, 90]  # z
         pfz = bipole(**cfg).real * fak
         self.PRIM = np.stack([pfx, pfy, pfz])
+        if len(self.PRIM.shape) == 4:
+            self.PRIM = self.PRIM.sum(axis=3)
 
     def txDistance(self, seg=True):
         """Distance to transmitter."""
@@ -430,11 +453,12 @@ class CSEMData(EMData):
 
         if depth is not None:
             self.depth = depth
+
         if self.depth is None:
             self.createDepthVector()
 
         self.fop1d = fopSAEM(self.depth, self.cfg, self.f, self.cmp)
-        self.fop1d.modelTrans.setLowerBound(1.0)
+        # self.fop1d.modelTrans.setLowerBound(1.0)
         if not hasattr(self, "model"):
             self.model = np.ones_like(self.depth) * 100
 
@@ -447,10 +471,10 @@ class CSEMData(EMData):
                     data.extend(getattr(self, "data"+cmp))
 
             self.inv1d = pg.Inversion(fop=self.fop1d)
-            transModel = pg.trans.TransLogLU(1, 1000)
-            transData = pg.trans.TransSymLog(tol=absError)
-            self.inv1d.transModel = transModel
-            self.inv1d.transData = transData
+            # transModel = pg.trans.TransLogLU(1, 10000)
+            # transData = pg.trans.TransSymLog(tol=absError)
+            self.inv1d.modelTrans = 'log1-10000'
+            self.inv1d.transData = f'symlog{absError}' # transData
             datavec = np.hstack((np.real(data), np.imag(data)))
             absoluteError = np.abs(datavec) * relError + absError
             relativeError = np.abs(absoluteError/datavec)
@@ -480,11 +504,13 @@ class CSEMData(EMData):
         if self.depth is None:
             self.createDepthVector()
 
+        kwargs.setdefault('startModel', 30)
         self.allModels = np.ones([len(self.rx), len(self.depth)])
         model = 100
-        for n in nn:
+        from tqdm import tqdm
+        for n in tqdm(nn):
             self.setPos(n)
-            model = self.invertSounding(startModel=30, show=False, **kwargs)
+            model = self.invertSounding(show=False, **kwargs)
             self.MODELS.append(model)
             self.allModels[n, :] = model
 
@@ -577,20 +603,24 @@ class CSEMData(EMData):
 
         ncmp = 0
         amphi = kwargs.pop("amphi", True)
+        ls = kwargs.pop("ls", "")
+        kwargs.setdefault("label", "B")
+        kwargs.setdefault("color", "C")
+        kwargs.setdefault("marker", "x")
         for i in range(3):
             if cmp[i] > 0:
                 data = getattr(self, "data"+allcmp[i].upper())
-                # kwargs['color'] = 'C' + str(i)
-                # kwargs['label'] = 'B' + allcmp[i]
+                if kwargs["color"][0] == "C":
+                    kwargs['color'] = 'C' + str(i)
                 kwargs.setdefault("color", "C" + str(i))
-                kwargs.setdefault("label", "B" + allcmp[i])
-                ax = showSounding(data, self.f, ax=ax, ls="",
-                                  marker="x", amphi=amphi, **kwargs)
+                if kwargs["label"][0] == "B":
+                    kwargs["label"] = "B" + allcmp[i]
+                ax = showSounding(data, self.f, ax=ax, amphi=amphi, ls=ls, **kwargs)
                 if response is not None:
                     # col = kwargs["color"]
                     if amphi:
                         snddata = respRe[ncmp] + respIm[ncmp] * 1j
-                        ax[0].plot(np.abs(snddata), self.f, ls="-", **kwargs)
+                        ax[0].plot(np.abs(snddata), self.f, **kwargs)
                         ax[1].plot(np.angle(snddata)*180/np.pi, self.f, ls="-", **kwargs)
                     else:
                         ax[0].plot(respRe[ncmp], self.f, ls="-", **kwargs)
