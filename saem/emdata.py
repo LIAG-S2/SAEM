@@ -1,23 +1,34 @@
 """EMData base class for any type of electromagnetic data."""
 from glob import glob
-import numpy as np
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize, LogNorm, SymLogNorm
+import numpy as np
+import pygimli as pg
+# import pyproj
+import utm
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.colors import LogNorm, Normalize, SymLogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import pyproj
+from .plotting import (
+    makeSubTitles,
+    makeSymlogTicks,
+    plotSymbols,
+    underlayBackground,
+    updatePlotKwargs,
+)
+from .tools import (
+    detectLinesAlongAxis,
+    detectLinesByDistance,
+    detectLinesBySpacing,
+    detectLinesOld,
+    distToTx,
+    is_point_inside_polygon,
+    readCoordsFromKML,
+)
 
-import pygimli as pg
-from .plotting import plotSymbols, underlayBackground, makeSymlogTicks
-from .plotting import makeSubTitles, updatePlotKwargs
-from .tools import detectLinesAlongAxis, detectLinesBySpacing
-from .tools import detectLinesByDistance, detectLinesOld
-from .tools import readCoordsFromKML, is_point_inside_polygon, distToTx
 
-
-class EMData():
+class EMData:
     """Class for EM frequency-domain data."""
 
     def __init__(self, **kwargs):
@@ -50,9 +61,9 @@ class EMData():
         self.mode = None  # needs to be done in derived classes
         self.f = kwargs.pop("f", [])
         self.basename = kwargs.pop("basename", "noname")
-        self.zone = kwargs.pop("zone", 32)
+        self.zone = kwargs.pop("zone", None)
         self.verbose = kwargs.pop("verbose", True)
-        self.utm = pyproj.Proj(proj='utm', zone=self.zone, ellps='WGS84')
+        # self.utm = pyproj.Proj(proj='utm', zone=self.zone, ellps='WGS84')
         # receiver positions (rx and optionally ry and rz)
         self.rx = kwargs.pop("rx", np.array([0.]))
         self.ry = kwargs.pop("ry", np.zeros_like(self.rx))
@@ -70,14 +81,13 @@ class EMData():
         self.cmp = []
         self.cstr = []
         self.radius = kwargs.pop("radius", 1)
-        self.txAlt = 0 # rather ground altitude
 
     def __repr__(self):
         """String representation of the class."""
-        sdata = "EM data with {:d} stations and {:d} frequencies".format(
-            len(self.rx), len(self.f))
+        sdata = f"EM data with {len(self.rx):d} stations" + \
+                f" and {len(self.f):d} frequencies"
 
-        return "\n".join((sdata))
+        return "\n".join(sdata)
 
     @property
     def nRx(self):
@@ -193,28 +203,6 @@ class EMData():
         self.nrx = nrx
         if show:
             self.showPositions()
-
-    def createConfig(self, fullTx=False, loop=False):
-        """Create EMPYMOD input argument configuration."""
-        self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0], 0, 90],
-                    'strength': 1, 'mrec': True,
-                    'srcpts': 5,
-                    'htarg': {'pts_per_dec': 0, 'dlf': 'key_51_2012'},
-                    'verb': 1}
-        if fullTx or loop:  # sum up over segments
-            self.cfg['src'] = [self.tx[:-1], self.tx[1:],
-                               self.ty[:-1], self.ty[1:],
-                               -0.1, -0.1]
-            if loop:
-                self.cfg['src'][0] = np.append(self.cfg['src'][0], self.tx[-1])
-                self.cfg['src'][1] = np.append(self.cfg['src'][1], self.tx[0])
-                self.cfg['src'][2] = np.append(self.cfg['src'][2], self.ty[-1])
-                self.cfg['src'][3] = np.append(self.cfg['src'][3], self.ty[0])
-
-        else:  # only first&last point (quick)
-            self.cfg['src'] = [self.tx[0], self.tx[-1],
-                               self.ty[0], self.ty[-1],
-                               -0.1, -0.1]
 
     def rotateBack(self):
         """Rotate coordinate system back to previously stored origin/angle."""
@@ -341,7 +329,7 @@ class EMData():
         self.line += 1
 
         if show:
-            self.showField(self.line)
+            self.showField("line")
 
     def removeNoneLineData(self):
         """Remove data not belonging to a specific line."""
@@ -412,7 +400,7 @@ class EMData():
                         nInd[i] = not is_point_inside_polygon(*xy, polygon)
                 else:
                     di = distToTx(rx, ry, polygon[:, 0], polygon[:, 1])
-                    nInd = np.nonzero((di >= minTxDist))[0]
+                    nInd = np.nonzero(di >= minTxDist)[0]
             elif minTxDist is not None or maxTxDist is not None:
                 dTx = self.txDistance()
                 minTxDist = minTxDist or 0
@@ -425,18 +413,19 @@ class EMData():
 
             if isinstance(every, int):
                 nInd = nInd[::every]
-            ###
+
             if minRxDist is not None:
                 nInd = [0]
-
                 for i in range(1, len(self.rx)):
                     dist = np.sqrt((self.rx[i] - self.rx[nInd[-1]])**2 + (self.ry[i] - self.ry[nInd[-1]])**2)
 
                     if dist >= minRxDist:
                         nInd.append(i)
+
+                self.radius = np.maximum(self.radius, minRxDist)
             if rInd is not None:
                 nInd = np.delete(np.arange(len(self.rx)), rInd)
-            ###
+
         if rInd is not None:
             nInd = np.delete(np.arange(len(self.rx)), rInd)
 
@@ -561,12 +550,11 @@ class EMData():
 
         kwargs.setdefault("markersize", 5)
         ma = marker or "."
-        ax.plot(rxy[:, 0], rxy[:, 1], ma, markersize=2,
+        ax.plot(rxy[:, 0], rxy[:, 1], ma, markersize=1,
                 color=color or "blue")
-        if txy.shape[1] > 0:
-            if np.any(txy):
-                ax.plot(txy[:, 0], txy[:, 1], "-", markersize=4,
-                        color=color or "orange")
+        if txy.shape[1] > 0 and np.any(txy):
+            ax.plot(txy[:, 0], txy[:, 1], "-", markersize=3,
+                    color=color or "orange")
 
         if hasattr(self, "nrx") and self.nrx < self.nRx:
             ax.plot(rxy[self.nrx, 0], rxy[self.nrx, 1], "ro", **kwargs)
@@ -577,8 +565,8 @@ class EMData():
 
         ax.set_aspect(1.0)
         ax.grid(True)
-        ax.set_xlabel("Easting (m) UTM32N")
-        ax.set_ylabel("Northing (m) UTM32N")
+        ax.set_xlabel(f"Easting (m) UTM{self.zone}N")
+        ax.set_ylabel(f"Northing (m) UTM{self.zone}N")
         if background:
             underlayBackground(ax, background, utm=self.zone)
 
@@ -617,9 +605,10 @@ class EMData():
 
         kwargs.setdefault("radius", self.radius)
         kwargs.setdefault("log", False)
+        kwargs.setdefault("edgecolor", None)
         kwargs.setdefault("cmap", "Spectral_r")
         background = kwargs.pop("background", None)
-        ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
+        # ax.plot(self.rx, self.ry, "k.", ms=1, zorder=-10)
         if np.any(self.tx) or np.any(self.ty):
             ax.plot(self.tx, self.ty, "k*-", zorder=-1)
 
@@ -634,6 +623,11 @@ class EMData():
                                    np.max(np.unique(field))])
 
         ax, cb = plotSymbols(self.rx, self.ry, field, ax=ax, **kwargs)
+        if kwargs.pop("label", "") == "line":
+            for i, l in enumerate(np.unique(field)):
+                ax.text(#np.mean(self.rx[field == l]), np.mean(self.ry[field == l]),
+                    self.rx[field == l][0], self.ry[field == l][0],
+                    str(int(l)), color="k", fontsize=10, zorder=100, ha="center", va="center")
 
         ax.set_aspect(1.0)
         x0 = np.floor(min(self.rx) / 1e4) * 1e4
@@ -656,6 +650,8 @@ class EMData():
             elif isinstance(poly, list):  #
                 if isinstance(poly[0], str):
                     poly = [readCoordsFromKML(p).T for p in poly]
+                else:
+                    print("Could not use poly", poly)
 
             for p in poly:
                 ax.plot(p[:, 0]-self.origin[0], p[:, 1]-self.origin[1])
@@ -816,7 +812,7 @@ class EMData():
             if cid:
                 subset = DATA[ci, :, nn].T.ravel()
                 if kw["amphi"]:
-                    kw["cmap"] = 'viridis'
+                    kw["cmap"] = 'magma_r'
                     plotSymbols(x, y, np.abs(subset), ax=ax[0, ncmp],
                                 mode="amp", **kw)
                     plotSymbols(x, y, np.angle(subset, deg=1), ax=ax[1, ncmp],
@@ -850,7 +846,7 @@ class EMData():
                 print('need to adjust xlim for *x* = *d* option')
             a.set_xlabel("x (m)")
         yt = np.arange(0, len(self.f), 2)
-        ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
+        ytl = [f"{self.f[yy]:.0f}" for yy in yt]
         for aa in ax[:, 0]:
             aa.set_yticks(yt)
             aa.set_yticklabels(ytl)
@@ -949,7 +945,7 @@ class EMData():
 
         ax[0, 0].set_ylim([-0.5, len(self.f)-0.5])
         yt = np.arange(0, len(self.f), 2)
-        ytl = ["{:.0f}".format(self.f[yy]) for yy in yt]
+        ytl = [f"{self.f[yy]:.0f}" for yy in yt]
         for aa in ax[:, 0]:
             aa.set_yticks(yt)
             aa.set_yticklabels(ytl)
@@ -957,10 +953,10 @@ class EMData():
 
         if axis == "x":
             xt = np.round(np.linspace(0, len(nn)-1, 7))
-            xtl = ["{:.0f}".format(self.rx[nn[int(xx)]]) for xx in xt]
+            xtl = [f"{self.rx[nn[int(xx)]]:.0f}" for xx in xt]
         elif axis == "y":
             xt = np.round(np.linspace(0, len(nn)-1, 7))
-            xtl = ["{:.0f}".format(self.ry[nn[int(xx)]]) for xx in xt]
+            xtl = [f"{self.ry[nn[int(xx)]]:.0f}" for xx in xt]
         elif axis == "d":
             print('Warning! Need to adjust xlim for *x* = *d* option')
 
@@ -1013,6 +1009,8 @@ class EMData():
         elif isinstance(poly, list):  #
             if isinstance(poly[0], str):
                 poly = [readCoordsFromKML(p).T for p in poly]
+            else:
+                print("could not use poly", poly)
 
         ncmp = 0
         for ci, cid in enumerate(cmp):
@@ -1053,7 +1051,7 @@ class EMData():
         for a in ax.flat:
             a.set_aspect(1.0)
             if np.any(self.tx) or np.any(self.ty):
-                a.plot(self.tx, self.ty, "k*-")
+                a.plot(self.tx, self.ty, "-", color="grey")
 
             a.plot(self.rx, self.ry, ".", ms=0, zorder=-10)
             if poly is not None:
@@ -1156,9 +1154,8 @@ class EMData():
                 ncmp += 1
 
         # error estimation
-        data = dict(dataR=dataR, dataI=dataI,
-                    errorR=errorR, errorI=errorI,
-                    rx=rxpos, cmp=cstr)
+        data = {"dataR": dataR, "dataI": dataI, "rx": rxpos,
+                "errorR": errorR, "errorI": errorI, "cmp": cstr}
 
         return data
 
@@ -1251,8 +1248,7 @@ class EMData():
                             kwargs["what"] = "resp"
                             fig, ax = self.showLineFreq(li, fi, ax=ax,
                                                         **kwargs)
-                            fig.suptitle('line = {:.0f}, '
-                                         'freq = {:.0f} Hz'.format(li, freq))
+                            fig.suptitle(f'line={li:.0f}, freq={freq:.0f}Hz')
                             fig.savefig(pdf, format='pdf')
                             plt.close(fig)
 
@@ -1270,7 +1266,7 @@ class EMData():
                             fig, ax = self.showLineData(li, **kwargs)
                         else:
                             fig, ax = self.showLineDataMat(li, **kwargs)
-                        fig.suptitle('line = {:.0f}'.format(li))
+                        fig.suptitle(f'line = {li:.0f}')
                         fig.savefig(pdf, format='pdf')
                         plt.close(fig)
             else:
