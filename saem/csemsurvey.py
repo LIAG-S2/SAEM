@@ -756,7 +756,7 @@ class CSEMSurvey():
     def runInv(self, invmesh=None,
                sig_bg=0.001, n_cores=72, p_fwd=1, symlog_threshold=0,
                make_plots=True, saem_data=None, invmod=None,
-               lam=1., lamFactor=0.8, maxIter=21, robustData=False,
+               lam=1., lambdaFactor=1., maxIter=21, robustData=False,
                blockyModel=False, start_iter=0, **kwargs):
 
         """Run inversion
@@ -787,7 +787,7 @@ class CSEMSurvey():
             Specify name for inversion run
         lam : float
             Regularization strength
-        lamFactor : float
+        lambdaFactor : float
             Factor for decreasing lambda in each iteration
         maxIter : int
             Maximum iteration number
@@ -833,7 +833,7 @@ class CSEMSurvey():
         # run inversion
         kwargs.setdefault('startModel', fop.sig_0)
         invmodel = inv.run(fop.measured, relativeError=fop.errors, verbose=True, lam=lam,
-                           lamFactor=lamFactor, maxIter=maxIter,
+                           lambdaFactor=lambdaFactor, maxIter=maxIter,
                            robustData=robustData, blockModel=blockyModel,
                            **kwargs)
         # post-processing
