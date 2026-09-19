@@ -390,7 +390,7 @@ class EMData:
         if nInd is None:
             if polygon is not None:
                 if isinstance(polygon, str):
-                    polygon = readCoordsFromKML(polygon).T
+                    polygon = readCoordsFromKML(polygon, zone=self.zone).T
 
                 rx = self.rx + self.origin[0]
                 ry = self.ry + self.origin[1]
@@ -422,7 +422,7 @@ class EMData:
                     if dist >= minRxDist:
                         nInd.append(i)
 
-                self.radius = np.maximum(self.radius, minRxDist)
+                self.radius = np.maximum(self.radius, minRxDist/2)
             if rInd is not None:
                 nInd = np.delete(np.arange(len(self.rx)), rInd)
 
@@ -525,7 +525,7 @@ class EMData:
                         self.PRIM[ci, fi, nInd] = np.nan + 1j * np.nan
             if hasattr(self, 'MODELS'):
                 self.MODELS = self.MODELS[nInd, :]
-                
+
     def skinDepths(self, rho=30):
         """Compute skin depth based on a medium resistivity."""
         return np.sqrt(rho/self.f) * 500
