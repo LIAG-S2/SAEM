@@ -738,7 +738,7 @@ class CSEMSurvey():
         txs = [mu.refine_path(tx, length=tx_refine) for tx in self.DDict['tx']]
         M.build_surface(insert_line_tx=txs)
         invmeshkw = dict(x_frame=frame, y_frame=frame, z_frame=frame)
-        
+
         M.add_inv_domains(-depth, invpoly, cell_size=inv_cz, **invmeshkw)
         M.build_halfspace_mesh()
 

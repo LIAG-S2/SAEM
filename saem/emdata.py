@@ -1122,7 +1122,7 @@ class EMData:
             raise SystemExit
         return(nn[si], x)
 
-    def getData(self, line=None, **kwargs):
+    def getData(self, line=None, zeroAlt=False, **kwargs):
         """Save data in numpy format for 2D/3D inversion."""
         cmp = kwargs.setdefault("cmp", self.cmp)
         if np.shape(self.ERR) != np.shape(self.DATA):
@@ -1135,7 +1135,7 @@ class EMData:
 
         ypos = np.round((self.ry[nn])*10)/10  # get to straight line
         rxpos = np.round(np.column_stack((self.rx[nn], ypos,
-                                          self.rz[nn]-self.txAlt))*10)/10
+                                          self.rz[nn]-self.txAlt*int(zeroAlt)))*10)/10
 
         dataR = np.zeros((1, sum(cmp), self.nF, len(nn)))
         dataI = np.zeros_like(dataR)
@@ -1456,7 +1456,8 @@ class EMData:
         mI = np.nanmean(mis.imag**2, axis=(0, 1))
         kwargs.setdefault('symlog', False)
         kwargs.setdefault('log', True)
-        return self.showField((mR+mI)/2, **kwargs)
+        mm = np.ma.masked_invalid((mR+mI)/2)
+        return self.showField(mm, **kwargs)
 
     def showMisfitStats(self, what="wmisfit", **kwargs):
         """Show misfit statistics for data components.
