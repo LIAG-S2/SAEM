@@ -10,7 +10,7 @@ from matplotlib.colors import SymLogNorm, LogNorm
 from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from pygimli.viewer.mpl.overlayimage import underlayMap, underlayBKGMap
+from pygimli.viewer.mpl.overlayimage import underlayMap, underlayBKGMap, underlayImageFile
 # import seaborn as sns
 
 
@@ -76,7 +76,9 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     colorBar : bool [True]
         draw colowbar
     clim : [float, float]
-        min/max values for colorbar
+        min/max values for colorbar OR
+    cMin/cMax : float
+            min/max values for colorbar
     log : bool [False]
         use logarithmic color scaling
     label : str
@@ -92,6 +94,8 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     radius = kwargs.pop("radius", 10.)
     label = kwargs.pop("label", False)
     symlog = kwargs.setdefault("symlog", True)
+    if "cMin" in kwargs and "cMax" in kwargs:
+        kwargs["clim"] = [kwargs["cMin"], kwargs["cMax"]]
 
     assert len(x) == len(y) == len(w), "Vector lengths have to match!"
     if ax is None:
@@ -136,7 +140,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         pc.set_array(np.abs(w))
         ax.plot(x[w < 0], y[w < 0], 'k_', markersize=1.)
-    # add id numbers 
+    # add id numbers
     # for i in range(len(x)):
     #     ax.text(x[i], y[i], str(i))
 
@@ -165,6 +169,8 @@ def underlayBackground(ax, background="BKG", utm=32):
     if background in ["DOP", "DTK", "MAP"]:
         underlayBKGMap(ax, mode=background, utmzone=utm,
                        uuid='8102b4d5-7fdb-a6a0-d710-890a1caab5c3')
+    elif background.endswith(".png"):
+        underlayImageFile(ax, background)
     else:
         underlayMap(ax, utm, vendor=background)
 
@@ -220,5 +226,5 @@ def makeSubTitles(ax, ncmp, cstr, ci, what):
                 ri + cstr[ci][0] + '_' + cstr[ci][1] + '^p' + '/' +
                 cstr[ci][0] + '_' + cstr[ci][1] + '^s' + '$)')
         else:
-            ax[i, ncmp].set_title(ri + cstr[ci][0] + '_{' + 
+            ax[i, ncmp].set_title(ri + cstr[ci][0] + '_{' +
                                   cstr[ci][1:] + '}$)')

@@ -95,7 +95,8 @@ class CSEMData(EMData):
         sdata = f"CSEM data with {len(self.rx):d} stations " + \
                 f"and {len(self.f):d} frequencies"
         txlen = np.sum(np.sqrt(np.diff(self.tx)**2+np.diff(self.ty)**2))
-        stx = f"Transmitter length {txlen:.0f}m"
+        dt = np.sqrt(np.diff(self.tx)**2+np.diff(self.ty)**2)
+        stx = f"Transmitter length {txlen:.0f}m, min/max(dt)={min(dt):.1f}/{max(dt):.1f}"
         dx = np.sqrt(np.diff(self.rx)**2+np.diff(self.ry)**2)
         smrx = f"Median Rx distance {np.median(dx):.1f}m"
         spos = "Sounding pos at " + (3*"{:1f},").format(*self.cfg["rec"][:3])

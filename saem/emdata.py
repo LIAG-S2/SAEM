@@ -103,6 +103,19 @@ class EMData:
         """Dummy tx Distance (to be overwritten in CSEM)."""
         return np.zeros(self.nRx)
 
+    def rxDistances(self, usez=True, diagval=100):
+        """Compute matrix of receiver distances."""
+        nrx = len(self.rx)
+        RD = np.zeros([nrx, nrx])
+        for i in range(nrx):
+            rd = np.sqrt((self.rx-self.rx[i])**2+
+                         (self.ry-self.ry[i])**2+
+                         (self.rz-self.rz[i])**2*float(usez))
+            rd[i] = diagval
+            RD[:, i] = rd
+
+        return RD
+
     def getIndices(self):
         """Return indices of finite data into full matrix."""
         ff = np.array([], dtype=bool)
@@ -1456,6 +1469,10 @@ class EMData:
         mI = np.nanmean(mis.imag**2, axis=(0, 1))
         kwargs.setdefault('symlog', False)
         kwargs.setdefault('log', True)
+        kwargs.setdefault('cMin', .1)
+        kwargs.setdefault('cMax', 10)
+        kwargs.setdefault('alim', [kwargs["cMin"], kwargs["cMax"]])
+        kwargs.setdefault('logScale', True)
         mm = np.ma.masked_invalid((mR+mI)/2)
         return self.showField(mm, **kwargs)
 
