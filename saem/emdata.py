@@ -348,6 +348,15 @@ class EMData:
         """Remove data not belonging to a specific line."""
         self.filter(nInd=np.nonzero(self.line)[0])
 
+    def checkTimeshift(self, dt, **kwargs):
+        """Check (not apply) time shift by plotting shifted response."""
+        self.RESP = self.DATA * np.exp(1j*2*np.pi*np.reshape(self.f, [1, -1, 1])*dt)
+        return self.showData(what="response", **kwargs);
+
+    def applyTimeshift(self, dt):
+        """Apply time shift."""
+        self.DATA *= np.exp(1j*2*np.pi*np.reshape(self.f, [1, -1, 1])*dt)
+
     def filter(self, f=-1, fmin=0, fmax=1e6, fInd=None, nInd=None, rInd=None,
                minTxDist=None, maxTxDist=None, every=None, line=None,
                polygon=None, minRxDist=None):
@@ -1321,26 +1330,14 @@ class EMData:
         freq : iterable|int [0:nF]
             frequency number(s) to which it is applied
         """
-        if np.shape(self.DATA) != np.shape(self.ERR):
-            self.ERR = np.zeros_like(self.DATA)
         absError = kwargs.pop("absError", self.llthres)
         relError = kwargs.pop("relError", 0.05)
         cmp = kwargs.pop("cmp", slice(0, 3))
         freq = kwargs.pop("freq", slice(0, self.nF))
-        if self.ERR is None:  # never initialized (e.g. after simulate)
+        if self.ERR is None or np.shape(self.DATA) != np.shape(self.ERR):
             self.ERR = np.zeros_like(self.DATA, dtype=complex)
 
-        if ri is None:
-            aErr = np.zeros_like(self.DATA, dtype=complex)
-            aErr.real = absError
-            aErr.imag = absError
-            rErr = np.abs(self.DATA.real) * relError + \
-                np.abs(self.DATA.imag) * relError * 1j
-
-            if ignoreErr:
-                self.ERR[cmp, freq, :] = 0 + 0j
-
-        elif ri == "real":
+        if ri == "real":
             aErr = np.zeros_like(self.DATA, dtype=complex)
             aErr.real = absError
             rErr = np.abs(self.DATA.real) * relError + \
@@ -1359,6 +1356,16 @@ class EMData:
             if ignoreErr:
                 self.ERR[cmp, freq, :].imag = np.zeros(
                     self.ERR[cmp, freq, :].real.shape)
+        else:
+            aErr = np.zeros_like(self.DATA, dtype=complex)
+            aErr.real = absError
+            aErr.imag = absError
+            rErr = np.abs(self.DATA.real) * relError + \
+                np.abs(self.DATA.imag) * relError * 1j
+
+            if ignoreErr:
+                self.ERR[cmp, freq, :] = 0 + 0j
+
 
         # decide upon adding or maximizing errors
         if useMax:
