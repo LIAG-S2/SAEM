@@ -339,6 +339,43 @@ class CSEMData(EMData):
         self.alt = self.rz - self.txAlt
         return True
 
+    def checkTransmitterOverflights(self):
+        """Try resolving time shifts from Tx overflights."""
+        self.RESP = self.DATA
+        txdist = self.txDistance()
+        lines, dts, nums = [], [], []
+        ic = 2
+        for l in np.unique(self.line):
+            nl = np.nonzero(self.line == l)[0]
+            ll = np.ones(len(self.rx)) * 1000
+            ll[nl] = txdist[nl]
+            nr = np.argmin(ll)
+            if txdist[nr] < self.radius*1.5: # overflight
+                print(f"line {l}: min(dist)={txdist[nr]:1f}")
+                data = self.DATA[:, :, nr]
+                dataz = data[ic, :]
+                dtvec = np.arange(-50, 50)*1e-6
+                znorm = np.zeros_like(dtvec)
+                for i, dt in enumerate(dtvec):
+                    respz = data * np.exp(1j*2*np.pi*dt*self.f)   # np.reshape(self.f, [1, -1])*dt)
+                    znorm[i] = np.linalg.norm((dataz.imag-respz.imag)[-5:])
+
+                nums.append(nr)
+                lines.append(l)
+                dts.append(dtvec[np.argmin(znorm)])
+
+        _, ax = plt.subplots(ncols=2)
+        self.showField("line", ax=ax[0], orientation="horizontal", colorBar=False)
+        for i, num in enumerate(nums):
+            ax[0].text(self.rx[num], self.ry[num], f"{dts[i]*1e6:.0f}")
+
+        ax[1].plot(lines, np.array(dts)*1e6, "*")
+        ax[1].set_xlabel("line number")
+        ax[1].set_ylabel("time shift (µs)")
+        ax[1].yaxis.set_label_position("right")
+        ax[1].grid()
+        return ax
+
     def createConfig(self, fullTx=False, loop=False):
         """Create EMPYMOD input argument configuration."""
         self.cfg = {'rec': [self.rx[0], self.ry[0], self.rz[0]-self.txAlt, 0, 90],

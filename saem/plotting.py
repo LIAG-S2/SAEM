@@ -154,9 +154,10 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
 
     cb = None
     if kwargs.get("colorBar", True):
+        ori = kwargs.pop("orientation", "vertical")
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
-        cb = plt.colorbar(pc, cax=cax)
+        cb = plt.colorbar(pc, cax=cax, orientation=ori)
 
         if label:
             cb.set_label(label)
