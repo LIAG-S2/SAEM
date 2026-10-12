@@ -871,11 +871,13 @@ class EMData:
         ytl = [f"{self.f[yy]:.0f}" for yy in yt]
         for aa in ax[:, 0]:
             aa.set_yticks(yt)
-            aa.set_yticklabels(ytl)
+            aa.set_yticklabels(ytl,)
             aa.set_ylabel("f (Hz)")
 
         for a in ax.flat:
             a.set_aspect('auto')
+            a.tick_params(axis='x', labelrotation=20)
+
 
         name = kwargs.pop("name", self.basename)
         if "what" in kwargs:
@@ -986,7 +988,7 @@ class EMData:
             if xtl[0] > xtl[-1]:
                 aa.set_xlim([xt[1], xt[0]])
             aa.set_xticks(xt)
-            aa.set_xticklabels(xtl)
+            aa.set_xticklabels(xtl, rotation=20)
             aa.set_xlabel(kwargs['axis'] + ' (m)')
 
         for a in ax.flat:

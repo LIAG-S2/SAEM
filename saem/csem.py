@@ -472,7 +472,7 @@ class CSEMData(EMData):
             ang += np.pi / 2
             A = np.array([[np.cos(ang), np.sin(ang)],
                           [-np.sin(ang), np.cos(ang)]])
-            rx, ry = A.dot(np.array([self.rx-np.mean(self.tx),
+            rx, _ = A.dot(np.array([self.rx-np.mean(self.tx),
                                      self.ry-np.mean(self.ty)]))
             return np.abs(rx)
 
@@ -522,7 +522,7 @@ class CSEMData(EMData):
             self.response1d = self.inv1d.response.array()
 
         if show:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
             drawModel1D(ax, np.diff(self.depth), self.model, color="blue",
                         plot='semilogx', label="inverted")
             ax = self.showSounding(amphi=False,
@@ -575,7 +575,7 @@ class CSEMData(EMData):
             fig, ax = plt.subplots()
             for i in range(self.allModels.shape[1]):
                 self.showField(self.allModels[:, i], ax=ax, **kwargs)
-                ax.set_title('z = {:.1f}'.format(dep[i]))
+                ax.set_title(f'z = {dep[i]:.1f}')
                 fig.savefig(pdf, format='pdf')  # , bbox_inches="tight")
                 ax.cla()
 

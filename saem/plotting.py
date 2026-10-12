@@ -152,6 +152,7 @@ def plotSymbols(x, y, w, ax=None, mode=None, **kwargs):
     else:
         pc.set_clim([alim[0], alim[1]])
 
+    ax.tick_params(axis='x', labelrotation=20)
     cb = None
     if kwargs.get("colorBar", True):
         ori = kwargs.pop("orientation", "vertical")
